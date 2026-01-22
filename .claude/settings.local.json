@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Skill(tasks-generator)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(./venv/Scripts/pip install:*)",
+      "Bash(npm create:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(docker compose:*)"
     ]
   }
 }
