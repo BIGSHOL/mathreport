@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(tasks-generator)",
+      "Bash(python3:*)"
+    ]
+  }
+}
