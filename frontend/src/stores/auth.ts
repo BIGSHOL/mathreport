@@ -34,8 +34,8 @@ export const useAuthStore = create<AuthStore>()(
           const response = await authService.login(data);
           set({ token: response.access_token });
           await get().fetchUser();
-        } catch (error: any) {
-          const message = error.response?.data?.detail || 'Login failed';
+        } catch (error: unknown) {
+          const message = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Login failed';
           set({ error: message });
           throw error;
         } finally {
@@ -49,8 +49,8 @@ export const useAuthStore = create<AuthStore>()(
           await authService.register(data);
           // Auto-login after registration
           await get().login({ email: data.email, password: data.password });
-        } catch (error: any) {
-          const message = error.response?.data?.detail || 'Registration failed';
+        } catch (error: unknown) {
+          const message = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Registration failed';
           set({ error: message });
           throw error;
         } finally {
@@ -78,7 +78,7 @@ export const useAuthStore = create<AuthStore>()(
         try {
           const user = await authService.getCurrentUser();
           set({ user });
-        } catch (error) {
+        } catch {
           set({ user: null, token: null });
           authService.removeToken();
         } finally {

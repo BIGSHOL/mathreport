@@ -1,9 +1,8 @@
 """Exam service for business logic."""
-from typing import Optional
-from uuid import UUID
-from sqlalchemy import select, func
+
+from fastapi import HTTPException, UploadFile, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import UploadFile, HTTPException, status
 
 from app.models.exam import Exam, FileTypeEnum
 from app.schemas.exam import ExamCreateRequest, ExamStatus
@@ -89,7 +88,7 @@ class ExamService:
                     "message": str(e),
                     "details": [{"field": "file", "reason": str(e)}]
                 }
-            )
+            ) from e
 
         # Create exam record
         exam = Exam(
@@ -109,7 +108,7 @@ class ExamService:
 
         return exam
 
-    async def get_exam(self, exam_id: str, user_id: str) -> Optional[Exam]:
+    async def get_exam(self, exam_id: str, user_id: str) -> Exam | None:
         """Get exam by ID.
 
         Args:
@@ -132,7 +131,7 @@ class ExamService:
         user_id: str,
         page: int = 1,
         page_size: int = 20,
-        status_filter: Optional[ExamStatus] = None
+        status_filter: ExamStatus | None = None
     ) -> tuple[list[Exam], int]:
         """Get paginated list of exams.
 

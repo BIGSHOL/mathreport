@@ -5,8 +5,9 @@
 export interface User {
   id: string;
   email: string;
-  name: string | null;
-  is_active: boolean;
+  nickname: string;
+  role: 'user' | 'admin';
+  is_active?: boolean;
   created_at: string;
 }
 
@@ -18,7 +19,7 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string;
   password: string;
-  name?: string;
+  nickname: string;
 }
 
 export interface AuthResponse {

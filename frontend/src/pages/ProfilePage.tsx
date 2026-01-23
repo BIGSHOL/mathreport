@@ -16,7 +16,7 @@ export function ProfilePage() {
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const [formData, setFormData] = useState({
-    name: '',
+    nickname: '',
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -27,7 +27,7 @@ export function ProfilePage() {
 
   useEffect(() => {
     if (user) {
-      setFormData({ name: user.name || '' });
+      setFormData({ nickname: user.nickname || '' });
     }
   }, [user]);
 
@@ -37,12 +37,14 @@ export function ProfilePage() {
     setMessage({ type: '', text: '' });
 
     try {
-      await authService.updateProfile({ name: formData.name });
+      await authService.updateProfile({ nickname: formData.nickname });
       await fetchUser();
       setIsEditing(false);
       setMessage({ type: 'success', text: 'Profile updated successfully' });
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to update profile' });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message :
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to update profile';
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -71,8 +73,10 @@ export function ProfilePage() {
       setIsChangingPassword(false);
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setMessage({ type: 'success', text: 'Password changed successfully' });
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to change password' });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message :
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to change password';
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -92,8 +96,10 @@ export function ProfilePage() {
     try {
       await authService.deleteAccount();
       navigate('/login');
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.response?.data?.detail || 'Failed to delete account' });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message :
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to delete account';
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -114,9 +120,8 @@ export function ProfilePage() {
 
         {message.text && (
           <div
-            className={`mb-6 rounded-md p-4 ${
-              message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-            }`}
+            className={`mb-6 rounded-md p-4 ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+              }`}
           >
             {message.text}
           </div>
@@ -128,15 +133,16 @@ export function ProfilePage() {
 
           {isEditing ? (
             <form onSubmit={handleUpdateProfile} className="space-y-4">
+
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                  Name
+                <label htmlFor="nickname" className="block text-sm font-medium text-gray-700">
+                  Nickname
                 </label>
                 <input
-                  id="name"
+                  id="nickname"
                   type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ name: e.target.value })}
+                  value={formData.nickname}
+                  onChange={(e) => setFormData({ nickname: e.target.value })}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
@@ -164,8 +170,8 @@ export function ProfilePage() {
                 <p className="mt-1 text-gray-900">{user.email}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500">Name</label>
-                <p className="mt-1 text-gray-900">{user.name || '-'}</p>
+                <label className="block text-sm font-medium text-gray-500">Nickname</label>
+                <p className="mt-1 text-gray-900">{user.nickname || '-'}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-500">Member since</label>

@@ -19,5 +19,16 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
+  },
+  // Test files - relaxed rules for RED state TDD tests
+  {
+    files: ['**/*.test.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}', '**/mocks/**/*.{ts,tsx}', '**/test/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
   },
 ])

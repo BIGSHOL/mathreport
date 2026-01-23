@@ -1,11 +1,13 @@
 """Exam model for storing exam metadata."""
-from datetime import datetime
-from typing import Optional
-from sqlalchemy import String, DateTime, Enum as SQLEnum, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column
-from app.db.base import Base
-import uuid
 import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
 
 
 class ExamStatusEnum(str, enum.Enum):
@@ -33,9 +35,9 @@ class Exam(Base):
         String(36), ForeignKey("users.id"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
-    grade: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    grade: Mapped[str | None] = mapped_column(String(20), nullable=True)
     subject: Mapped[str] = mapped_column(String(50), nullable=False, default="수학")
-    unit: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(100), nullable=True)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_type: Mapped[str] = mapped_column(
         SQLEnum(FileTypeEnum, native_enum=False, length=10),

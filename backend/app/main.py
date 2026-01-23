@@ -1,7 +1,8 @@
 """FastAPI application with authentication."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import auth, users, exam
+
+from app.api.v1 import auth, exam, users
 
 app = FastAPI(title="API", version="0.1.0")
 

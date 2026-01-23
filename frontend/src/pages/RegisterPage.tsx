@@ -13,7 +13,7 @@ export function RegisterPage() {
     email: '',
     password: '',
     confirmPassword: '',
-    name: '',
+    nickname: '',
   });
 
   const [validationError, setValidationError] = useState('');
@@ -37,7 +37,7 @@ export function RegisterPage() {
       await register({
         email: formData.email,
         password: formData.password,
-        name: formData.name || undefined,
+        nickname: formData.nickname,
       });
       navigate('/', { replace: true });
     } catch {
@@ -78,18 +78,19 @@ export function RegisterPage() {
 
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Name (optional)
+              <label htmlFor="nickname" className="block text-sm font-medium text-gray-700">
+                Nickname
               </label>
               <input
-                id="name"
-                name="name"
+                id="nickname"
+                name="nickname"
                 type="text"
-                autoComplete="name"
-                value={formData.name}
+                autoComplete="nickname"
+                required
+                value={formData.nickname}
                 onChange={handleChange}
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Your name"
+                placeholder="Your nickname"
               />
             </div>
 

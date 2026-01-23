@@ -8,12 +8,10 @@ FEAT-1: 문항별 분석
 """
 
 from datetime import datetime
-from typing import Optional
-from uuid import UUID
 from enum import Enum
+from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
-
+from pydantic import BaseModel, ConfigDict, Field
 
 # ============================================
 # Enums
@@ -69,9 +67,9 @@ class QuestionAnalysis(BaseModel):
     question_number: int = Field(ge=1, description="문항 번호")
     difficulty: QuestionDifficulty
     question_type: QuestionType
-    points: Optional[int] = Field(None, ge=0, description="배점")
-    topic: Optional[str] = Field(None, max_length=100, description="관련 단원/토픽")
-    ai_comment: Optional[str] = Field(None, description="AI 분석 코멘트")
+    points: int | None = Field(None, ge=0, description="배점")
+    topic: str | None = Field(None, max_length=100, description="관련 단원/토픽")
+    ai_comment: str | None = Field(None, description="AI 분석 코멘트")
     created_at: datetime
 
     model_config = ConfigDict(
@@ -106,8 +104,8 @@ class TypeDistribution(BaseModel):
     geometry: int = Field(ge=0)
     application: int = Field(ge=0)
     proof: int = Field(ge=0)
-    graph: Optional[int] = Field(default=0, ge=0)
-    statistics: Optional[int] = Field(default=0, ge=0)
+    graph: int | None = Field(default=0, ge=0)
+    statistics: int | None = Field(default=0, ge=0)
 
 
 class AnalysisSummary(BaseModel):
@@ -157,7 +155,7 @@ class AnalysisMetadata(BaseModel):
     """분석 메타데이터"""
 
     cache_hit: bool = Field(description="캐시된 결과인지 여부")
-    analysis_duration: Optional[float] = Field(
+    analysis_duration: float | None = Field(
         None,
         ge=0,
         description="분석 소요 시간 (초)"
@@ -179,7 +177,7 @@ class AnalysisDetailResponse(BaseModel):
 class ErrorDetail(BaseModel):
     """에러 상세 정보"""
 
-    field: Optional[str] = None
+    field: str | None = None
     reason: str
 
 
@@ -188,7 +186,7 @@ class AnalysisErrorResponse(BaseModel):
 
     code: str = Field(description="에러 코드 (예: ANALYSIS_FAILED)")
     message: str
-    details: Optional[list[ErrorDetail]] = None
+    details: list[ErrorDetail] | None = None
 
     model_config = ConfigDict(json_schema_extra={
         "example": {

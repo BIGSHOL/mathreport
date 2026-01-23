@@ -8,12 +8,10 @@ FEAT-1: 문항별 분석
 """
 
 from datetime import datetime
-from typing import Optional
-from uuid import UUID
 from enum import Enum
+from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
-
+from pydantic import BaseModel, ConfigDict, Field
 
 # ============================================
 # Enums
@@ -50,9 +48,9 @@ class ExamCreateRequest(BaseModel):
     """
 
     title: str = Field(..., min_length=1, max_length=200, description="시험명")
-    grade: Optional[str] = Field(None, max_length=20, description="학년 (예: 중2, 고1)")
+    grade: str | None = Field(None, max_length=20, description="학년 (예: 중2, 고1)")
     subject: str = Field(default="수학", max_length=50, description="과목")
-    unit: Optional[str] = Field(None, max_length=100, description="단원")
+    unit: str | None = Field(None, max_length=100, description="단원")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -69,7 +67,7 @@ class ExamListRequest(BaseModel):
 
     page: int = Field(default=1, ge=1, description="페이지 번호")
     page_size: int = Field(default=20, ge=1, le=100, description="페이지 크기")
-    status: Optional[ExamStatus] = Field(None, description="상태 필터")
+    status: ExamStatus | None = Field(None, description="상태 필터")
 
 
 # ============================================
@@ -83,9 +81,9 @@ class ExamBase(BaseModel):
     id: UUID
     user_id: UUID
     title: str
-    grade: Optional[str] = None
+    grade: str | None = None
     subject: str
-    unit: Optional[str] = None
+    unit: str | None = None
     file_path: str
     file_type: FileType
     status: ExamStatus
@@ -110,8 +108,8 @@ class TypeDistribution(BaseModel):
     geometry: int = Field(ge=0)
     application: int = Field(ge=0)
     proof: int = Field(ge=0)
-    graph: Optional[int] = Field(default=0, ge=0)
-    statistics: Optional[int] = Field(default=0, ge=0)
+    graph: int | None = Field(default=0, ge=0)
+    statistics: int | None = Field(default=0, ge=0)
 
 
 class AnalysisSummary(BaseModel):
@@ -130,7 +128,7 @@ class AnalysisSummary(BaseModel):
 class ExamDetail(ExamBase):
     """시험지 상세 정보 (분석 결과 포함)"""
 
-    analysis: Optional[AnalysisSummary] = None
+    analysis: AnalysisSummary | None = None
 
 
 class ExamCreateResponse(BaseModel):
@@ -176,7 +174,7 @@ class ExamDeleteResponse(BaseModel):
 class ErrorDetail(BaseModel):
     """에러 상세 정보"""
 
-    field: Optional[str] = None
+    field: str | None = None
     reason: str
 
 
@@ -185,4 +183,4 @@ class ErrorResponse(BaseModel):
 
     code: str
     message: str
-    details: Optional[list[ErrorDetail]] = None
+    details: list[ErrorDetail] | None = None

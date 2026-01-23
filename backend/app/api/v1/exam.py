@@ -1,24 +1,24 @@
 """Exam API endpoints."""
 import math
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.deps import CurrentUser
 from app.db.session import get_db
 from app.schemas.exam import (
+    ExamBase,
     ExamCreateRequest,
     ExamCreateResponse,
-    ExamListResponse,
-    ExamDetailResponse,
     ExamDeleteResponse,
-    ExamBase,
     ExamDetail,
-    PaginationMeta,
+    ExamDetailResponse,
+    ExamListResponse,
     ExamStatus,
+    PaginationMeta,
 )
-from app.services.exam import ExamService, get_exam_service
-from app.core.deps import CurrentUser
-
+from app.services.exam import get_exam_service
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 

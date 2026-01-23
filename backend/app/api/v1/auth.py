@@ -6,7 +6,7 @@ FEAT-0: 인증/인가
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.security import (
     ALGORITHM,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
     create_access_token,
     create_refresh_token,
 )

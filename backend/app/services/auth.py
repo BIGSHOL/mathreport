@@ -1,9 +1,10 @@
 """Authentication service."""
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import get_password_hash, verify_password
 from app.models.user import User
 from app.schemas.auth import RegisterRequest
-from app.core.security import get_password_hash, verify_password
 
 
 async def get_user_by_email(db: AsyncSession, email: str) -> User | None:

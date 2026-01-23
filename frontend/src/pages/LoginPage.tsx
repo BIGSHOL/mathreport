@@ -15,7 +15,7 @@ export function LoginPage() {
     password: '',
   });
 
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname || '/';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

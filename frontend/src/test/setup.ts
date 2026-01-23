@@ -9,9 +9,8 @@
  * Phase 1+: MSW 서버 활성화
  */
 
-import { beforeAll, afterEach, afterAll } from 'vitest';
-
 // MSW 서버는 Phase 1에서 활성화 예정
+// import { beforeAll, afterEach, afterAll } from 'vitest';
 // import { server } from '../mocks/server';
 
 // beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
@@ -20,3 +19,4 @@ import { beforeAll, afterEach, afterAll } from 'vitest';
 
 // 현재는 기본 설정만 포함
 console.log('Vitest setup loaded (Phase 0 - RED state)');
+

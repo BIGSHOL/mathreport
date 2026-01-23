@@ -5,11 +5,11 @@ FEAT-0: 인증/인가
 계약 파일 참조: contracts/auth.contract.ts
 """
 
+import re
 from datetime import datetime
 from typing import Literal
-from pydantic import BaseModel, EmailStr, Field, field_validator
-import re
 
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 # ----- Request Schemas -----
 

@@ -1,9 +1,8 @@
 """File storage service for handling file uploads."""
 import hashlib
-import os
-from pathlib import Path
-from typing import BinaryIO
 from datetime import datetime
+from pathlib import Path
+
 from fastapi import UploadFile
 
 

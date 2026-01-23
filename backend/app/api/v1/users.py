@@ -1,10 +1,8 @@
 """User endpoints."""
-from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.session import get_db
-from app.schemas.auth import UserResponse
+from fastapi import APIRouter
+
 from app.core.deps import CurrentUser
+from app.schemas.auth import UserResponse
 
 router = APIRouter(prefix="/users", tags=["users"])
 
