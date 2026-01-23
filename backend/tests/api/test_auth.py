@@ -126,24 +126,34 @@ class TestLogin:
         When: POST /api/v1/auth/login 요청
         Then: 200 OK, access_token 및 refresh_token 반환
         """
-        raise NotImplementedError(
-            "POST /api/v1/auth/login 엔드포인트가 구현되지 않았습니다. "
-            "Phase 1 (T1.1)에서 구현 예정"
-        )
+        # Arrange: 먼저 사용자 등록
+        register_data = {
+            "email": "login_test@example.com",
+            "password": "testpass123",
+            "nickname": "테스트유저"
+        }
+        register_response = await client.post("/api/v1/auth/register", json=register_data)
+        assert register_response.status_code == 201
 
-        # Expected response:
-        # {
-        #   "access_token": "eyJhbGci...",
-        #   "refresh_token": "eyJhbGci...",
-        #   "token_type": "bearer",
-        #   "expires_in": 900,
-        #   "user": {
-        #     "id": "...",
-        #     "email": "teacher@example.com",
-        #     "nickname": "김선생님",
-        #     "role": "user"
-        #   }
-        # }
+        # Act: 로그인 시도
+        login_data = {
+            "email": "login_test@example.com",
+            "password": "testpass123"
+        }
+        response = await client.post("/api/v1/auth/login", json=login_data)
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+        assert "refresh_token" in data
+        assert data["token_type"] == "bearer"
+        assert "expires_in" in data
+        assert "user" in data
+        assert data["user"]["email"] == "login_test@example.com"
+        assert data["user"]["nickname"] == "테스트유저"
+        assert data["user"]["role"] == "user"
+        assert "id" in data["user"]
 
     @pytest.mark.asyncio
     async def test_login_wrong_password(self, client: AsyncClient):
@@ -154,10 +164,27 @@ class TestLogin:
         When: POST /api/v1/auth/login 요청
         Then: 401 Unauthorized, INVALID_CREDENTIALS 에러
         """
-        raise NotImplementedError(
-            "비밀번호 검증 로직이 구현되지 않았습니다. "
-            "Phase 1 (T1.1)에서 구현 예정"
-        )
+        # Arrange: 먼저 사용자 등록
+        register_data = {
+            "email": "wrongpw@example.com",
+            "password": "correctpass123",
+            "nickname": "패스워드테스트"
+        }
+        register_response = await client.post("/api/v1/auth/register", json=register_data)
+        assert register_response.status_code == 201
+
+        # Act: 잘못된 비밀번호로 로그인 시도
+        login_data = {
+            "email": "wrongpw@example.com",
+            "password": "wrongpass123"
+        }
+        response = await client.post("/api/v1/auth/login", json=login_data)
+
+        # Assert
+        assert response.status_code == 401
+        error_data = response.json()
+        assert "error" in error_data
+        assert error_data["error"]["code"] == "INVALID_CREDENTIALS"
 
     @pytest.mark.asyncio
     async def test_login_nonexistent_user(self, client: AsyncClient):
@@ -168,10 +195,18 @@ class TestLogin:
         When: POST /api/v1/auth/login 요청
         Then: 401 Unauthorized, INVALID_CREDENTIALS 에러
         """
-        raise NotImplementedError(
-            "사용자 존재 여부 검증 로직이 구현되지 않았습니다. "
-            "Phase 1 (T1.1)에서 구현 예정"
-        )
+        # Act: 등록되지 않은 이메일로 로그인 시도
+        login_data = {
+            "email": "nonexistent@example.com",
+            "password": "anypassword123"
+        }
+        response = await client.post("/api/v1/auth/login", json=login_data)
+
+        # Assert
+        assert response.status_code == 401
+        error_data = response.json()
+        assert "error" in error_data
+        assert error_data["error"]["code"] == "INVALID_CREDENTIALS"
 
 
 class TestRefreshToken:
@@ -186,17 +221,31 @@ class TestRefreshToken:
         When: POST /api/v1/auth/refresh 요청
         Then: 200 OK, 새로운 access_token 반환
         """
-        raise NotImplementedError(
-            "POST /api/v1/auth/refresh 엔드포인트가 구현되지 않았습니다. "
-            "Phase 1 (T1.1)에서 구현 예정"
-        )
+        # Arrange: 사용자 등록 및 로그인으로 refresh_token 획득
+        register_data = {
+            "email": "refresh@example.com",
+            "password": "refreshtest123",
+            "nickname": "리프레시테스트"
+        }
+        await client.post("/api/v1/auth/register", json=register_data)
 
-        # Expected response:
-        # {
-        #   "access_token": "new_access_token...",
-        #   "token_type": "bearer",
-        #   "expires_in": 900
-        # }
+        login_response = await client.post("/api/v1/auth/login", json={
+            "email": "refresh@example.com",
+            "password": "refreshtest123"
+        })
+        refresh_token = login_response.json()["refresh_token"]
+
+        # Act: Refresh token으로 새 access token 요청
+        response = await client.post("/api/v1/auth/refresh", json={
+            "refresh_token": refresh_token
+        })
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+        assert "expires_in" in data
 
     @pytest.mark.asyncio
     async def test_refresh_token_invalid(self, client: AsyncClient):
@@ -207,10 +256,16 @@ class TestRefreshToken:
         When: POST /api/v1/auth/refresh 요청
         Then: 401 Unauthorized, INVALID_TOKEN 에러
         """
-        raise NotImplementedError(
-            "JWT 토큰 검증 로직이 구현되지 않았습니다. "
-            "Phase 1 (T1.1)에서 구현 예정"
-        )
+        # Act: 조작된 refresh token으로 요청
+        response = await client.post("/api/v1/auth/refresh", json={
+            "refresh_token": "invalid.token.here"
+        })
+
+        # Assert
+        assert response.status_code == 401
+        error_data = response.json()
+        assert "error" in error_data
+        assert error_data["error"]["code"] == "INVALID_TOKEN"
 
 
 class TestGetCurrentUser:
@@ -225,20 +280,35 @@ class TestGetCurrentUser:
         When: GET /api/v1/users/me 요청 (Authorization: Bearer {token})
         Then: 200 OK, 사용자 정보 반환
         """
-        raise NotImplementedError(
-            "GET /api/v1/users/me 엔드포인트가 구현되지 않았습니다. "
-            "Phase 1 (T1.1)에서 구현 예정"
+        # Arrange: 사용자 등록 및 로그인으로 access_token 획득
+        register_data = {
+            "email": "currentuser@example.com",
+            "password": "currentuser123",
+            "nickname": "현재유저"
+        }
+        await client.post("/api/v1/auth/register", json=register_data)
+
+        login_response = await client.post("/api/v1/auth/login", json={
+            "email": "currentuser@example.com",
+            "password": "currentuser123"
+        })
+        access_token = login_response.json()["access_token"]
+
+        # Act: Authorization 헤더와 함께 사용자 정보 요청
+        response = await client.get(
+            "/api/v1/users/me",
+            headers={"Authorization": f"Bearer {access_token}"}
         )
 
-        # Expected response:
-        # {
-        #   "id": "...",
-        #   "email": "teacher@example.com",
-        #   "nickname": "김선생님",
-        #   "role": "user",
-        #   "created_at": "2024-01-23T10:00:00Z",
-        #   "updated_at": "2024-01-23T10:00:00Z"
-        # }
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["email"] == "currentuser@example.com"
+        assert data["nickname"] == "현재유저"
+        assert data["role"] == "user"
+        assert "id" in data
+        assert "created_at" in data
+        assert "updated_at" in data
 
     @pytest.mark.asyncio
     async def test_get_current_user_unauthorized(self, client: AsyncClient):
@@ -249,7 +319,8 @@ class TestGetCurrentUser:
         When: GET /api/v1/users/me 요청
         Then: 401 Unauthorized
         """
-        raise NotImplementedError(
-            "인증 미들웨어가 구현되지 않았습니다. "
-            "Phase 1 (T1.1)에서 구현 예정"
-        )
+        # Act: Authorization 헤더 없이 요청
+        response = await client.get("/api/v1/users/me")
+
+        # Assert
+        assert response.status_code == 401
