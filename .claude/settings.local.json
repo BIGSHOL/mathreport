@@ -6,7 +6,17 @@
       "Bash(./venv/Scripts/pip install:*)",
       "Bash(npm create:*)",
       "Bash(npx tailwindcss:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(git worktree:*)",
+      "Bash(git branch:*)",
+      "Bash(git merge:*)",
+      "Bash(alembic revision:*)",
+      "Bash(poetry run alembic revision:*)",
+      "Bash(git stash:*)",
+      "Bash(python -m alembic:*)",
+      "Bash(timeout 30 tail:*)",
+      "Bash(npm run test:*)"
     ]
   }
 }

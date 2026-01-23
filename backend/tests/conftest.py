@@ -13,6 +13,7 @@ from sqlalchemy.pool import StaticPool
 
 # Import models FIRST before importing Base
 from app.models.user import User  # noqa: F401
+from app.models.exam import Exam  # noqa: F401
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app

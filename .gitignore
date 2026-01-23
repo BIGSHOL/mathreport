@@ -37,3 +37,9 @@ htmlcov/
 # Misc
 tmp/
 temp/
+
+# Worktree
+worktree/
+
+# Uploads (test files)
+backend/uploads/
