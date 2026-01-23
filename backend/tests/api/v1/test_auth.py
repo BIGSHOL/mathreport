@@ -27,15 +27,20 @@ class TestAuthAPI:
 
     async def test_login_success(self, client: AsyncClient):
         """[T0.5.3-AUTH-BE-002] 로그인 성공"""
-        # Given: 미리 생성된 유저 (fixture 필요하지만 여기서는 API 호출로 가정하거나 mock)
-        # 실제 구현에서는 pytest fixture로 유저 생성 필요
         login_data = {
             "email": "teacher@example.com",
             "password": "securepass123"
         }
+        
+        # 유저 생성 (회원가입)
+        await client.post("/api/v1/auth/register", json={
+            "email": login_data["email"],
+            "password": login_data["password"],
+            "nickname": "김선생님"
+        })
 
         # When
-        response = await client.post("/api/v1/auth/login", data=login_data)
+        response = await client.post("/api/v1/auth/login", json=login_data)
 
         # Then
         assert response.status_code == 200

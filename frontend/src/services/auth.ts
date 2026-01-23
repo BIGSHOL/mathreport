@@ -19,7 +19,7 @@ export const authService = {
    * Login and get access token.
    */
   async login(data: LoginRequest): Promise<AuthResponse> {
-    const response = await api.post<AuthResponse>('/api/v1/auth/login/json', data);
+    const response = await api.post<AuthResponse>('/api/v1/auth/login', data);
     if (response.data.access_token) {
       this.setToken(response.data.access_token);
     }

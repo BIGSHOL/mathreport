@@ -85,3 +85,34 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 
     # Clear dependency overrides
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def authorized_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    """Create a test client with authorized user."""
+    # Create user
+    from app.services.auth import create_user
+    from app.schemas.auth import RegisterRequest
+    from app.core.security import create_access_token
+    
+    user_data = RegisterRequest(
+        email="test@example.com",
+        password="password123",
+        nickname="TestUser"
+    )
+    user = await create_user(db_session, user_data)
+    
+    # Create access token
+    access_token = create_access_token(subject=user.id)
+    
+    # Override the get_db dependency
+    app.dependency_overrides[get_db] = override_get_db
+    
+    # Create async client with auth header
+    headers = {"Authorization": f"Bearer {access_token}"}
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", headers=headers) as ac:
+        yield ac
+        
+    # Clear dependency overrides
+    app.dependency_overrides.clear()
