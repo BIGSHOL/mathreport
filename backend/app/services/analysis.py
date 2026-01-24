@@ -24,7 +24,7 @@ class AnalysisService:
 
     async def request_analysis(self, exam_id: str, user_id: str, force_reanalyze: bool = False):
         """Request exam analysis.
-        
+
         MOCK Implementation:
         - 즉시 분석 결과를 생성하고 저장합니다.
         - 실제 구현에서는 Celery Task 등을 트리거하고 'analyzing' 상태만 반환해야 합니다.
@@ -34,7 +34,7 @@ class AnalysisService:
             select(Exam).where(Exam.id == exam_id, Exam.user_id == user_id)
         )
         exam = result.scalar_one_or_none()
-        
+
         if not exam:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -42,10 +42,18 @@ class AnalysisService:
             )
 
         # 2. Check if already exists (unless force_reanalyze)
-        if not force_reanalyze and exam.status == ExamStatusEnum.COMPLETED:
-            # 기존 결과 반환 로직은 별도 조회 API에서 처리하거나, 여기서 바로 리턴할 수도 있습니다.
-            # 여기서는 단순히 재분석을 진행하거나 기존 결과를 덮어씁니다.
-            pass
+        existing_result = await self.db.execute(
+            select(AnalysisResult).where(AnalysisResult.exam_id == exam_id)
+        )
+        existing = existing_result.scalar_one_or_none()
+
+        if not force_reanalyze and existing:
+            # 기존 분석 결과가 있으면 그대로 반환 (캐시 히트)
+            return {
+                "analysis_id": existing.id,
+                "status": "completed",
+                "message": "기존 분석 결과를 반환합니다."
+            }
 
         # 3. Update status to ANALYZING
         exam.status = ExamStatusEnum.ANALYZING
@@ -53,25 +61,22 @@ class AnalysisService:
 
         # 4. Generate Mock Data (Simulate AI Processing)
         mock_data = self._generate_mock_data(exam_id, user_id)
-        
+
         # 5. Save Analysis Result
-        # 먼저 기존 결과가 있으면 삭제 (Mock 편의상)
-        existing_result = await self.db.execute(
-            select(AnalysisResult).where(AnalysisResult.exam_id == exam_id)
-        )
-        existing = existing_result.scalar_one_or_none()
+        # force_reanalyze인 경우 기존 결과 삭제
         if existing:
             await self.db.delete(existing)
+            await self.db.flush()
 
         analysis_result = AnalysisResult(**mock_data)
         self.db.add(analysis_result)
 
         # 6. Update status to COMPLETED
         exam.status = ExamStatusEnum.COMPLETED
-        
+
         await self.db.commit()
         await self.db.refresh(analysis_result)
-        
+
         return {
             "analysis_id": analysis_result.id,
             "status": "completed", # Mock이라 바로 완료
