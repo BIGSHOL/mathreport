@@ -1,0 +1,48 @@
+/**
+ * SWR hooks for analysis data fetching.
+ * Implements: client-swr-dedup (automatic deduplication)
+ */
+import useSWR from 'swr';
+import useSWRMutation from 'swr/mutation';
+import { analysisService, type AnalysisResult } from '../services/analysis';
+
+/**
+ * Fetch analysis result with SWR caching.
+ * Uses immutable config since analysis results don't change.
+ */
+export function useAnalysisResult(analysisId: string | undefined) {
+  const { data, error, isLoading } = useSWR<AnalysisResult>(
+    analysisId ? `/api/v1/analysis/${analysisId}` : null,
+    () => analysisService.getResult(analysisId!),
+    {
+      // Analysis results are immutable - no need to revalidate
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      revalidateIfStale: false,
+    }
+  );
+
+  return {
+    result: data,
+    isLoading,
+    error,
+  };
+}
+
+/**
+ * Request analysis mutation hook.
+ */
+export function useRequestAnalysis() {
+  const { trigger, isMutating, error } = useSWRMutation(
+    'analysis-request',
+    async (_key: string, { arg }: { arg: { examId: string; forceReanalyze?: boolean } }) => {
+      return analysisService.requestAnalysis(arg.examId, arg.forceReanalyze);
+    }
+  );
+
+  return {
+    requestAnalysis: trigger,
+    isRequesting: isMutating,
+    error,
+  };
+}
