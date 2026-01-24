@@ -17,7 +17,24 @@
       "Bash(python -m alembic:*)",
       "Bash(timeout 30 tail:*)",
       "Bash(npm run test:*)",
-      "Bash(git remote add:*)"
+      "Bash(git remote add:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(npm run lint)",
+      "Bash(python -c:*)",
+      "Bash(pip install:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(taskkill:*)",
+      "Bash(curl:*)",
+      "Bash(dir:*)",
+      "Bash(xargs ls:*)",
+      "Bash(alembic upgrade:*)",
+      "Bash(npx tsc:*)",
+      "Bash(cmd /c \"cd /d F:\\\\math-report\\\\frontend && npx tsc --noEmit\")",
+      "Read(//c/Users/user/.claude/skills/socrates/references/**)",
+      "Bash(cmd /c \"if not exist F:\\\\math-report\\\\reports mkdir F:\\\\math-report\\\\reports\")",
+      "Bash(cmd /c \"cd /d F:\\\\math-report\\\\backend && python check_user.py st2000423@gmail.com\")",
+      "Bash(cmd /c \"cd /d F:\\\\math-report\\\\backend && python check_user.py st2000423@gmail.com 2>&1\")",
+      "Bash(python seed_patterns.py:*)"
     ]
   }
 }

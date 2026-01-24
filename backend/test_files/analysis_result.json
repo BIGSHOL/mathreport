@@ -1,0 +1,45 @@
+{
+  "summary": {
+    "difficulty_distribution": {
+      "high": 0,
+      "medium": 1,
+      "low": 2
+    },
+    "type_distribution": {
+      "calculation": 2,
+      "geometry": 1,
+      "application": 0,
+      "proof": 0,
+      "graph": 0,
+      "statistics": 0
+    },
+    "average_difficulty": "low",
+    "dominant_type": "calculation"
+  },
+  "questions": [
+    {
+      "question_number": 1,
+      "difficulty": "low",
+      "question_type": "calculation",
+      "points": 5,
+      "topic": "일차 방정식 풀이",
+      "ai_comment": "주어진 일차 방정식을 풀어 미지수 x의 값을 찾는 문제입니다. 대수학의 가장 기본적인 연산 능력을 평가합니다."
+    },
+    {
+      "question_number": 2,
+      "difficulty": "low",
+      "question_type": "geometry",
+      "points": 10,
+      "topic": "삼각형의 넓이 계산",
+      "ai_comment": "주어진 밑변과 높이를 이용하여 삼각형의 넓이를 계산하는 문제입니다. 기하학의 기본적인 넓이 공식을 알고 있는지 확인합니다."
+    },
+    {
+      "question_number": 3,
+      "difficulty": "medium",
+      "question_type": "calculation",
+      "points": 10,
+      "topic": "이차 방정식 풀이",
+      "ai_comment": "주어진 이차 방정식을 푸는 문제입니다. 인수분해 또는 근의 공식을 사용하여 해를 찾는 능력을 평가하며, 대수학에서 중요한 개념입니다."
+    }
+  ]
+}
