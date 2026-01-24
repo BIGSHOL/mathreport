@@ -7,13 +7,15 @@
  * - rerender-functional-setstate: Functional setState in callbacks
  * - rendering-conditional-render: Explicit ternary operators
  */
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useExams, useUploadExam, useDeleteExam, useOptimisticExamUpdate } from '../hooks/useExams';
 import { useRequestAnalysis } from '../hooks/useAnalysis';
 import { UploadForm } from '../components/exam/UploadForm';
 import { ExamListItem } from '../components/exam/ExamListItem';
+import { UpgradeModal } from '../components/UpgradeModal';
 import { analysisService } from '../services/analysis';
+import type { ExamType } from '../services/exam';
 
 // Hoisted static element (rendering-hoist-jsx)
 const emptyState = (
@@ -24,6 +26,7 @@ const loadingState = <div className="p-8">로딩 중...</div>;
 
 export function ExamDashboardPage() {
   const navigate = useNavigate();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // SWR hooks for data fetching (client-swr-dedup)
   const { exams, isLoading, mutate } = useExams();
@@ -34,11 +37,12 @@ export function ExamDashboardPage() {
 
   // Stable callback using useCallback (rerender-functional-setstate)
   const handleUpload = useCallback(
-    async (data: { file: File; title: string }) => {
+    async (data: { files: File[]; title: string; examType: ExamType }) => {
       await upload({
-        file: data.file,
+        files: data.files,
         title: data.title,
         subject: '수학',
+        examType: data.examType,
       });
       // Revalidate the exam list
       mutate();
@@ -68,8 +72,14 @@ export function ExamDashboardPage() {
       try {
         const result = await requestAnalysis({ examId });
         navigate(`/analysis/${result.analysis_id}`);
-      } catch {
-        alert('분석 요청 실패');
+      } catch (error: unknown) {
+        const status = (error as { response?: { status?: number } })?.response?.status;
+        if (status === 402) {
+          // 사용량 한도 초과
+          setShowUpgradeModal(true);
+        } else {
+          alert('분석 요청 실패');
+        }
         revalidate(); // Revert on error
       }
     },
@@ -123,6 +133,13 @@ export function ExamDashboardPage() {
           )}
         </ul>
       </div>
+
+      {/* 업그레이드 모달 */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        type="analysis"
+      />
     </div>
   );
 }

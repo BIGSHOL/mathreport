@@ -3,11 +3,14 @@ import math
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser
 from app.db.session import get_db
+from app.models.analysis import AnalysisResult
 from app.schemas.exam import (
+    AnalysisBrief,
     ExamBase,
     ExamCreateRequest,
     ExamCreateResponse,
@@ -16,6 +19,8 @@ from app.schemas.exam import (
     ExamDetailResponse,
     ExamListResponse,
     ExamStatus,
+    ExamType,
+    ExamWithBrief,
     PaginationMeta,
 )
 from app.services.exam import get_exam_service
@@ -34,17 +39,19 @@ async def upload_exam(
     subject: Annotated[str, Form()] = "수학",
     grade: Annotated[str | None, Form()] = None,
     unit: Annotated[str | None, Form()] = None,
-    file: UploadFile = File(...),
+    exam_type: Annotated[str, Form()] = "blank",
+    files: list[UploadFile] = File(...),
     current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
 ) -> ExamCreateResponse:
     """시험지 파일을 업로드합니다.
 
-    - **file**: 이미지(JPG, PNG) 또는 PDF 파일 (최대 10MB)
+    - **files**: 이미지(JPG, PNG) 여러 장 또는 PDF 파일 1개 (최대 10MB)
     - **title**: 시험명 (필수)
     - **subject**: 과목 (기본값: 수학)
     - **grade**: 학년 (선택)
     - **unit**: 단원 (선택)
+    - **exam_type**: 시험지 유형 (blank: 빈 시험지 1크레딧, student: 학생 답안지 2크레딧)
 
     Returns:
         업로드된 시험지 정보
@@ -54,7 +61,8 @@ async def upload_exam(
         title=title,
         subject=subject,
         grade=grade,
-        unit=unit
+        unit=unit,
+        exam_type=ExamType(exam_type)
     )
 
     # Create exam
@@ -62,7 +70,7 @@ async def upload_exam(
     exam = await exam_service.create_exam(
         user_id=current_user.id,
         request=request,
-        file=file
+        files=files
     )
 
     # Convert to response
@@ -112,8 +120,46 @@ async def get_exams(
         status_filter=status
     )
 
-    # Convert to response
-    exam_list = [ExamBase.model_validate(exam) for exam in exams]
+    # Get analysis briefs for completed exams
+    completed_exam_ids = [str(e.id) for e in exams if e.status == "completed"]
+    analysis_map: dict[str, AnalysisBrief] = {}
+
+    if completed_exam_ids:
+        result = await db.execute(
+            select(AnalysisResult).where(AnalysisResult.exam_id.in_(completed_exam_ids))
+        )
+        analyses = result.scalars().all()
+
+        for analysis in analyses:
+            questions = analysis.questions or []
+            total_questions = len(questions)
+            total_points = sum(q.get("points", 0) or 0 for q in questions)
+
+            # Calculate confidence
+            confidences = [q.get("confidence") for q in questions if q.get("confidence") is not None]
+            avg_confidence = sum(confidences) / len(confidences) if confidences else None
+
+            # Calculate difficulty distribution
+            diff_high = sum(1 for q in questions if q.get("difficulty") == "high")
+            diff_medium = sum(1 for q in questions if q.get("difficulty") == "medium")
+            diff_low = sum(1 for q in questions if q.get("difficulty") == "low")
+
+            analysis_map[str(analysis.exam_id)] = AnalysisBrief(
+                total_questions=total_questions,
+                total_points=total_points,
+                avg_confidence=avg_confidence,
+                difficulty_high=diff_high,
+                difficulty_medium=diff_medium,
+                difficulty_low=diff_low,
+            )
+
+    # Convert to response with briefs
+    exam_list = []
+    for exam in exams:
+        exam_with_brief = ExamWithBrief.model_validate(exam)
+        exam_with_brief.analysis_brief = analysis_map.get(str(exam.id))
+        exam_list.append(exam_with_brief)
+
     total_pages = math.ceil(total / page_size) if total > 0 else 0
 
     return ExamListResponse(

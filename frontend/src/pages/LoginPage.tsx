@@ -55,6 +55,18 @@ export function LoginPage() {
           {error && (
             <div className="rounded-md bg-red-50 p-4">
               <p className="text-sm text-red-700">{error}</p>
+              {error.includes('가입된 계정이 없습니다') && (
+                <p className="mt-2 text-sm">
+                  <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
+                    지금 회원가입하기 →
+                  </Link>
+                </p>
+              )}
+              {error.includes('비밀번호') && (
+                <p className="mt-2 text-sm text-gray-600">
+                  비밀번호를 잊으셨나요? 관리자에게 문의해주세요.
+                </p>
+              )}
             </div>
           )}
 

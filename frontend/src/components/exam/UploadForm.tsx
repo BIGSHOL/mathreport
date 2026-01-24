@@ -3,27 +3,30 @@
  * Implements: rerender-functional-setstate, rendering-hoist-jsx
  */
 import { useState, useCallback, useRef } from 'react';
+import type { ExamType } from '../../services/exam';
 
 interface UploadFormProps {
-  onUpload: (data: { file: File; title: string }) => Promise<void>;
+  onUpload: (data: { files: File[]; title: string; examType: ExamType }) => Promise<void>;
   isUploading: boolean;
 }
 
 export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
   const [title, setTitle] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [examType, setExamType] = useState<ExamType>('blank');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!file || !title) return;
+      if (files.length === 0 || !title) return;
 
       try {
-        await onUpload({ file, title });
+        await onUpload({ files, title, examType });
         // Reset form on success
         setTitle('');
-        setFile(null);
+        setFiles([]);
+        setExamType('blank');
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -31,7 +34,7 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
         // Error handled by parent
       }
     },
-    [file, title, onUpload]
+    [files, title, examType, onUpload]
   );
 
   /**
@@ -100,13 +103,17 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const selectedFile = e.target.files?.[0];
-      if (selectedFile) {
-        setFile(selectedFile);
+      const selectedFiles = e.target.files;
+      if (selectedFiles && selectedFiles.length > 0) {
+        // FileList를 배열로 변환하고 이름순 정렬
+        const fileArray = Array.from(selectedFiles).sort((a, b) =>
+          a.name.localeCompare(b.name, 'ko', { numeric: true })
+        );
+        setFiles(fileArray);
 
-        // 시험명이 비어있으면 파일명에서 자동 추출
+        // 시험명이 비어있으면 첫 번째 파일명에서 자동 추출
         if (!title.trim()) {
-          const parsedTitle = parseExamTitleFromFilename(selectedFile.name);
+          const parsedTitle = parseExamTitleFromFilename(fileArray[0].name);
           setTitle(parsedTitle);
         }
       }
@@ -114,38 +121,98 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
     [title, parseExamTitleFromFilename]
   );
 
+  const removeFile = useCallback((index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   return (
     <div className="bg-white shadow sm:rounded-lg mb-8 p-6">
       <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
         새 시험지 업로드
       </h3>
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-4 md:flex md:space-y-0 md:space-x-4 md:items-end"
-      >
-        <div className="flex-1">
-          <label
-            htmlFor="title"
-            className="block text-sm font-medium text-gray-700"
-          >
-            시험명
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* 시험지 유형 선택 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            시험지 유형
           </label>
-          <input
-            type="text"
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-            placeholder="파일 선택 시 자동 입력됩니다"
-            required
-          />
+          <div className="flex gap-4">
+            <label className={`flex-1 flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+              examType === 'blank' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
+            }`}>
+              <input
+                type="radio"
+                name="examType"
+                value="blank"
+                checked={examType === 'blank'}
+                onChange={() => setExamType('blank')}
+                className="sr-only"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    examType === 'blank' ? 'border-indigo-500' : 'border-gray-300'
+                  }`}>
+                    {examType === 'blank' && <span className="w-2 h-2 rounded-full bg-indigo-500" />}
+                  </span>
+                  <span className="font-medium text-gray-900">빈 시험지</span>
+                  <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">1크레딧</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1 ml-6">문제만 있는 시험지 (출제 분석용)</p>
+              </div>
+            </label>
+            <label className={`flex-1 flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+              examType === 'student' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
+            }`}>
+              <input
+                type="radio"
+                name="examType"
+                value="student"
+                checked={examType === 'student'}
+                onChange={() => setExamType('student')}
+                className="sr-only"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    examType === 'student' ? 'border-indigo-500' : 'border-gray-300'
+                  }`}>
+                    {examType === 'student' && <span className="w-2 h-2 rounded-full bg-indigo-500" />}
+                  </span>
+                  <span className="font-medium text-gray-900">학생 답안지</span>
+                  <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">2크레딧</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1 ml-6">정오답 표시된 시험지 (취약점 분석 가능)</p>
+              </div>
+            </label>
+          </div>
         </div>
+
+        {/* 기존 입력 필드 */}
+        <div className="md:flex md:space-x-4 md:items-end">
+          <div className="flex-1">
+            <label
+              htmlFor="title"
+              className="block text-sm font-medium text-gray-700"
+            >
+              시험명
+            </label>
+            <input
+              type="text"
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+              placeholder="파일 선택 시 자동 입력됩니다"
+              required
+            />
+          </div>
         <div className="flex-1">
           <label
             htmlFor="file-upload"
             className="block text-sm font-medium text-gray-700"
           >
-            파일 (PDF, Image)
+            파일 (PDF 또는 이미지 여러 장)
           </label>
           <input
             ref={fileInputRef}
@@ -153,17 +220,39 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
             id="file-upload"
             onChange={handleFileChange}
             accept=".pdf,image/*"
+            multiple
             className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
             required
           />
+          {/* 선택된 파일 목록 표시 */}
+          {files.length > 1 && (
+            <div className="mt-2 space-y-1">
+              <p className="text-xs text-gray-500">{files.length}개 파일 선택됨 (페이지 순서대로 정렬):</p>
+              <ul className="text-xs text-gray-600 space-y-0.5 max-h-24 overflow-y-auto">
+                {files.map((f, idx) => (
+                  <li key={idx} className="flex items-center justify-between bg-gray-50 px-2 py-1 rounded">
+                    <span className="truncate flex-1">{idx + 1}. {f.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(idx)}
+                      className="ml-2 text-red-500 hover:text-red-700"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-        <button
-          type="submit"
-          disabled={isUploading}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {isUploading ? '업로드 중...' : '업로드'}
-        </button>
+          <button
+            type="submit"
+            disabled={isUploading}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {isUploading ? '업로드 중...' : '업로드'}
+          </button>
+        </div>
       </form>
     </div>
   );

@@ -1,4 +1,5 @@
 """Authentication service."""
+from enum import Enum
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,20 +8,34 @@ from app.models.user import User
 from app.schemas.auth import RegisterRequest
 
 
+class AuthError(str, Enum):
+    """인증 실패 원인"""
+    USER_NOT_FOUND = "user_not_found"
+    WRONG_PASSWORD = "wrong_password"
+    ACCOUNT_DISABLED = "account_disabled"
+
+
 async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
     """Get user by email."""
     result = await db.execute(select(User).where(User.email == email))
     return result.scalar_one_or_none()
 
 
-async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
-    """Authenticate user with email and password."""
+async def authenticate_user(db: AsyncSession, email: str, password: str) -> tuple[User | None, AuthError | None]:
+    """Authenticate user with email and password.
+
+    Returns:
+        (user, None) if successful
+        (None, AuthError) if failed
+    """
     user = await get_user_by_email(db, email)
     if not user:
-        return None
+        return None, AuthError.USER_NOT_FOUND
+    if not user.is_active:
+        return None, AuthError.ACCOUNT_DISABLED
     if not verify_password(password, user.hashed_password):
-        return None
-    return user
+        return None, AuthError.WRONG_PASSWORD
+    return user, None
 
 
 async def create_user(db: AsyncSession, user_in: RegisterRequest) -> User:

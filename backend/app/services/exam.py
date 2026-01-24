@@ -60,14 +60,14 @@ class ExamService:
         self,
         user_id: str,
         request: ExamCreateRequest,
-        file: UploadFile
+        files: list[UploadFile]
     ) -> Exam:
         """Create a new exam.
 
         Args:
             user_id: User ID
             request: Exam creation request
-            file: Uploaded file
+            files: List of uploaded files (multiple images or single PDF)
 
         Returns:
             Created exam
@@ -75,21 +75,60 @@ class ExamService:
         Raises:
             HTTPException: If validation fails
         """
-        # Validate file type
-        file_type = self._validate_file_type(file)
+        if not files:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "NO_FILES",
+                    "message": "파일을 선택해주세요.",
+                    "details": [{"field": "files", "reason": "최소 1개 이상의 파일이 필요합니다."}]
+                }
+            )
+
+        # Validate all file types
+        file_types = [self._validate_file_type(f) for f in files]
+
+        # Check for mixed types (PDF + images not allowed)
+        has_pdf = FileTypeEnum.PDF in file_types
+        has_image = FileTypeEnum.IMAGE in file_types
+
+        if has_pdf and has_image:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "MIXED_FILE_TYPES",
+                    "message": "PDF와 이미지를 함께 업로드할 수 없습니다.",
+                    "details": [{"field": "files", "reason": "PDF 1개 또는 이미지 여러 장을 선택해주세요."}]
+                }
+            )
+
+        if has_pdf and len(files) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "MULTIPLE_PDFS",
+                    "message": "PDF는 1개만 업로드할 수 있습니다.",
+                    "details": [{"field": "files", "reason": "PDF 파일은 1개만 선택해주세요."}]
+                }
+            )
 
         try:
-            # Save file
-            file_path = await file_storage.save_file(file, user_id)
+            # Save files
+            file_paths = await file_storage.save_files(files, user_id)
+            # Store as comma-separated paths for multiple images
+            file_path = ",".join(file_paths) if len(file_paths) > 1 else file_paths[0]
         except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "code": "FILE_UPLOAD_ERROR",
                     "message": str(e),
-                    "details": [{"field": "file", "reason": str(e)}]
+                    "details": [{"field": "files", "reason": str(e)}]
                 }
             ) from e
+
+        # Determine file type (IMAGE if any images, PDF if PDF)
+        file_type = FileTypeEnum.PDF if has_pdf else FileTypeEnum.IMAGE
 
         # Create exam record
         exam = Exam(
@@ -100,6 +139,7 @@ class ExamService:
             unit=request.unit,
             file_path=file_path,
             file_type=file_type.value,
+            exam_type=request.exam_type.value,
             status=ExamStatus.PENDING.value
         )
 
@@ -183,9 +223,9 @@ class ExamService:
         if not exam:
             return False
 
-        # Delete file from storage
+        # Delete file(s) from storage (supports comma-separated paths for multiple images)
         try:
-            file_storage.delete_file(exam.file_path)
+            file_storage.delete_files(exam.file_path)
         except Exception:
             # Continue even if file deletion fails
             pass

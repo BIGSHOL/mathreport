@@ -62,6 +62,36 @@ class FileStorageService:
         # Return relative path
         return f"uploads/exams/{filename}"
 
+    async def save_files(self, files: list[UploadFile], user_id: str) -> list[str]:
+        """Save multiple uploaded files to disk.
+
+        Args:
+            files: List of FastAPI UploadFile objects
+            user_id: User ID for organizing files
+
+        Returns:
+            List of relative file paths
+
+        Raises:
+            ValueError: If any file is invalid or too large
+        """
+        file_paths = []
+        for i, file in enumerate(files):
+            # Reset file position for re-reading
+            await file.seek(0)
+            path = await self.save_file(file, f"{user_id}_p{i+1:02d}")
+            file_paths.append(path)
+        return file_paths
+
+    def delete_files(self, file_paths: str) -> None:
+        """Delete multiple files from disk.
+
+        Args:
+            file_paths: Comma-separated file paths
+        """
+        for path in file_paths.split(","):
+            self.delete_file(path.strip())
+
     def delete_file(self, file_path: str) -> None:
         """Delete file from disk.
 

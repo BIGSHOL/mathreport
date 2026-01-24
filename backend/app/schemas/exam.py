@@ -34,6 +34,13 @@ class FileType(str, Enum):
     PDF = "pdf"
 
 
+class ExamType(str, Enum):
+    """시험지 유형"""
+
+    BLANK = "blank"      # 빈 시험지 (문제만 있음) - 1크레딧
+    STUDENT = "student"  # 학생 답안지 (정답/오답 표시됨) - 2크레딧
+
+
 # ============================================
 # Request Schemas
 # ============================================
@@ -51,13 +58,18 @@ class ExamCreateRequest(BaseModel):
     grade: str | None = Field(None, max_length=20, description="학년 (예: 중2, 고1)")
     subject: str = Field(default="수학", max_length=50, description="과목")
     unit: str | None = Field(None, max_length=100, description="단원")
+    exam_type: ExamType = Field(
+        default=ExamType.BLANK,
+        description="시험지 유형 (blank: 빈 시험지, student: 학생 답안지)"
+    )
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "title": "2024년 1학기 중간고사",
             "grade": "중2",
             "subject": "수학",
-            "unit": "이차방정식"
+            "unit": "이차방정식",
+            "exam_type": "blank"
         }
     })
 
@@ -84,6 +96,7 @@ class ExamBase(BaseModel):
     grade: str | None = None
     subject: str
     unit: str | None = None
+    exam_type: ExamType = ExamType.BLANK
     file_path: str
     file_type: FileType
     status: ExamStatus
@@ -91,6 +104,23 @@ class ExamBase(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AnalysisBrief(BaseModel):
+    """분석 요약 (목록용 간략 정보)"""
+
+    total_questions: int = Field(ge=0, description="총 문항 수")
+    total_points: float = Field(ge=0, description="총 배점")
+    avg_confidence: float | None = Field(None, ge=0, le=1, description="평균 신뢰도")
+    difficulty_high: int = Field(ge=0, description="상 난이도 문항 수")
+    difficulty_medium: int = Field(ge=0, description="중 난이도 문항 수")
+    difficulty_low: int = Field(ge=0, description="하 난이도 문항 수")
+
+
+class ExamWithBrief(ExamBase):
+    """시험지 정보 + 분석 요약 (목록용)"""
+
+    analysis_brief: AnalysisBrief | None = None
 
 
 class DifficultyDistribution(BaseModel):
@@ -150,7 +180,7 @@ class PaginationMeta(BaseModel):
 class ExamListResponse(BaseModel):
     """GET /api/v1/exams 응답"""
 
-    data: list[ExamBase]
+    data: list[ExamWithBrief]
     meta: PaginationMeta
 
 

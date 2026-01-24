@@ -3,6 +3,17 @@
  */
 import api from './api';
 
+export interface AnalysisBrief {
+    total_questions: number;
+    total_points: number;
+    avg_confidence: number | null;
+    difficulty_high: number;
+    difficulty_medium: number;
+    difficulty_low: number;
+}
+
+export type ExamType = 'blank' | 'student';
+
 export interface Exam {
     id: string;
     user_id: string;
@@ -10,11 +21,13 @@ export interface Exam {
     subject: string;
     grade?: string;
     unit?: string;
+    exam_type: ExamType;  // 시험지 유형
     file_path: string;
     file_type: string;
     status: 'pending' | 'analyzing' | 'completed' | 'failed';
     created_at: string;
     updated_at: string;
+    analysis_brief?: AnalysisBrief | null;
 }
 
 export interface ExamListResponse {
@@ -28,24 +41,29 @@ export interface ExamListResponse {
 }
 
 export interface UploadExamData {
-    file: File;
+    files: File[];  // 여러 파일 지원
     title: string;
     subject?: string;
     grade?: string;
     unit?: string;
+    examType?: ExamType;  // 시험지 유형 (기본값: blank)
 }
 
 export const examService = {
     /**
-     * Upload an exam file.
+     * Upload exam files (supports multiple images).
      */
     async upload(data: UploadExamData): Promise<Exam> {
         const formData = new FormData();
-        formData.append('file', data.file);
+        // 여러 파일 추가
+        data.files.forEach((file) => {
+            formData.append('files', file);
+        });
         formData.append('title', data.title);
         if (data.subject) formData.append('subject', data.subject);
         if (data.grade) formData.append('grade', data.grade);
         if (data.unit) formData.append('unit', data.unit);
+        formData.append('exam_type', data.examType || 'blank');
 
         const response = await api.post<{ data: Exam }>('/api/v1/exams', formData, {
             headers: {

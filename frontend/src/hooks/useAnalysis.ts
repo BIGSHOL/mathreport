@@ -4,7 +4,11 @@
  */
 import useSWR from 'swr';
 import useSWRMutation from 'swr/mutation';
-import { analysisService, type AnalysisResult } from '../services/analysis';
+import {
+  analysisService,
+  type AnalysisResult,
+  type AnalysisExtension,
+} from '../services/analysis';
 
 /**
  * Fetch analysis result with SWR caching.
@@ -43,6 +47,45 @@ export function useRequestAnalysis() {
   return {
     requestAnalysis: trigger,
     isRequesting: isMutating,
+    error,
+  };
+}
+
+/**
+ * Fetch extended analysis with SWR caching.
+ */
+export function useExtendedAnalysis(analysisId: string | undefined) {
+  const { data, error, isLoading, mutate } = useSWR<AnalysisExtension | null>(
+    analysisId ? `/api/v1/analysis/${analysisId}/extended` : null,
+    () => analysisService.getExtendedAnalysis(analysisId!),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
+
+  return {
+    extension: data,
+    isLoading,
+    error,
+    mutate,
+  };
+}
+
+/**
+ * Generate extended analysis mutation hook.
+ */
+export function useGenerateExtendedAnalysis() {
+  const { trigger, isMutating, error } = useSWRMutation(
+    'extended-analysis-generate',
+    async (_key: string, { arg }: { arg: { analysisId: string; forceRegenerate?: boolean } }) => {
+      return analysisService.generateExtendedAnalysis(arg.analysisId, arg.forceRegenerate);
+    }
+  );
+
+  return {
+    generateExtended: trigger,
+    isGenerating: isMutating,
     error,
   };
 }

@@ -24,6 +24,12 @@ class FileTypeEnum(str, enum.Enum):
     PDF = "pdf"
 
 
+class ExamTypeEnum(str, enum.Enum):
+    """시험지 유형 - 빈 시험지 vs 학생 답안지."""
+    BLANK = "blank"      # 빈 시험지 (문제만 있음)
+    STUDENT = "student"  # 학생 답안지 (정답/오답 표시됨)
+
+
 class Exam(Base):
     """Exam model for storing exam metadata."""
     __tablename__ = "exams"
@@ -38,6 +44,11 @@ class Exam(Base):
     grade: Mapped[str | None] = mapped_column(String(20), nullable=True)
     subject: Mapped[str] = mapped_column(String(50), nullable=False, default="수학")
     unit: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    exam_type: Mapped[str] = mapped_column(
+        SQLEnum(ExamTypeEnum, native_enum=False, length=20),
+        nullable=False,
+        default=ExamTypeEnum.BLANK
+    )
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_type: Mapped[str] = mapped_column(
         SQLEnum(FileTypeEnum, native_enum=False, length=10),

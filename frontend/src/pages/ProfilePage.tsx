@@ -189,6 +189,43 @@ export function ProfilePage() {
           )}
         </div>
 
+        {/* Data Consent */}
+        <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">데이터 활용</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-700">AI 개선 데이터 활용 동의</p>
+              <p className="text-sm text-gray-500">
+                분석 결과를 AI 성능 개선에 활용합니다. 개인정보는 익명화됩니다.
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                setIsLoading(true);
+                try {
+                  await authService.updateProfile({ data_consent: !user.data_consent });
+                  await fetchUser();
+                  setMessage({ type: 'success', text: '설정이 변경되었습니다' });
+                } catch {
+                  setMessage({ type: 'error', text: '설정 변경 실패' });
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              disabled={isLoading}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                user.data_consent ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  user.data_consent ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
         {/* Change Password */}
         <div className="bg-white shadow rounded-lg p-6 mb-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">보안</h2>

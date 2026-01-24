@@ -27,7 +27,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserBase,
 )
-from app.services.auth import authenticate_user, create_user, get_user_by_email
+from app.services.auth import authenticate_user, create_user, get_user_by_email, AuthError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -92,22 +92,33 @@ async def login(
     - 사용자 정보 반환
     """
     # 사용자 인증
-    user = await authenticate_user(db, login_data.email, login_data.password)
-    if not user:
+    user, auth_error = await authenticate_user(db, login_data.email, login_data.password)
+    if auth_error:
+        error_messages = {
+            AuthError.USER_NOT_FOUND: {
+                "code": "USER_NOT_FOUND",
+                "message": "등록되지 않은 이메일입니다.",
+                "details": [{"field": "email", "reason": "해당 이메일로 가입된 계정이 없습니다. 회원가입을 진행해주세요."}]
+            },
+            AuthError.WRONG_PASSWORD: {
+                "code": "WRONG_PASSWORD",
+                "message": "비밀번호가 올바르지 않습니다.",
+                "details": [{"field": "password", "reason": "비밀번호를 다시 확인해주세요."}]
+            },
+            AuthError.ACCOUNT_DISABLED: {
+                "code": "ACCOUNT_DISABLED",
+                "message": "비활성화된 계정입니다.",
+                "details": [{"field": "email", "reason": "관리자에게 문의해주세요."}]
+            },
+        }
+        error_info = error_messages.get(auth_error, {
+            "code": "INVALID_CREDENTIALS",
+            "message": "인증에 실패했습니다.",
+            "details": []
+        })
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content={
-                "error": {
-                    "code": "INVALID_CREDENTIALS",
-                    "message": "이메일 또는 비밀번호가 올바르지 않습니다.",
-                    "details": [
-                        {
-                            "field": "credentials",
-                            "reason": "이메일 또는 비밀번호가 일치하지 않습니다"
-                        }
-                    ]
-                }
-            }
+            content={"error": error_info}
         )
 
     # Access Token 생성 (15분)

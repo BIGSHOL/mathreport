@@ -60,12 +60,21 @@ class AnalysisService:
         exam.status = ExamStatusEnum.ANALYZING
         await self.db.commit()
 
-        # 4. Perform AI Analysis
+        # 4. Perform AI Analysis with Pattern System
         from app.services.ai_engine import ai_engine
-        
+
         try:
-            # Call AI Engine
-            ai_result = ai_engine.analyze_exam_file(exam.file_path)
+            # 패턴 시스템 통합 분석 사용
+            # - 시험지 유형 자동 분류 (blank/answered/채점여부)
+            # - 동적 프롬프트 생성 (오류 패턴, 예시 포함)
+            # - 학년/단원별 최적화
+            ai_result = await ai_engine.analyze_exam_with_patterns(
+                db=self.db,
+                file_path=exam.file_path,
+                grade_level=exam.grade,
+                unit=exam.unit,
+                auto_classify=True,  # 시험지 유형 자동 분류
+            )
             
             # 5. Process & Save Result
             processed_questions = []

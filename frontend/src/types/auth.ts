@@ -8,7 +8,11 @@ export interface User {
   nickname: string;
   role: 'user' | 'admin';
   is_active?: boolean;
+  data_consent: boolean;  // AI 개선 데이터 활용 동의
+  subscription_tier: 'free' | 'basic' | 'pro';  // 구독 티어
+  credits: number;  // 보유 크레딧
   created_at: string;
+  updated_at?: string;
 }
 
 export interface LoginRequest {
@@ -20,11 +24,22 @@ export interface RegisterRequest {
   email: string;
   password: string;
   nickname: string;
+  data_consent?: boolean;  // AI 개선 데이터 활용 동의
+}
+
+export interface UserBase {
+  id: string;
+  email: string;
+  nickname: string;
+  role: 'user' | 'admin';
 }
 
 export interface AuthResponse {
   access_token: string;
+  refresh_token: string;
   token_type: string;
+  expires_in: number;
+  user: UserBase;
 }
 
 export interface PasswordChangeRequest {

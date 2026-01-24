@@ -151,9 +151,13 @@ class TokenResponse(BaseModel):
 class UserResponse(UserBase):
     """GET /api/v1/users/me 응답"""
     created_at: datetime = Field(..., description="가입일")
-    updated_at: datetime = Field(..., description="최종 수정일")
+    updated_at: datetime | None = Field(default=None, description="최종 수정일")
+    data_consent: bool = Field(default=False, description="AI 데이터 활용 동의")
+    subscription_tier: str = Field(default="free", description="구독 티어")
+    credits: int = Field(default=0, description="보유 크레딧")
 
     model_config = {
+        "from_attributes": True,
         "json_schema_extra": {
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -161,7 +165,10 @@ class UserResponse(UserBase):
                 "nickname": "김선생님",
                 "role": "user",
                 "created_at": "2024-01-23T10:00:00Z",
-                "updated_at": "2024-01-23T10:00:00Z"
+                "updated_at": "2024-01-23T10:00:00Z",
+                "data_consent": False,
+                "subscription_tier": "free",
+                "credits": 0
             }
         }
     }

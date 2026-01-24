@@ -70,6 +70,12 @@ class QuestionAnalysis(BaseModel):
     points: float | int | None = Field(None, description="배점")
     topic: str | None = Field(None, max_length=500, description="관련 단원/토픽")
     ai_comment: str | None = Field(None, description="AI 분석 코멘트")
+    confidence: float | None = Field(None, ge=0, le=1, description="분석 신뢰도 (0.0~1.0)")
+    # 학생 답안지 전용 필드
+    is_correct: bool | None = Field(None, description="정답 여부 (학생 답안지만)")
+    student_answer: str | None = Field(None, description="학생이 작성한 답안")
+    earned_points: float | int | None = Field(None, description="획득 점수")
+    error_type: str | None = Field(None, description="오류 유형 (calculation_error, concept_error, careless_mistake 등)")
     created_at: datetime | str
 
     model_config = ConfigDict(
@@ -83,6 +89,7 @@ class QuestionAnalysis(BaseModel):
                 "points": 5,
                 "topic": "이차방정식",
                 "ai_comment": "기본 개념을 묻는 계산 문제입니다.",
+                "confidence": 0.95,
                 "created_at": "2024-01-01T00:00:00Z"
             }
         }
@@ -199,3 +206,193 @@ class AnalysisErrorResponse(BaseModel):
             ]
         }
     })
+
+
+# ============================================
+# Extended Analysis Schemas (Phase 2-4)
+# ============================================
+
+
+class SeverityLevel(str, Enum):
+    """심각도 레벨"""
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+# --- 취약점 분석 ---
+
+class DifficultyWeakness(BaseModel):
+    """난이도별 취약점"""
+    count: int = Field(ge=0, description="틀린 문항 수")
+    percentage: float = Field(ge=0, le=100, description="오답률")
+    severity: SeverityLevel = Field(description="심각도")
+
+
+class TypeWeakness(BaseModel):
+    """유형별 취약점"""
+    count: int = Field(ge=0)
+    percentage: float = Field(ge=0, le=100)
+    severity: SeverityLevel
+
+
+class TopicWeakness(BaseModel):
+    """단원별 취약점"""
+    topic: str = Field(description="단원명 (과목 > 대단원 > 소단원)")
+    wrong_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    severity_score: float = Field(ge=0, le=1, description="취약도 점수")
+    recommendation: str = Field(description="학습 추천")
+
+
+class MistakePattern(BaseModel):
+    """실수 패턴"""
+    pattern_type: str = Field(description="패턴 유형 (calculation_error, concept_gap, etc.)")
+    frequency: int = Field(ge=1, description="발생 횟수")
+    description: str = Field(description="설명")
+    example_questions: list[int | str] = Field(description="관련 문항 번호")
+
+
+class CognitiveLevel(BaseModel):
+    """인지 수준 (Bloom's Taxonomy)"""
+    achieved: int = Field(ge=0, le=100, description="달성률 %")
+    target: int = Field(ge=0, le=100, description="목표 %")
+
+
+class CognitiveLevels(BaseModel):
+    """전체 인지 수준"""
+    knowledge: CognitiveLevel = Field(description="지식")
+    comprehension: CognitiveLevel = Field(description="이해")
+    application: CognitiveLevel = Field(description="적용")
+    analysis: CognitiveLevel = Field(description="분석")
+
+
+class WeaknessProfile(BaseModel):
+    """취약점 프로필"""
+    difficulty_weakness: dict[str, DifficultyWeakness] = Field(
+        description="난이도별 취약점 (high, medium, low)"
+    )
+    type_weakness: dict[str, TypeWeakness] = Field(
+        description="유형별 취약점"
+    )
+    topic_weaknesses: list[TopicWeakness] = Field(
+        description="단원별 취약점 (심각도순 정렬)"
+    )
+    mistake_patterns: list[MistakePattern] = Field(
+        description="실수 패턴 분석"
+    )
+    cognitive_levels: CognitiveLevels = Field(
+        description="인지 수준 평가"
+    )
+
+
+# --- 학습 계획 ---
+
+class LearningTopic(BaseModel):
+    """학습 토픽"""
+    topic: str
+    duration_hours: float = Field(ge=0)
+    resources: list[str] = Field(description="추천 학습 자료")
+    checkpoint: str = Field(description="체크포인트")
+
+
+class LearningPhase(BaseModel):
+    """학습 단계"""
+    phase_number: int = Field(ge=1)
+    title: str
+    duration: str = Field(description="예: '2주'")
+    topics: list[LearningTopic]
+
+
+class DailySchedule(BaseModel):
+    """일일 학습 일정"""
+    day: str = Field(description="요일")
+    topics: list[str]
+    duration_minutes: int = Field(ge=0)
+    activities: list[str]
+
+
+class ScoreImprovement(BaseModel):
+    """점수 향상 예측"""
+    current_estimated_score: int = Field(ge=0, le=100)
+    target_score: int = Field(ge=0, le=100)
+    improvement_points: int
+    achievement_confidence: float = Field(ge=0, le=1)
+
+
+class LearningPlan(BaseModel):
+    """학습 계획"""
+    duration: str = Field(description="전체 기간 (예: '8주')")
+    weekly_hours: int = Field(ge=0, description="주당 학습 시간")
+    phases: list[LearningPhase]
+    daily_schedule: list[DailySchedule]
+    expected_improvement: ScoreImprovement
+
+
+# --- 성과 예측 ---
+
+class DifficultyHandling(BaseModel):
+    """난이도별 처리 능력"""
+    success_rate: int = Field(ge=0, le=100, description="정답률")
+    trend: str = Field(description="추세 (improving, stable, declining)")
+
+
+class CurrentAssessment(BaseModel):
+    """현재 수준 평가"""
+    score_estimate: int = Field(ge=0, le=100)
+    rank_estimate_percentile: int = Field(ge=0, le=100, description="상위 % (예: 35 = 상위 35%)")
+    difficulty_handling: dict[str, DifficultyHandling]
+
+
+class TrajectoryPoint(BaseModel):
+    """성적 진도 예측 지점"""
+    timeframe: str = Field(description="예: '3개월'")
+    predicted_score: int = Field(ge=0, le=100)
+    confidence_interval: list[int] = Field(min_length=2, max_length=2, description="[min, max]")
+    required_effort: str = Field(description="필요 노력 (예: '주 12시간')")
+
+
+class GoalAchievement(BaseModel):
+    """목표 달성 확률"""
+    goal: str = Field(description="목표 설명")
+    current_probability: float = Field(ge=0, le=1)
+    with_current_plan: float = Field(ge=0, le=1)
+    with_optimized_plan: float = Field(ge=0, le=1)
+
+
+class RiskFactor(BaseModel):
+    """위험 요소"""
+    factor: str
+    impact_on_goal: str = Field(description="영향도 (critical, high, medium, low)")
+    mitigation: str = Field(description="완화 전략")
+
+
+class PerformancePrediction(BaseModel):
+    """성과 예측"""
+    current_assessment: CurrentAssessment
+    trajectory: list[TrajectoryPoint]
+    goal_achievement: GoalAchievement
+    risk_factors: list[RiskFactor]
+
+
+# --- 통합 확장 분석 ---
+
+class AnalysisExtension(BaseModel):
+    """확장 분석 결과"""
+    id: str | UUID
+    analysis_id: str | UUID
+    weakness_profile: WeaknessProfile | None = None
+    learning_plan: LearningPlan | None = None
+    performance_prediction: PerformancePrediction | None = None
+    generated_at: datetime | str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExtendedAnalysisResponse(BaseModel):
+    """확장 분석 응답 (4단계 보고서)"""
+    basic: AnalysisResult = Field(description="기본 분석")
+    extension: AnalysisExtension | None = Field(description="확장 분석")
+
+    model_config = ConfigDict(from_attributes=True)

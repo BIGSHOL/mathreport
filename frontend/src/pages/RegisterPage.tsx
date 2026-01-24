@@ -14,6 +14,7 @@ export function RegisterPage() {
     password: '',
     confirmPassword: '',
     nickname: '',
+    dataConsent: true, // 무료 사용자는 필수 동의
   });
 
   const [validationError, setValidationError] = useState('');
@@ -38,6 +39,7 @@ export function RegisterPage() {
         email: formData.email,
         password: formData.password,
         nickname: formData.nickname,
+        data_consent: formData.dataConsent,
       });
       navigate('/', { replace: true });
     } catch {
@@ -46,9 +48,10 @@ export function RegisterPage() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: type === 'checkbox' ? checked : value,
     }));
   };
 
@@ -143,6 +146,34 @@ export function RegisterPage() {
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="비밀번호 재입력"
               />
+            </div>
+          </div>
+
+          {/* 데이터 활용 동의 */}
+          <div className="rounded-md bg-blue-50 p-4">
+            <div className="flex items-start">
+              <div className="flex items-center h-5">
+                <input
+                  id="dataConsent"
+                  name="dataConsent"
+                  type="checkbox"
+                  checked={formData.dataConsent}
+                  disabled
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-not-allowed"
+                />
+              </div>
+              <div className="ml-3 text-sm">
+                <label htmlFor="dataConsent" className="font-medium text-blue-800">
+                  AI 개선 데이터 활용 동의 (무료 플랜 필수)
+                </label>
+                <p className="text-blue-700 mt-1">
+                  무료 플랜 사용자는 분석 결과를 AI 성능 개선에 활용하는 것에 동의해야 합니다.
+                  개인정보는 익명화되어 처리됩니다.
+                </p>
+                <p className="text-blue-600 text-xs mt-2">
+                  유료 플랜으로 업그레이드하면 데이터 활용 동의를 철회할 수 있습니다.
+                </p>
+              </div>
             </div>
           </div>
 
