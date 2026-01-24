@@ -12,6 +12,18 @@ interface DistributionChartProps {
   showZero?: boolean;
 }
 
+const LABEL_MAP: Record<string, string> = {
+  high: '상',
+  medium: '중',
+  low: '하',
+  calculation: '계산',
+  geometry: '도형',
+  application: '응용',
+  proof: '증명',
+  graph: '그래프',
+  statistics: '통계',
+};
+
 export const DistributionChart = memo(function DistributionChart({
   title,
   distribution,
@@ -30,8 +42,8 @@ export const DistributionChart = memo(function DistributionChart({
           showZero || count > 0 ? (
             <div key={label}>
               <div className="flex justify-between mb-1">
-                <span className="text-sm font-medium text-gray-700 capitalize">
-                  {label}
+                <span className="text-sm font-medium text-gray-700">
+                  {LABEL_MAP[label] || label}
                 </span>
                 <span className="text-sm text-gray-500">{count}문항</span>
               </div>
