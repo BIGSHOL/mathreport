@@ -24,12 +24,12 @@ export function RegisterPage() {
     setValidationError('');
 
     if (formData.password !== formData.confirmPassword) {
-      setValidationError('Passwords do not match');
+      setValidationError('비밀번호가 일치하지 않습니다');
       return;
     }
 
     if (formData.password.length < 8) {
-      setValidationError('Password must be at least 8 characters');
+      setValidationError('비밀번호는 최소 8자 이상이어야 합니다');
       return;
     }
 
@@ -59,12 +59,12 @@ export function RegisterPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
+            계정 만들기
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Or{' '}
+            또는{' '}
             <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              sign in to existing account
+              기존 계정으로 로그인
             </Link>
           </p>
         </div>
@@ -79,7 +79,7 @@ export function RegisterPage() {
           <div className="rounded-md shadow-sm space-y-4">
             <div>
               <label htmlFor="nickname" className="block text-sm font-medium text-gray-700">
-                Nickname
+                닉네임
               </label>
               <input
                 id="nickname"
@@ -90,13 +90,13 @@ export function RegisterPage() {
                 value={formData.nickname}
                 onChange={handleChange}
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Your nickname"
+                placeholder="닉네임 입력"
               />
             </div>
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
+                이메일 주소
               </label>
               <input
                 id="email"
@@ -113,7 +113,7 @@ export function RegisterPage() {
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
+                비밀번호
               </label>
               <input
                 id="password"
@@ -124,13 +124,13 @@ export function RegisterPage() {
                 value={formData.password}
                 onChange={handleChange}
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="At least 8 characters"
+                placeholder="최소 8자 이상"
               />
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm password
+                비밀번호 확인
               </label>
               <input
                 id="confirmPassword"
@@ -141,7 +141,7 @@ export function RegisterPage() {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Confirm your password"
+                placeholder="비밀번호 재입력"
               />
             </div>
           </div>
@@ -152,7 +152,7 @@ export function RegisterPage() {
               disabled={isLoading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Creating account...' : 'Create account'}
+              {isLoading ? '계정 생성 중...' : '계정 생성'}
             </button>
           </div>
         </form>

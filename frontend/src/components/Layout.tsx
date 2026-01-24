@@ -27,8 +27,8 @@ export function Layout() {
                                     <Link
                                         to="/exams"
                                         className={`${isActive('/exams')
-                                                ? 'border-indigo-500 text-gray-900'
-                                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                                            ? 'border-indigo-500 text-gray-900'
+                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                                             } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                                     >
                                         시험지 관리
@@ -40,25 +40,25 @@ export function Layout() {
                             {user ? (
                                 <>
                                     <span className="text-sm text-gray-700">
-                                        Welcome, <strong>{user.nickname}</strong>
+                                        환영합니다, <strong>{user.nickname}</strong>
                                     </span>
                                     <button
                                         onClick={handleLogout}
                                         className="text-sm font-medium text-gray-500 hover:text-gray-700"
                                     >
-                                        Logout
+                                        로그아웃
                                     </button>
                                 </>
                             ) : (
                                 <div className="space-x-4">
                                     <Link to="/login" className="text-sm font-medium text-gray-500 hover:text-gray-900">
-                                        Login
+                                        로그인
                                     </Link>
                                     <Link
                                         to="/register"
                                         className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                                     >
-                                        Register
+                                        회원가입
                                     </Link>
                                 </div>
                             )}

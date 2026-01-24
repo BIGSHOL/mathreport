@@ -45,7 +45,8 @@ export function ExamDashboardPage() {
 
             await fetchExams();
         } catch (error) {
-            alert('Upload failed');
+            console.error('Upload failed', error);
+            alert('업로드 실패');
         } finally {
             setUploading(false);
         }
@@ -60,18 +61,18 @@ export function ExamDashboardPage() {
             // mock returns immediately
             navigate(`/analysis/${result.analysis_id}`);
         } catch (error) {
-            alert('Analysis request failed');
+            alert('분석 요청 실패');
             fetchExams(); // Revert status
         }
     };
 
     const handleDelete = async (examId: string) => {
-        if (!confirm('Are you sure?')) return;
+        if (!confirm('정말 삭제하시겠습니까?')) return;
         try {
             await examService.delete(examId);
             setExams(prev => prev.filter(e => e.id !== examId));
         } catch (error) {
-            alert('Delete failed');
+            alert('삭제 실패');
         }
     }
 
@@ -81,7 +82,7 @@ export function ExamDashboardPage() {
         }
     };
 
-    if (loading) return <div className="p-8">Loading...</div>;
+    if (loading) return <div className="p-8">로딩 중...</div>;
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

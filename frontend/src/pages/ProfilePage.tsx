@@ -40,10 +40,10 @@ export function ProfilePage() {
       await authService.updateProfile({ nickname: formData.nickname });
       await fetchUser();
       setIsEditing(false);
-      setMessage({ type: 'success', text: 'Profile updated successfully' });
+      setMessage({ type: 'success', text: '프로필이 성공적으로 업데이트되었습니다' });
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message :
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to update profile';
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '프로필 업데이트 실패';
       setMessage({ type: 'error', text: errorMessage });
     } finally {
       setIsLoading(false);
@@ -55,12 +55,12 @@ export function ProfilePage() {
     setMessage({ type: '', text: '' });
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setMessage({ type: 'error', text: 'New passwords do not match' });
+      setMessage({ type: 'error', text: '새 비밀번호가 일치하지 않습니다' });
       return;
     }
 
     if (passwordData.newPassword.length < 8) {
-      setMessage({ type: 'error', text: 'Password must be at least 8 characters' });
+      setMessage({ type: 'error', text: '비밀번호는 최소 8자 이상이어야 합니다' });
       return;
     }
 
@@ -72,10 +72,10 @@ export function ProfilePage() {
       });
       setIsChangingPassword(false);
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setMessage({ type: 'success', text: 'Password changed successfully' });
+      setMessage({ type: 'success', text: '비밀번호가 성공적으로 변경되었습니다' });
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message :
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to change password';
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '비밀번호 변경 실패';
       setMessage({ type: 'error', text: errorMessage });
     } finally {
       setIsLoading(false);
@@ -88,7 +88,7 @@ export function ProfilePage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+    if (!window.confirm('정말 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
       return;
     }
 
@@ -98,7 +98,7 @@ export function ProfilePage() {
       navigate('/login');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message :
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to delete account';
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '계정 삭제 실패';
       setMessage({ type: 'error', text: errorMessage });
     } finally {
       setIsLoading(false);
@@ -116,7 +116,7 @@ export function ProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Profile</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">프로필</h1>
 
         {message.text && (
           <div
@@ -129,14 +129,14 @@ export function ProfilePage() {
 
         {/* Profile Info */}
         <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Account Information</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-4">계정 정보</h2>
 
           {isEditing ? (
             <form onSubmit={handleUpdateProfile} className="space-y-4">
 
               <div>
                 <label htmlFor="nickname" className="block text-sm font-medium text-gray-700">
-                  Nickname
+                  닉네임
                 </label>
                 <input
                   id="nickname"
@@ -146,35 +146,35 @@ export function ProfilePage() {
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
-              <div className="flex gap-2">
+              <div>
                 <button
                   type="submit"
                   disabled={isLoading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {isLoading ? 'Saving...' : 'Save'}
+                  {isLoading ? '저장 중...' : '저장'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
                 >
-                  Cancel
+                  취소
                 </button>
               </div>
             </form>
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-500">Email</label>
+                <label className="block text-sm font-medium text-gray-500">이메일</label>
                 <p className="mt-1 text-gray-900">{user.email}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500">Nickname</label>
+                <label className="block text-sm font-medium text-gray-500">닉네임</label>
                 <p className="mt-1 text-gray-900">{user.nickname || '-'}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500">Member since</label>
+                <label className="block text-sm font-medium text-gray-500">가입일</label>
                 <p className="mt-1 text-gray-900">
                   {new Date(user.created_at).toLocaleDateString()}
                 </p>
@@ -183,7 +183,7 @@ export function ProfilePage() {
                 onClick={() => setIsEditing(true)}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
               >
-                Edit Profile
+                프로필 수정
               </button>
             </div>
           )}
@@ -191,13 +191,13 @@ export function ProfilePage() {
 
         {/* Change Password */}
         <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Security</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-4">보안</h2>
 
           {isChangingPassword ? (
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div>
                 <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
-                  Current Password
+                  현재 비밀번호
                 </label>
                 <input
                   id="currentPassword"
@@ -212,7 +212,7 @@ export function ProfilePage() {
               </div>
               <div>
                 <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
-                  New Password
+                  새 비밀번호
                 </label>
                 <input
                   id="newPassword"
@@ -227,7 +227,7 @@ export function ProfilePage() {
               </div>
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                  Confirm New Password
+                  새 비밀번호 확인
                 </label>
                 <input
                   id="confirmPassword"
@@ -246,7 +246,7 @@ export function ProfilePage() {
                   disabled={isLoading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {isLoading ? 'Changing...' : 'Change Password'}
+                  {isLoading ? '변경 중...' : '비밀번호 변경'}
                 </button>
                 <button
                   type="button"
@@ -256,7 +256,7 @@ export function ProfilePage() {
                   }}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
                 >
-                  Cancel
+                  취소
                 </button>
               </div>
             </form>
@@ -265,27 +265,27 @@ export function ProfilePage() {
               onClick={() => setIsChangingPassword(true)}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
             >
-              Change Password
+              비밀번호 변경
             </button>
           )}
         </div>
 
         {/* Actions */}
         <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Account Actions</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-4">계정 작업</h2>
           <div className="space-y-4">
             <button
               onClick={handleLogout}
               className="w-full px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
             >
-              Sign Out
+              로그아웃
             </button>
             <button
               onClick={handleDeleteAccount}
               disabled={isLoading}
               className="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
             >
-              Delete Account
+              계정 삭제
             </button>
           </div>
         </div>

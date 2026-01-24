@@ -18,14 +18,14 @@ export function AnalysisResultPage() {
             const data = await analysisService.getResult(analysisId);
             setResult(data);
         } catch (error) {
-            alert('Failed to load analysis result');
+            alert('분석 결과를 불러오는데 실패했습니다');
         } finally {
             setLoading(false);
         }
     };
 
-    if (loading) return <div className="p-8">Loading...</div>;
-    if (!result) return <div className="p-8">Result not found</div>;
+    if (loading) return <div className="p-8">로딩 중...</div>;
+    if (!result) return <div className="p-8">결과를 찾을 수 없습니다</div>;
 
     const { summary, questions } = result;
 
