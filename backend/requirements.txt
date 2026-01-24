@@ -9,3 +9,4 @@ alembic
 pgvector
 python-jose[cryptography]
 passlib[bcrypt]
+google-genai

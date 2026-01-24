@@ -14,6 +14,7 @@ from app.schemas.analysis import (
     QuestionDifficulty,
     QuestionType
 )
+from app.core.config import settings
 
 
 class AnalysisService:
@@ -59,29 +60,64 @@ class AnalysisService:
         exam.status = ExamStatusEnum.ANALYZING
         await self.db.commit()
 
-        # 4. Generate Mock Data (Simulate AI Processing)
-        mock_data = self._generate_mock_data(exam_id, user_id)
+        # 4. Perform AI Analysis
+        from app.services.ai_engine import ai_engine
+        
+        try:
+            # Call AI Engine
+            ai_result = ai_engine.analyze_exam_file(exam.file_path)
+            
+            # 5. Process & Save Result
+            processed_questions = []
+            for q in ai_result.get("questions", []):
+                q["id"] = str(uuid.uuid4())
+                q["created_at"] = datetime.utcnow().isoformat()
+                # Ensure fields match schema
+                processed_questions.append(q)
+                
+            summary = ai_result.get("summary", {})
+            
+            analysis_data = {
+                "exam_id": exam_id,
+                "user_id": user_id,
+                "file_hash": f"hash_{exam_id}", # Placeholder
+                "total_questions": len(processed_questions),
+                "model_version": settings.GEMINI_MODEL_NAME,
+                "summary": summary,
+                "questions": processed_questions,
+                "analyzed_at": datetime.utcnow(),
+                "created_at": datetime.utcnow()
+            }
 
-        # 5. Save Analysis Result
-        # force_reanalyze인 경우 기존 결과 삭제
-        if existing:
-            await self.db.delete(existing)
-            await self.db.flush()
+            # force_reanalyze인 경우 기존 결과 삭제
+            if existing:
+                await self.db.delete(existing)
+                await self.db.flush()
 
-        analysis_result = AnalysisResult(**mock_data)
-        self.db.add(analysis_result)
+            analysis_result = AnalysisResult(**analysis_data)
+            self.db.add(analysis_result)
 
-        # 6. Update status to COMPLETED
-        exam.status = ExamStatusEnum.COMPLETED
+            # 6. Update status to COMPLETED
+            exam.status = ExamStatusEnum.COMPLETED
 
-        await self.db.commit()
-        await self.db.refresh(analysis_result)
+            await self.db.commit()
+            await self.db.refresh(analysis_result)
 
-        return {
-            "analysis_id": analysis_result.id,
-            "status": "completed", # Mock이라 바로 완료
-            "message": "분석이 완료되었습니다."
-        }
+            return {
+                "analysis_id": analysis_result.id,
+                "status": "completed",
+                "message": "분석이 완료되었습니다."
+            }
+            
+        except Exception as e:
+            await self.db.rollback()
+            exam.status = ExamStatusEnum.FAILED
+            await self.db.commit()
+            print(f"Analysis failed: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Analysis failed: {str(e)}"
+            )
 
     async def get_analysis(self, analysis_id: str) -> AnalysisResult | None:
         """Get analysis result by ID."""
@@ -97,51 +133,7 @@ class AnalysisService:
         )
         return result.scalar_one_or_none()
 
-    def _generate_mock_data(self, exam_id: str, user_id: str) -> dict:
-        """Generate mock analysis result data."""
-        total_questions = 20
-        questions = []
-        
-        diff_counts = {"high": 0, "medium": 0, "low": 0}
-        type_counts = {
-            "calculation": 0, "geometry": 0, "application": 0, 
-            "proof": 0, "graph": 0, "statistics": 0
-        }
 
-        for i in range(1, total_questions + 1):
-            diff = random.choice(list(QuestionDifficulty))
-            q_type = random.choice(list(QuestionType))
-            
-            diff_counts[diff.value] += 1
-            type_counts[q_type.value] += 1
-            
-            questions.append({
-                "id": str(uuid.uuid4()),
-                "question_number": i,
-                "difficulty": diff.value,
-                "question_type": q_type.value,
-                "points": random.choice([3, 4, 5]),
-                "topic": f"Mock Topic {i}",
-                "ai_comment": f"This is a mock analysis for question {i}.",
-                "created_at": datetime.utcnow().isoformat()
-            })
-
-        return {
-            "exam_id": exam_id,
-            "user_id": user_id,
-            "file_hash": "mock_hash_123456",
-            "total_questions": total_questions,
-            "model_version": "mock-v1",
-            "summary": {
-                "difficulty_distribution": diff_counts,
-                "type_distribution": type_counts,
-                "average_difficulty": "medium",
-                "dominant_type": "calculation"
-            },
-            "questions": questions,
-            "analyzed_at": datetime.utcnow(),
-            "created_at": datetime.utcnow()
-        }
 
 
 def get_analysis_service(db: AsyncSession) -> AnalysisService:
