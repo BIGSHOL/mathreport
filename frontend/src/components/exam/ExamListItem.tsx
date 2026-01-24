@@ -7,13 +7,15 @@ import type { Exam } from '../../services/exam';
 
 interface ExamListItemProps {
   exam: Exam;
-  onAnalyze: (examId: string) => void;
+  onViewResult: (examId: string) => void;
+  onRequestAnalysis: (examId: string) => void;
   onDelete: (examId: string) => void;
 }
 
 export const ExamListItem = memo(function ExamListItem({
   exam,
-  onAnalyze,
+  onViewResult,
+  onRequestAnalysis,
   onDelete,
 }: ExamListItemProps) {
   const formattedDate = new Date(exam.created_at).toLocaleDateString();
@@ -36,7 +38,7 @@ export const ExamListItem = memo(function ExamListItem({
         <div className="ml-4 flex-shrink-0 flex space-x-4">
           {exam.status === 'completed' ? (
             <button
-              onClick={() => onAnalyze(exam.id)}
+              onClick={() => onViewResult(exam.id)}
               className="text-indigo-600 hover:text-indigo-900 font-medium"
             >
               결과 보기
@@ -45,7 +47,7 @@ export const ExamListItem = memo(function ExamListItem({
             <span className="text-gray-400">분석 중...</span>
           ) : (
             <button
-              onClick={() => onAnalyze(exam.id)}
+              onClick={() => onRequestAnalysis(exam.id)}
               className="text-green-600 hover:text-green-900 font-medium"
             >
               분석 요청

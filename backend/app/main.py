@@ -1,18 +1,95 @@
 """FastAPI application with authentication."""
-from fastapi import FastAPI
+import traceback
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1 import auth, exam, users, analysis
 
+# CORS origins
+CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+]
+
+
+class ErrorHandlingMiddleware(BaseHTTPMiddleware):
+    """Middleware to catch all errors and add CORS headers."""
+
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin", "")
+        try:
+            response = await call_next(request)
+            return response
+        except Exception as exc:
+            print(f"[ERROR] {request.method} {request.url.path}: {exc}")
+            traceback.print_exc()
+
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": str(exc)},
+            )
+
+            if origin in CORS_ORIGINS:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+
+            return response
+
+
 app = FastAPI(title="API", version="0.1.0")
 
+# Add error handling middleware FIRST (outermost)
+app.add_middleware(ErrorHandlingMiddleware)
+
+# Then add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTPException with CORS headers."""
+    origin = request.headers.get("origin", "")
+
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
+    if origin in CORS_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+
+    return response
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle all unhandled exceptions with CORS headers."""
+    print(f"[ERROR] {request.method} {request.url.path}: {exc}")
+    traceback.print_exc()
+
+    origin = request.headers.get("origin", "")
+
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+    )
+
+    if origin in CORS_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+
+    return response
 
 # Include routers
 app.include_router(auth.router, prefix="/api/v1")

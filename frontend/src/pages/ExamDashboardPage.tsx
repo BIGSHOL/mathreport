@@ -13,6 +13,7 @@ import { useExams, useUploadExam, useDeleteExam, useOptimisticExamUpdate } from 
 import { useRequestAnalysis } from '../hooks/useAnalysis';
 import { UploadForm } from '../components/exam/UploadForm';
 import { ExamListItem } from '../components/exam/ExamListItem';
+import { analysisService } from '../services/analysis';
 
 // Hoisted static element (rendering-hoist-jsx)
 const emptyState = (
@@ -45,8 +46,21 @@ export function ExamDashboardPage() {
     [upload, mutate]
   );
 
-  // Optimistic update for better UX
-  const handleAnalyze = useCallback(
+  // 결과 보기 - 기존 분석 결과로 바로 이동
+  const handleViewResult = useCallback(
+    async (examId: string) => {
+      try {
+        const { analysis_id } = await analysisService.getAnalysisIdByExam(examId);
+        navigate(`/analysis/${analysis_id}`);
+      } catch {
+        alert('분석 결과를 찾을 수 없습니다.');
+      }
+    },
+    [navigate]
+  );
+
+  // 분석 요청 - 새로운 분석 시작
+  const handleRequestAnalysis = useCallback(
     async (examId: string) => {
       // Optimistic update - show analyzing status immediately
       updateExamStatus(examId, 'analyzing');
@@ -101,7 +115,8 @@ export function ExamDashboardPage() {
               <ExamListItem
                 key={exam.id}
                 exam={exam}
-                onAnalyze={handleAnalyze}
+                onViewResult={handleViewResult}
+                onRequestAnalysis={handleRequestAnalysis}
                 onDelete={handleDelete}
               />
             ))

@@ -63,14 +63,14 @@ class AnalysisRequest(BaseModel):
 class QuestionAnalysis(BaseModel):
     """문항별 분석 결과"""
 
-    id: UUID
-    question_number: int = Field(ge=1, description="문항 번호")
-    difficulty: QuestionDifficulty
-    question_type: QuestionType
-    points: int | None = Field(None, ge=0, description="배점")
-    topic: str | None = Field(None, max_length=100, description="관련 단원/토픽")
+    id: str | UUID
+    question_number: int | str = Field(description="문항 번호 (숫자 또는 '서답형 1' 등)")
+    difficulty: str  # Gemini 응답 호환 (high, medium, low)
+    question_type: str  # Gemini 응답 호환
+    points: float | int | None = Field(None, description="배점")
+    topic: str | None = Field(None, max_length=500, description="관련 단원/토픽")
     ai_comment: str | None = Field(None, description="AI 분석 코멘트")
-    created_at: datetime
+    created_at: datetime | str
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -92,20 +92,20 @@ class QuestionAnalysis(BaseModel):
 class DifficultyDistribution(BaseModel):
     """난이도 분포"""
 
-    high: int = Field(ge=0)
-    medium: int = Field(ge=0)
-    low: int = Field(ge=0)
+    high: int = Field(default=0, ge=0)
+    medium: int = Field(default=0, ge=0)
+    low: int = Field(default=0, ge=0)
 
 
 class TypeDistribution(BaseModel):
     """문항 유형 분포"""
 
-    calculation: int = Field(ge=0)
-    geometry: int = Field(ge=0)
-    application: int = Field(ge=0)
-    proof: int = Field(ge=0)
-    graph: int | None = Field(default=0, ge=0)
-    statistics: int | None = Field(default=0, ge=0)
+    calculation: int = Field(default=0, ge=0)
+    geometry: int = Field(default=0, ge=0)
+    application: int = Field(default=0, ge=0)
+    proof: int = Field(default=0, ge=0)
+    graph: int = Field(default=0, ge=0)
+    statistics: int = Field(default=0, ge=0)
 
 
 class AnalysisSummary(BaseModel):
@@ -113,20 +113,20 @@ class AnalysisSummary(BaseModel):
 
     difficulty_distribution: DifficultyDistribution
     type_distribution: TypeDistribution
-    average_difficulty: QuestionDifficulty
-    dominant_type: QuestionType
+    average_difficulty: str  # Gemini 응답 호환
+    dominant_type: str  # Gemini 응답 호환
 
 
 class AnalysisResult(BaseModel):
     """분석 결과 전체"""
 
-    id: UUID
-    exam_id: UUID
+    id: str | UUID
+    exam_id: str | UUID
     file_hash: str = Field(description="SHA-256 해시")
     total_questions: int = Field(ge=0)
     model_version: str
-    analyzed_at: datetime
-    created_at: datetime
+    analyzed_at: datetime | str
+    created_at: datetime | str
     summary: AnalysisSummary
     questions: list[QuestionAnalysis]
 

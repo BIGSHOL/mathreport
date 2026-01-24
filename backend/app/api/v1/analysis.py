@@ -27,7 +27,7 @@ router = APIRouter(tags=["analysis"])
 async def request_analysis(
     exam_id: str,
     request: AnalysisRequest,
-    current_user: CurrentUser = None,
+    current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisCreateResponse:
     """시험지 분석을 요청합니다.
@@ -46,37 +46,76 @@ async def request_analysis(
 
 
 @router.get(
-    "/analysis/{analysis_id}",
-    response_model=AnalysisDetailResponse,
-    summary="분석 결과 조회"
+    "/exams/{exam_id}/analysis",
+    summary="시험지의 분석 결과 ID 조회"
 )
-async def get_analysis(
-    analysis_id: str,
-    current_user: CurrentUser = None,
+async def get_analysis_by_exam(
+    exam_id: str,
+    current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
-) -> AnalysisDetailResponse:
-    """분석 결과를 조회합니다."""
-    
+):
+    """시험지에 연결된 분석 결과 ID를 조회합니다."""
     analysis_service = get_analysis_service(db)
-    analysis = await analysis_service.get_analysis(analysis_id)
-    
+    analysis = await analysis_service.get_analysis_by_exam(exam_id)
+
     if not analysis:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
         )
-        
-    # Check ownership (간단하게 구현)
+
     if analysis.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
         )
 
+    return {"analysis_id": analysis.id}
+
+
+@router.get(
+    "/analysis/{analysis_id}",
+    response_model=AnalysisDetailResponse,
+    summary="분석 결과 조회"
+)
+async def get_analysis(
+    analysis_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> AnalysisDetailResponse:
+    """분석 결과를 조회합니다."""
+
+    analysis_service = get_analysis_service(db)
+    analysis = await analysis_service.get_analysis(analysis_id)
+
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
+        )
+
+    # Check ownership
+    if analysis.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
+        )
+
+    try:
+        result_data = AnalysisResultSchema.model_validate(analysis)
+    except Exception as e:
+        print(f"[ERROR] Validation failed for analysis {analysis_id}: {e}")
+        print(f"  Summary: {analysis.summary}")
+        print(f"  Questions: {analysis.questions}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "VALIDATION_ERROR", "message": f"데이터 검증 실패: {str(e)}"}
+        )
+
     return AnalysisDetailResponse(
-        data=AnalysisResultSchema.model_validate(analysis),
+        data=result_data,
         meta=AnalysisMetadata(
-            cache_hit=True, 
+            cache_hit=True,
             analysis_duration=1.5
         )
     )

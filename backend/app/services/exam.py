@@ -1,10 +1,11 @@
 """Exam service for business logic."""
 
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exam import Exam, FileTypeEnum
+from app.models.analysis import AnalysisResult
 from app.schemas.exam import ExamCreateRequest, ExamStatus
 from app.services.file_storage import file_storage
 
@@ -188,6 +189,13 @@ class ExamService:
         except Exception:
             # Continue even if file deletion fails
             pass
+
+        # Delete associated analysis results first (Cascade delete manually)
+        # Note: In a real cascade setup, DB handles this. 
+        # But if ON DELETE CASCADE is missing, we must delete child records.
+        await self.db.execute(
+            delete(AnalysisResult).where(AnalysisResult.exam_id == exam_id)
+        )
 
         # Delete from database
         await self.db.delete(exam)

@@ -111,9 +111,18 @@ class AnalysisService:
             
         except Exception as e:
             await self.db.rollback()
-            exam.status = ExamStatusEnum.FAILED
-            await self.db.commit()
+            # Re-fetch exam after rollback
+            result = await self.db.execute(
+                select(Exam).where(Exam.id == exam_id)
+            )
+            exam = result.scalar_one_or_none()
+            if exam:
+                exam.status = ExamStatusEnum.FAILED
+                await self.db.commit()
+
+            import traceback
             print(f"Analysis failed: {e}")
+            traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Analysis failed: {str(e)}"
