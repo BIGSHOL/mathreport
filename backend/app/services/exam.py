@@ -1,14 +1,25 @@
-"""Exam service for business logic."""
+"""Exam service for business logic using Supabase REST API."""
+import uuid
+from datetime import datetime
+from typing import Optional, Any
 
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import func, select, delete
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.exam import Exam, FileTypeEnum
-from app.models.analysis import AnalysisResult, AnalysisExtension
-from app.models.feedback import Feedback
+from app.db.supabase_client import SupabaseClient
 from app.schemas.exam import ExamCreateRequest, ExamStatus
 from app.services.file_storage import file_storage
+
+
+class ExamDict(dict):
+    """Exam data wrapper that allows attribute access."""
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"'ExamDict' has no attribute '{name}'")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self[name] = value
 
 
 class ExamService:
@@ -18,22 +29,22 @@ class ExamService:
     ALLOWED_PDF_TYPES = {"application/pdf"}
     ALLOWED_CONTENT_TYPES = ALLOWED_IMAGE_TYPES | ALLOWED_PDF_TYPES
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: SupabaseClient):
         """Initialize exam service.
 
         Args:
-            db: Database session
+            db: Supabase client
         """
         self.db = db
 
-    def _validate_file_type(self, file: UploadFile) -> FileTypeEnum:
-        """Validate file type and return FileType enum.
+    def _validate_file_type(self, file: UploadFile) -> str:
+        """Validate file type and return file type string.
 
         Args:
             file: Uploaded file
 
         Returns:
-            FileType enum value
+            File type string ('image' or 'pdf')
 
         Raises:
             HTTPException: If file type is not supported
@@ -41,9 +52,9 @@ class ExamService:
         content_type = file.content_type
 
         if content_type in self.ALLOWED_IMAGE_TYPES:
-            return FileTypeEnum.IMAGE
+            return "image"
         elif content_type in self.ALLOWED_PDF_TYPES:
-            return FileTypeEnum.PDF
+            return "pdf"
         else:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -62,7 +73,7 @@ class ExamService:
         user_id: str,
         request: ExamCreateRequest,
         files: list[UploadFile]
-    ) -> Exam:
+    ) -> ExamDict:
         """Create a new exam.
 
         Args:
@@ -90,8 +101,8 @@ class ExamService:
         file_types = [self._validate_file_type(f) for f in files]
 
         # Check for mixed types (PDF + images not allowed)
-        has_pdf = FileTypeEnum.PDF in file_types
-        has_image = FileTypeEnum.IMAGE in file_types
+        has_pdf = "pdf" in file_types
+        has_image = "image" in file_types
 
         if has_pdf and has_image:
             raise HTTPException(
@@ -129,28 +140,36 @@ class ExamService:
             ) from e
 
         # Determine file type (IMAGE if any images, PDF if PDF)
-        file_type = FileTypeEnum.PDF if has_pdf else FileTypeEnum.IMAGE
+        file_type = "pdf" if has_pdf else "image"
 
         # Create exam record
-        exam = Exam(
-            user_id=user_id,
-            title=request.title,
-            grade=request.grade,
-            subject=request.subject,
-            unit=request.unit,
-            file_path=file_path,
-            file_type=file_type.value,
-            exam_type=request.exam_type.value,
-            status=ExamStatus.PENDING.value
-        )
+        now = datetime.utcnow().isoformat()
+        exam_data = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "title": request.title,
+            "grade": request.grade,
+            "subject": request.subject,
+            "unit": request.unit,
+            "file_path": file_path,
+            "file_type": file_type,
+            "exam_type": request.exam_type.value,
+            "status": ExamStatus.PENDING.value,
+            "created_at": now,
+            "updated_at": now,
+        }
 
-        self.db.add(exam)
-        await self.db.commit()
-        await self.db.refresh(exam)
+        result = await self.db.table("exams").insert(exam_data).execute()
 
-        return exam
+        if result.error:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={"code": "DB_ERROR", "message": f"Failed to create exam: {result.error}"}
+            )
 
-    async def get_exam(self, exam_id: str, user_id: str) -> Exam | None:
+        return ExamDict(result.data)
+
+    async def get_exam(self, exam_id: str, user_id: str) -> Optional[ExamDict]:
         """Get exam by ID.
 
         Args:
@@ -160,21 +179,36 @@ class ExamService:
         Returns:
             Exam if found, None otherwise
         """
-        result = await self.db.execute(
-            select(Exam).where(
-                Exam.id == exam_id,
-                Exam.user_id == user_id
-            )
-        )
-        return result.scalar_one_or_none()
+        result = await self.db.table("exams").select("*").eq("id", exam_id).eq("user_id", user_id).maybe_single().execute()
+
+        if result.error or result.data is None:
+            return None
+
+        return ExamDict(result.data)
+
+    async def get_exam_by_id(self, exam_id: str) -> Optional[ExamDict]:
+        """Get exam by ID (without user check).
+
+        Args:
+            exam_id: Exam ID
+
+        Returns:
+            Exam if found, None otherwise
+        """
+        result = await self.db.table("exams").select("*").eq("id", exam_id).maybe_single().execute()
+
+        if result.error or result.data is None:
+            return None
+
+        return ExamDict(result.data)
 
     async def get_exams(
         self,
         user_id: str,
         page: int = 1,
         page_size: int = 20,
-        status_filter: ExamStatus | None = None
-    ) -> tuple[list[Exam], int]:
+        status_filter: Optional[ExamStatus] = None
+    ) -> tuple[list[ExamDict], int]:
         """Get paginated list of exams.
 
         Args:
@@ -187,26 +221,32 @@ class ExamService:
             Tuple of (exams list, total count)
         """
         # Build query
-        query = select(Exam).where(Exam.user_id == user_id)
+        query = self.db.table("exams").select("*").eq("user_id", user_id)
 
         if status_filter:
-            query = query.where(Exam.status == status_filter.value)
+            query = query.eq("status", status_filter.value)
 
-        # Get total count
-        count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
-        total = total_result.scalar_one()
+        # Get all results first for count (not ideal, but PostgREST doesn't support count separately easily)
+        count_query = self.db.table("exams").select("id").eq("user_id", user_id)
+        if status_filter:
+            count_query = count_query.eq("status", status_filter.value)
+        count_result = await count_query.execute()
+        total = count_result.count if not count_result.error else 0
 
         # Get paginated results
         offset = (page - 1) * page_size
-        query = query.order_by(Exam.created_at.desc()).offset(offset).limit(page_size)
+        query = query.order("created_at", desc=True).offset(offset).limit(page_size)
 
-        result = await self.db.execute(query)
-        exams = list(result.scalars().all())
+        result = await query.execute()
+
+        if result.error:
+            return [], 0
+
+        exams = [ExamDict(e) for e in (result.data if isinstance(result.data, list) else [])]
 
         return exams, total
 
-    async def update_exam_type(self, exam_id: str, user_id: str, exam_type: str) -> Exam | None:
+    async def update_exam_type(self, exam_id: str, user_id: str, exam_type: str) -> Optional[ExamDict]:
         """Update exam type (blank/student).
 
         Args:
@@ -222,11 +262,42 @@ class ExamService:
         if not exam:
             return None
 
-        exam.exam_type = exam_type
-        await self.db.commit()
-        await self.db.refresh(exam)
+        update_data = {
+            "exam_type": exam_type,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
 
-        return exam
+        result = await self.db.table("exams").eq("id", exam_id).update(update_data).execute()
+
+        if result.error:
+            return None
+
+        return await self.get_exam(exam_id, user_id)
+
+    async def update_exam_status(self, exam_id: str, status: str, error_message: str | None = None) -> Optional[ExamDict]:
+        """Update exam status.
+
+        Args:
+            exam_id: Exam ID
+            status: New status
+            error_message: Optional error message for failed status
+
+        Returns:
+            Updated exam
+        """
+        update_data = {
+            "status": status,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+        if error_message:
+            update_data["error_message"] = error_message
+
+        result = await self.db.table("exams").eq("id", exam_id).update(update_data).execute()
+
+        if result.error:
+            return None
+
+        return await self.get_exam_by_id(exam_id)
 
     async def update_detection_result(
         self,
@@ -236,7 +307,9 @@ class ExamService:
         grading_status: str | None = None,
         suggested_title: str | None = None,
         extracted_grade: str | None = None,
-    ) -> Exam | None:
+        detected_subject: str | None = None,
+        subject_confidence: float | None = None,
+    ) -> Optional[ExamDict]:
         """Update AI detection result for exam.
 
         Args:
@@ -246,29 +319,37 @@ class ExamService:
             grading_status: Grading status (not_graded, partially_graded, fully_graded)
             suggested_title: AI-suggested title from image metadata
             extracted_grade: AI-extracted grade from image
+            detected_subject: AI-detected subject (수학/영어)
+            subject_confidence: Subject detection confidence (0-1)
 
         Returns:
             Updated exam
         """
-        result = await self.db.execute(
-            select(Exam).where(Exam.id == exam_id)
-        )
-        exam = result.scalar_one_or_none()
+        update_data = {
+            "detected_type": detected_type,
+            "detection_confidence": confidence,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
 
-        if not exam:
+        if grading_status:
+            update_data["grading_status"] = grading_status
+        if suggested_title:
+            update_data["suggested_title"] = suggested_title
+        if extracted_grade:
+            update_data["extracted_grade"] = extracted_grade
+        if detected_subject:
+            update_data["detected_subject"] = detected_subject
+            # 감지된 과목으로 subject 필드도 업데이트 (사용자 입력 대신 AI 감지 결과 사용)
+            update_data["subject"] = detected_subject
+        if subject_confidence is not None:
+            update_data["subject_confidence"] = subject_confidence
+
+        result = await self.db.table("exams").eq("id", exam_id).update(update_data).execute()
+
+        if result.error:
             return None
 
-        exam.detected_type = detected_type
-        exam.detection_confidence = confidence
-        exam.grading_status = grading_status
-        if suggested_title:
-            exam.suggested_title = suggested_title
-        if extracted_grade:
-            exam.extracted_grade = extracted_grade
-        await self.db.commit()
-        await self.db.refresh(exam)
-
-        return exam
+        return await self.get_exam_by_id(exam_id)
 
     async def delete_exam(self, exam_id: str, user_id: str) -> bool:
         """Delete exam by ID.
@@ -290,46 +371,36 @@ class ExamService:
 
         # Delete file(s) from storage (supports comma-separated paths for multiple images)
         try:
-            file_storage.delete_files(exam.file_path)
+            file_storage.delete_files(exam["file_path"])
         except Exception:
             # Continue even if file deletion fails
             pass
 
-        # Delete associated records (Cascade delete manually)
+        # Delete associated records (Cascade delete)
         # 1. Get analysis_result IDs for this exam
-        result = await self.db.execute(
-            select(AnalysisResult.id).where(AnalysisResult.exam_id == exam_id)
-        )
-        analysis_ids = result.scalars().all()  # async에서는 scalars().all() 사용
+        analysis_result = await self.db.table("analysis_results").select("id").eq("exam_id", exam_id).execute()
+        analysis_ids = [a["id"] for a in (analysis_result.data or [])]
 
         if analysis_ids:
             # 2. Delete feedbacks first (child of analysis_results)
-            await self.db.execute(
-                delete(Feedback).where(Feedback.analysis_id.in_(analysis_ids))
-            )
+            for analysis_id in analysis_ids:
+                await self.db.table("feedbacks").eq("analysis_id", analysis_id).delete().execute()
+                await self.db.table("analysis_extensions").eq("analysis_id", analysis_id).delete().execute()
 
-            # 3. Delete analysis_extensions (child of analysis_results)
-            await self.db.execute(
-                delete(AnalysisExtension).where(AnalysisExtension.analysis_id.in_(analysis_ids))
-            )
+        # 3. Delete analysis_results
+        await self.db.table("analysis_results").eq("exam_id", exam_id).delete().execute()
 
-        # 4. Delete analysis_results
-        await self.db.execute(
-            delete(AnalysisResult).where(AnalysisResult.exam_id == exam_id)
-        )
+        # 4. Delete exam
+        result = await self.db.table("exams").eq("id", exam_id).delete().execute()
 
-        # Delete from database
-        await self.db.delete(exam)
-        await self.db.commit()
-
-        return True
+        return not result.error
 
 
-def get_exam_service(db: AsyncSession) -> ExamService:
+def get_exam_service(db: SupabaseClient) -> ExamService:
     """Dependency for getting exam service.
 
     Args:
-        db: Database session
+        db: Supabase client
 
     Returns:
         ExamService instance

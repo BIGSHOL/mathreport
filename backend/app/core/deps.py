@@ -4,26 +4,33 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import ALGORITHM
-from app.db.session import get_db
-from app.models.user import User
+from app.db.supabase_client import SupabaseClient, get_supabase
+from app.services.auth import UserDict, get_user_by_id
 from app.schemas.auth import TokenPayload
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
+def get_db() -> SupabaseClient:
+    """Get database client (Supabase REST API)."""
+    return get_supabase()
+
+
+# Type alias for dependency injection
+DbDep = Annotated[SupabaseClient, Depends(get_db)]
+
+
 async def get_current_user(
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: DbDep,
     token: Annotated[str, Depends(oauth2_scheme)],
-) -> User:
+) -> UserDict:
     """Get current authenticated user from JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="인증 정보를 확인할 수 없습니다",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
@@ -36,18 +43,17 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception from None
 
-    result = await db.execute(select(User).where(User.id == token_data.sub))
-    user = result.scalar_one_or_none()
+    user = await get_user_by_id(db, token_data.sub)
 
     if user is None:
         raise credentials_exception
-    if not user.is_active:
+    if not user.get("is_active", True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user"
+            detail="비활성화된 계정입니다"
         )
 
     return user
 
 
-CurrentUser = Annotated[User, Depends(get_current_user)]
+CurrentUser = Annotated[UserDict, Depends(get_current_user)]

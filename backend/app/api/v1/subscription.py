@@ -1,9 +1,7 @@
 """Subscription API endpoints."""
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter
 
-from app.core.deps import CurrentUser
-from app.db.session import get_db
+from app.core.deps import CurrentUser, DbDep
 from app.schemas.subscription import (
     UsageStatus,
     PurchaseCreditsRequest,
@@ -13,8 +11,7 @@ from app.schemas.subscription import (
     CREDIT_PACKAGES,
     SUBSCRIPTION_PRICES,
 )
-from app.services.subscription import get_subscription_service
-from app.models.user import SubscriptionTier, TIER_LIMITS
+from app.services.subscription import get_subscription_service, SubscriptionTier, TIER_LIMITS
 
 router = APIRouter(tags=["subscription"])
 
@@ -22,11 +19,11 @@ router = APIRouter(tags=["subscription"])
 @router.get("/usage", response_model=UsageStatus, summary="사용량 조회")
 async def get_usage(
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ) -> UsageStatus:
     """현재 사용량 및 구독 상태를 조회합니다."""
     service = get_subscription_service(db)
-    return await service.get_usage_status(current_user.id)
+    return await service.get_usage_status(current_user["id"])
 
 
 @router.get("/plans", summary="요금제 목록 조회")
@@ -67,32 +64,32 @@ async def get_credit_packages():
 async def subscribe(
     request: SubscribeRequest,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ) -> SubscribeResponse:
     """구독을 시작합니다. (Mock - 실제 결제 없음)"""
     service = get_subscription_service(db)
-    return await service.subscribe(current_user.id, request)
+    return await service.subscribe(current_user["id"], request)
 
 
 @router.post("/cancel", summary="구독 취소")
 async def cancel_subscription(
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ):
     """구독을 취소합니다. 현재 구독 기간은 만료일까지 유지됩니다."""
     service = get_subscription_service(db)
-    return await service.cancel_subscription(current_user.id)
+    return await service.cancel_subscription(current_user["id"])
 
 
 @router.post("/credits/purchase", response_model=PurchaseCreditsResponse, summary="크레딧 구매")
 async def purchase_credits(
     request: PurchaseCreditsRequest,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ) -> PurchaseCreditsResponse:
     """크레딧을 구매합니다. (Mock - 실제 결제 없음)"""
     service = get_subscription_service(db)
-    return await service.purchase_credits(current_user.id, request)
+    return await service.purchase_credits(current_user["id"], request)
 
 
 def _get_tier_features(tier: SubscriptionTier) -> list[str]:

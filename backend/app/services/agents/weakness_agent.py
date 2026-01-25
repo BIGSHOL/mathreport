@@ -69,7 +69,7 @@ class WeaknessAnalysisAgent:
         )
 
         if not response.text:
-            raise ValueError("Empty response from AI")
+            raise ValueError("AI 응답이 비어있습니다")
 
         result = json.loads(response.text)
         return self._parse_ai_response(result)

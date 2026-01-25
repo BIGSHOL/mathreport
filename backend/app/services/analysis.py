@@ -1,14 +1,11 @@
-"""Analysis service for handling AI analysis requests."""
+"""Analysis service for handling AI analysis requests using Supabase REST API."""
 import uuid
-import random
 from datetime import datetime
+from typing import Optional, Any
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
-from app.models.analysis import AnalysisResult
-from app.models.exam import Exam, ExamStatusEnum
+from app.db.supabase_client import SupabaseClient
 from app.schemas.analysis import (
     AnalysisResult as AnalysisResultSchema,
     QuestionDifficulty,
@@ -17,48 +14,57 @@ from app.schemas.analysis import (
 from app.core.config import settings
 
 
+class AnalysisDict(dict):
+    """Analysis data wrapper that allows attribute access."""
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"'AnalysisDict' has no attribute '{name}'")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self[name] = value
+
+
 class AnalysisService:
     """Service for analysis-related business logic."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: SupabaseClient):
         self.db = db
 
     async def request_analysis(self, exam_id: str, user_id: str, force_reanalyze: bool = False):
         """Request exam analysis.
 
-        MOCK Implementation:
-        - 즉시 분석 결과를 생성하고 저장합니다.
-        - 실제 구현에서는 Celery Task 등을 트리거하고 'analyzing' 상태만 반환해야 합니다.
+        Performs AI analysis and saves the results.
         """
         # 1. Check exam existence
-        result = await self.db.execute(
-            select(Exam).where(Exam.id == exam_id, Exam.user_id == user_id)
-        )
-        exam = result.scalar_one_or_none()
+        result = await self.db.table("exams").select("*").eq("id", exam_id).eq("user_id", user_id).maybe_single().execute()
 
-        if not exam:
+        if result.error or result.data is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"code": "EXAM_NOT_FOUND", "message": "시험지를 찾을 수 없습니다."}
             )
 
+        exam = result.data
+
         # 2. Check if already exists (unless force_reanalyze)
-        existing_result = await self.db.execute(
-            select(AnalysisResult).where(AnalysisResult.exam_id == exam_id)
-        )
-        existing = existing_result.scalar_one_or_none()
+        existing_result = await self.db.table("analysis_results").select("*").eq("exam_id", exam_id).maybe_single().execute()
+        existing = existing_result.data
 
         if not force_reanalyze and existing:
             # 기존 분석 결과가 있으면 그대로 반환 (캐시 히트)
             return {
-                "analysis_id": existing.id,
+                "analysis_id": existing["id"],
                 "status": "completed",
                 "message": "기존 분석 결과를 반환합니다."
             }
 
         # 3. Update status to ANALYZING
-        exam.status = ExamStatusEnum.ANALYZING
-        await self.db.commit()
+        await self.db.table("exams").eq("id", exam_id).update({
+            "status": "analyzing",
+            "updated_at": datetime.utcnow().isoformat()
+        }).execute()
 
         # 4. Perform AI Analysis with Pattern System
         from app.services.ai_engine import ai_engine
@@ -70,84 +76,122 @@ class AnalysisService:
             # - 학년/단원별 최적화
             ai_result = await ai_engine.analyze_exam_with_patterns(
                 db=self.db,
-                file_path=exam.file_path,
-                grade_level=exam.grade,
-                unit=exam.unit,
+                file_path=exam["file_path"],
+                grade_level=exam.get("grade"),
+                unit=exam.get("unit"),
                 auto_classify=True,  # 시험지 유형 자동 분류
             )
-            
+
             # 5. Process & Save Result
             processed_questions = []
             for q in ai_result.get("questions", []):
                 q["id"] = str(uuid.uuid4())
                 q["created_at"] = datetime.utcnow().isoformat()
-                # Ensure fields match schema
                 processed_questions.append(q)
-                
+
             summary = ai_result.get("summary", {})
-            
+
+            # ID를 명시적으로 생성
+            analysis_id = str(uuid.uuid4())
+            now = datetime.utcnow().isoformat()
+
             analysis_data = {
+                "id": analysis_id,
                 "exam_id": exam_id,
                 "user_id": user_id,
-                "file_hash": f"hash_{exam_id}", # Placeholder
+                "file_hash": f"hash_{exam_id}",
                 "total_questions": len(processed_questions),
                 "model_version": settings.GEMINI_MODEL_NAME,
                 "summary": summary,
                 "questions": processed_questions,
-                "analyzed_at": datetime.utcnow(),
-                "created_at": datetime.utcnow()
+                "analyzed_at": now,
+                "created_at": now
             }
 
             # force_reanalyze인 경우 기존 결과 삭제
             if existing:
-                await self.db.delete(existing)
-                await self.db.flush()
+                await self.db.table("analysis_results").eq("id", existing["id"]).delete().execute()
 
-            analysis_result = AnalysisResult(**analysis_data)
-            self.db.add(analysis_result)
+            # Insert new analysis result
+            insert_result = await self.db.table("analysis_results").insert(analysis_data).execute()
 
-            # 6. Update status to COMPLETED
-            exam.status = ExamStatusEnum.COMPLETED
+            if insert_result.error:
+                raise Exception(f"Failed to save analysis: {insert_result.error}")
+
+            # 6. Update status to COMPLETED + 분석 결과에서 분류 정보 추출
+            exam_update = {
+                "status": "completed",
+                "updated_at": datetime.utcnow().isoformat()
+            }
+
+            # 분석 결과에서 _classification 정보 추출하여 exam에 저장
+            classification = ai_result.get("_classification", {})
+            if classification:
+                # 시험지 유형
+                paper_type = classification.get("paper_type")
+                if paper_type:
+                    exam_update["detected_type"] = paper_type
+                    exam_update["detection_confidence"] = classification.get("paper_type_confidence", 0.5)
+
+                # 채점 상태
+                grading_status = classification.get("grading_status")
+                if grading_status:
+                    exam_update["grading_status"] = grading_status
+
+                # 과목 감지
+                detected_subject = classification.get("detected_subject")
+                if detected_subject:
+                    exam_update["detected_subject"] = detected_subject
+                    exam_update["subject_confidence"] = classification.get("subject_confidence", 0.5)
+                    # 과목도 업데이트 (사용자 입력 대신 AI 감지 결과)
+                    exam_update["subject"] = detected_subject
+
+                # 메타데이터에서 제목 추출
+                metadata = classification.get("extracted_metadata", {})
+                if metadata:
+                    suggested_title = metadata.get("suggested_title")
+                    if suggested_title:
+                        exam_update["suggested_title"] = suggested_title
+                    extracted_grade = metadata.get("grade")
+                    if extracted_grade:
+                        exam_update["extracted_grade"] = extracted_grade
+
+            await self.db.table("exams").eq("id", exam_id).update(exam_update).execute()
 
             # 7. 자동 레퍼런스 수집 (신뢰도 낮은 문제 + 상 난이도 문제)
             await self._collect_question_references(
-                analysis_result=analysis_result,
+                analysis_id=analysis_id,
                 exam=exam,
                 processed_questions=processed_questions,
             )
 
-            await self.db.commit()
-            await self.db.refresh(analysis_result)
-
             return {
-                "analysis_id": analysis_result.id,
+                "analysis_id": analysis_id,
                 "status": "completed",
                 "message": "분석이 완료되었습니다."
             }
-            
+
         except Exception as e:
-            await self.db.rollback()
-            # Re-fetch exam after rollback
-            result = await self.db.execute(
-                select(Exam).where(Exam.id == exam_id)
-            )
-            exam = result.scalar_one_or_none()
-            if exam:
-                exam.status = ExamStatusEnum.FAILED
-                await self.db.commit()
+            # Update status to FAILED
+            error_msg = str(e)[:500] if str(e) else "알 수 없는 오류"
+            await self.db.table("exams").eq("id", exam_id).update({
+                "status": "failed",
+                "error_message": error_msg,
+                "updated_at": datetime.utcnow().isoformat()
+            }).execute()
 
             import traceback
             print(f"Analysis failed: {e}")
             traceback.print_exc()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Analysis failed: {str(e)}"
+                detail=f"분석 실패: {str(e)}"
             )
 
     async def _collect_question_references(
         self,
-        analysis_result: AnalysisResult,
-        exam: Exam,
+        analysis_id: str,
+        exam: dict,
         processed_questions: list[dict],
     ):
         """신뢰도 낮은 문제 + 상 난이도 문제 자동 수집
@@ -155,14 +199,11 @@ class AnalysisService:
         수집 조건:
         - confidence < 0.7 (신뢰도 낮음)
         - difficulty = "high" (상 난이도)
-
-        수집된 레퍼런스는 pending 상태로 저장되며,
-        관리자 검토 후 승인되면 해당 학년 분석 시 프롬프트에 포함됨
         """
-        from app.models.reference import QuestionReference, CollectionReason
-
         # 학년 정보: extracted_grade > grade > "unknown"
-        grade_level = exam.extracted_grade or exam.grade or "unknown"
+        grade_level = exam.get("extracted_grade") or exam.get("grade") or "unknown"
+
+        references_to_insert = []
 
         for q in processed_questions:
             confidence = q.get("confidence", 1.0)
@@ -171,52 +212,61 @@ class AnalysisService:
             # 수집 조건 확인
             reasons = []
             if confidence is not None and confidence < 0.7:
-                reasons.append(CollectionReason.LOW_CONFIDENCE)
+                reasons.append("low_confidence")
             if difficulty == "high":
-                reasons.append(CollectionReason.HIGH_DIFFICULTY)
+                reasons.append("high_difficulty")
 
             if not reasons:
                 continue
 
             # 레퍼런스 생성 (첫 번째 사유 사용)
-            reference = QuestionReference(
-                id=str(uuid.uuid4()),
-                source_analysis_id=analysis_result.id,
-                source_exam_id=exam.id,
-                question_number=str(q.get("question_number", "")),
-                topic=q.get("topic"),
-                difficulty=difficulty,
-                question_type=q.get("question_type"),
-                ai_comment=q.get("ai_comment"),
-                points=q.get("points"),
-                confidence=confidence if confidence is not None else 1.0,
-                grade_level=grade_level,
-                collection_reason=reasons[0].value,
-                review_status="pending",
-                original_analysis_snapshot=q,
-            )
-            self.db.add(reference)
+            reference = {
+                "id": str(uuid.uuid4()),
+                "source_analysis_id": analysis_id,
+                "source_exam_id": exam["id"],
+                "question_number": str(q.get("question_number", "")),
+                "topic": q.get("topic"),
+                "difficulty": difficulty,
+                "question_type": q.get("question_type"),
+                "ai_comment": q.get("ai_comment"),
+                "points": q.get("points"),
+                "confidence": confidence if confidence is not None else 1.0,
+                "grade_level": grade_level,
+                "collection_reason": reasons[0],
+                "review_status": "pending",
+                "original_analysis_snapshot": q,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+            references_to_insert.append(reference)
 
-    async def get_analysis(self, analysis_id: str) -> AnalysisResult | None:
+        if references_to_insert:
+            await self.db.table("question_references").insert(references_to_insert).execute()
+
+    async def get_analysis(self, analysis_id: str) -> Optional[AnalysisDict]:
         """Get analysis result by ID."""
-        result = await self.db.execute(
-            select(AnalysisResult).where(AnalysisResult.id == analysis_id)
-        )
-        return result.scalar_one_or_none()
-        
-    async def get_analysis_by_exam(self, exam_id: str) -> AnalysisResult | None:
+        result = await self.db.table("analysis_results").select("*").eq("id", analysis_id).maybe_single().execute()
+
+        if result.error or result.data is None:
+            return None
+
+        return AnalysisDict(result.data)
+
+    async def get_analysis_by_exam(self, exam_id: str) -> Optional[AnalysisDict]:
         """Get analysis result by Exam ID."""
-        result = await self.db.execute(
-            select(AnalysisResult).where(AnalysisResult.exam_id == exam_id)
-        )
-        return result.scalar_one_or_none()
+        result = await self.db.table("analysis_results").select("*").eq("exam_id", exam_id).maybe_single().execute()
+
+        if result.error or result.data is None:
+            return None
+
+        return AnalysisDict(result.data)
 
     async def merge_analyses(
         self,
-        analyses: list[AnalysisResult],
+        analyses: list[AnalysisDict],
         user_id: str,
         title: str = "병합된 분석"
-    ) -> AnalysisResult:
+    ) -> AnalysisDict:
         """여러 분석 결과를 병합합니다.
 
         Args:
@@ -232,7 +282,7 @@ class AnalysisService:
         question_num = 1
 
         for analysis in analyses:
-            for q in (analysis.questions or []):
+            for q in (analysis.get("questions") or []):
                 q_copy = q.copy() if isinstance(q, dict) else dict(q)
                 q_copy["id"] = str(uuid.uuid4())
                 q_copy["question_number"] = question_num
@@ -280,27 +330,30 @@ class AnalysisService:
         }
 
         # 첫 번째 분석의 exam_id 사용 (병합 표시용)
-        first_exam_id = str(analyses[0].exam_id) if analyses else None
+        first_exam_id = str(analyses[0]["exam_id"]) if analyses else None
+        now = datetime.utcnow().isoformat()
 
         # 병합 결과 저장
-        merged_result = AnalysisResult(
-            exam_id=first_exam_id,
-            user_id=user_id,
-            file_hash=f"merged_{uuid.uuid4().hex[:8]}",
-            total_questions=len(merged_questions),
-            model_version=f"merged_from_{len(analyses)}_analyses",
-            summary=summary,
-            questions=merged_questions,
-            analyzed_at=datetime.utcnow(),
-            created_at=datetime.utcnow()
-        )
+        merged_data = {
+            "id": str(uuid.uuid4()),
+            "exam_id": first_exam_id,
+            "user_id": user_id,
+            "file_hash": f"merged_{uuid.uuid4().hex[:8]}",
+            "total_questions": len(merged_questions),
+            "model_version": f"merged_from_{len(analyses)}_analyses",
+            "summary": summary,
+            "questions": merged_questions,
+            "analyzed_at": now,
+            "created_at": now
+        }
 
-        self.db.add(merged_result)
-        await self.db.commit()
-        await self.db.refresh(merged_result)
+        result = await self.db.table("analysis_results").insert(merged_data).execute()
 
-        return merged_result
+        if result.error:
+            raise Exception(f"Failed to save merged analysis: {result.error}")
+
+        return AnalysisDict(result.data)
 
 
-def get_analysis_service(db: AsyncSession) -> AnalysisService:
+def get_analysis_service(db: SupabaseClient) -> AnalysisService:
     return AnalysisService(db)

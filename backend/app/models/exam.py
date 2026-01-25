@@ -67,3 +67,5 @@ class Exam(Base):
     suggested_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # 추출된 학년 정보 (AI 분석)
     extracted_grade: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # 분석 실패 시 에러 메시지
+    error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)

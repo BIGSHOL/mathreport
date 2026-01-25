@@ -1,8 +1,7 @@
 """AI Learning admin API endpoints."""
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter
 
-from app.db.session import get_db
+from app.core.deps import DbDep
 from app.services.ai_learning import get_ai_learning_service
 
 router = APIRouter(prefix="/ai-learning", tags=["ai-learning"])
@@ -10,7 +9,7 @@ router = APIRouter(prefix="/ai-learning", tags=["ai-learning"])
 
 @router.get("/summary")
 async def get_feedback_summary(
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ):
     """피드백 및 학습 패턴 요약 통계를 반환합니다."""
     service = get_ai_learning_service(db)
@@ -20,7 +19,7 @@ async def get_feedback_summary(
 @router.post("/analyze")
 async def analyze_feedback(
     days: int = 7,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep = None,
 ):
     """최근 피드백을 분석하고 패턴을 추출합니다."""
     service = get_ai_learning_service(db)
@@ -29,7 +28,7 @@ async def analyze_feedback(
 
 @router.get("/prompt-additions")
 async def get_prompt_additions(
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ):
     """현재 적용 중인 동적 프롬프트 추가 내용을 반환합니다."""
     service = get_ai_learning_service(db)
@@ -43,7 +42,7 @@ async def add_pattern(
     pattern_key: str,
     pattern_value: str,
     confidence: float = 0.8,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep = None,
 ):
     """수동으로 학습 패턴을 추가합니다.
 
@@ -60,9 +59,9 @@ async def add_pattern(
         confidence=confidence,
     )
     return {
-        "id": pattern.id,
-        "pattern_type": pattern.pattern_type,
-        "pattern_key": pattern.pattern_key,
-        "pattern_value": pattern.pattern_value,
-        "confidence": pattern.confidence,
+        "id": pattern.get("id"),
+        "pattern_type": pattern.get("pattern_type"),
+        "pattern_key": pattern.get("pattern_key"),
+        "pattern_value": pattern.get("pattern_value"),
+        "confidence": pattern.get("confidence"),
     }

@@ -9,7 +9,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import (
@@ -17,7 +16,7 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
 )
-from app.db.session import get_db
+from app.core.deps import DbDep
 from app.schemas.auth import (
     LoginRequest,
     LoginResponse,
@@ -35,7 +34,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     user_in: RegisterRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: DbDep,
 ):
     """
     회원가입 엔드포인트
@@ -69,18 +68,18 @@ async def register(
 
     # RegisterResponse 스키마에 맞춰 반환
     return RegisterResponse(
-        id=user.id,
-        email=user.email,
-        nickname=user.nickname,
+        id=user["id"],
+        email=user["email"],
+        nickname=user["nickname"],
         role="user",  # 기본 역할
-        created_at=user.created_at
+        created_at=user["created_at"]
     )
 
 
 @router.post("/login", response_model=LoginResponse)
 async def login(
     login_data: LoginRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: DbDep,
 ):
     """
     로그인 엔드포인트
@@ -124,12 +123,12 @@ async def login(
     # Access Token 생성 (15분)
     access_token_expires = timedelta(minutes=15)
     access_token = create_access_token(
-        subject=user.id,
+        subject=user["id"],
         expires_delta=access_token_expires
     )
 
     # Refresh Token 생성 (7일)
-    refresh_token = create_refresh_token(subject=user.id)
+    refresh_token = create_refresh_token(subject=user["id"])
 
     # 응답 반환
     return LoginResponse(
@@ -138,9 +137,9 @@ async def login(
         token_type="bearer",
         expires_in=900,  # 15분 = 900초
         user=UserBase(
-            id=user.id,
-            email=user.email,
-            nickname=user.nickname,
+            id=user["id"],
+            email=user["email"],
+            nickname=user["nickname"],
             role="user"
         )
     )
@@ -149,7 +148,7 @@ async def login(
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
     refresh_data: RefreshTokenRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: DbDep,
 ):
     """
     Refresh Token으로 새로운 Access Token 발급

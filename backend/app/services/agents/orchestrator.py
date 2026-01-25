@@ -2,10 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.analysis import AnalysisResult, AnalysisExtension
+from app.db.supabase_client import SupabaseClient
 from app.schemas.analysis import (
     AnalysisExtension as AnalysisExtensionSchema,
     WeaknessProfile,
@@ -26,7 +23,7 @@ class AnalysisOrchestrator:
     3단계: 결과 통합 및 저장
     """
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: SupabaseClient):
         self.db = db
         self.weakness_agent = WeaknessAnalysisAgent()
         self.learning_agent = LearningPlanAgent()
@@ -49,30 +46,29 @@ class AnalysisOrchestrator:
             확장 분석 결과
         """
         # 1. 기본 분석 조회
-        result = await self.db.execute(
-            select(AnalysisResult).where(AnalysisResult.id == analysis_id)
-        )
-        basic_analysis = result.scalar_one_or_none()
+        result = await self.db.table("analysis_results").select("*").eq(
+            "id", analysis_id
+        ).maybe_single().execute()
 
-        if not basic_analysis:
-            raise ValueError(f"Analysis not found: {analysis_id}")
+        if result.error or result.data is None:
+            raise ValueError(f"분석 결과를 찾을 수 없습니다: {analysis_id}")
+
+        basic_analysis = result.data
 
         # 2. 기존 확장 분석 확인
         if not force_regenerate:
-            existing = await self.db.execute(
-                select(AnalysisExtension).where(
-                    AnalysisExtension.analysis_id == analysis_id
-                )
-            )
-            ext = existing.scalar_one_or_none()
-            if ext:
-                return self._to_schema(ext)
+            existing = await self.db.table("analysis_extensions").select("*").eq(
+                "analysis_id", analysis_id
+            ).maybe_single().execute()
+
+            if existing.data:
+                return self._to_schema(existing.data)
 
         # 3. 기본 분석 데이터 준비
         basic_data = {
-            "summary": basic_analysis.summary,
-            "questions": basic_analysis.questions,
-            "total_questions": basic_analysis.total_questions,
+            "summary": basic_analysis.get("summary"),
+            "questions": basic_analysis.get("questions"),
+            "total_questions": basic_analysis.get("total_questions"),
         }
 
         # 4. 에이전트 순차 실행 (의존성 있음)
@@ -97,64 +93,78 @@ class AnalysisOrchestrator:
 
         # 기존 확장 분석 삭제 (force_regenerate인 경우)
         if force_regenerate:
-            existing = await self.db.execute(
-                select(AnalysisExtension).where(
-                    AnalysisExtension.analysis_id == analysis_id
-                )
-            )
-            ext = existing.scalar_one_or_none()
-            if ext:
-                await self.db.delete(ext)
-                await self.db.flush()
+            existing = await self.db.table("analysis_extensions").select("id").eq(
+                "analysis_id", analysis_id
+            ).maybe_single().execute()
 
-        extension = AnalysisExtension(
-            id=str(uuid.uuid4()),
-            analysis_id=analysis_id,
-            user_id=user_id,
-            weakness_profile=weakness_profile.model_dump(),
-            learning_plan=learning_plan.model_dump(),
-            performance_prediction=performance_prediction.model_dump(),
-            generated_at=datetime.utcnow(),
-            created_at=datetime.utcnow(),
-        )
+            if existing.data:
+                await self.db.table("analysis_extensions").eq(
+                    "id", existing.data["id"]
+                ).delete().execute()
 
-        self.db.add(extension)
-        await self.db.commit()
-        await self.db.refresh(extension)
+        # 새 확장 분석 생성
+        extension_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat()
 
-        print(f"[Orchestrator] Extended analysis saved: {extension.id}")
+        extension_data = {
+            "id": extension_id,
+            "analysis_id": analysis_id,
+            "user_id": user_id,
+            "weakness_profile": weakness_profile.model_dump(),
+            "learning_plan": learning_plan.model_dump(),
+            "performance_prediction": performance_prediction.model_dump(),
+            "generated_at": now,
+            "created_at": now,
+        }
 
-        return self._to_schema(extension)
+        insert_result = await self.db.table("analysis_extensions").insert(
+            extension_data
+        ).execute()
+
+        if insert_result.error:
+            raise ValueError(f"확장 분석 저장 실패: {insert_result.error}")
+
+        print(f"[Orchestrator] Extended analysis saved: {extension_id}")
+
+        return self._to_schema(insert_result.data)
 
     async def get_extended_analysis(
         self,
         analysis_id: str,
     ) -> AnalysisExtensionSchema | None:
         """저장된 확장 분석 조회."""
-        result = await self.db.execute(
-            select(AnalysisExtension).where(
-                AnalysisExtension.analysis_id == analysis_id
-            )
-        )
-        ext = result.scalar_one_or_none()
+        result = await self.db.table("analysis_extensions").select("*").eq(
+            "analysis_id", analysis_id
+        ).maybe_single().execute()
 
-        if not ext:
+        if result.error or result.data is None:
             return None
 
-        return self._to_schema(ext)
+        return self._to_schema(result.data)
 
-    def _to_schema(self, ext: AnalysisExtension) -> AnalysisExtensionSchema:
-        """DB 모델을 스키마로 변환."""
+    def _to_schema(self, ext: dict) -> AnalysisExtensionSchema:
+        """DB 데이터를 스키마로 변환."""
+        weakness_data = ext.get("weakness_profile")
+        learning_data = ext.get("learning_plan")
+        prediction_data = ext.get("performance_prediction")
+        generated_at = ext.get("generated_at")
+
+        # ISO 문자열을 datetime으로 변환
+        if isinstance(generated_at, str):
+            generated_at = datetime.fromisoformat(
+                generated_at.replace("Z", "+00:00").replace("+00:00", "")
+            )
+
         return AnalysisExtensionSchema(
-            id=ext.id,
-            analysis_id=ext.analysis_id,
-            weakness_profile=WeaknessProfile(**ext.weakness_profile) if ext.weakness_profile else None,
-            learning_plan=LearningPlan(**ext.learning_plan) if ext.learning_plan else None,
-            performance_prediction=PerformancePrediction(**ext.performance_prediction) if ext.performance_prediction else None,
-            generated_at=ext.generated_at,
+            id=ext["id"],
+            analysis_id=ext["analysis_id"],
+            weakness_profile=WeaknessProfile(**weakness_data) if weakness_data else None,
+            learning_plan=LearningPlan(**learning_data) if learning_data else None,
+            performance_prediction=PerformancePrediction(**prediction_data) if prediction_data else None,
+            generated_at=generated_at,
         )
 
 
-def get_orchestrator(db: AsyncSession) -> AnalysisOrchestrator:
+def get_orchestrator(db: SupabaseClient) -> AnalysisOrchestrator:
     """오케스트레이터 인스턴스 생성."""
     return AnalysisOrchestrator(db)

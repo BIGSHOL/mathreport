@@ -2,28 +2,19 @@
 Dynamic Prompt Builder Service
 시험지 컨텍스트에 맞는 최적화된 프롬프트 생성
 """
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
-from app.models.pattern import (
-    ProblemCategory,
-    ProblemType,
-    ErrorPattern,
-    PromptTemplate,
-    PatternExample,
-)
+from app.db.supabase_client import SupabaseClient
 from app.schemas.pattern import (
     BuildPromptRequest,
     BuildPromptResponse,
     ExamContext,
 )
+from app.services.subject_config import get_subject_config, get_grade_guidelines
 
 
 class PromptBuilder:
     """동적 프롬프트 빌더"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: SupabaseClient):
         self.db = db
 
     async def build(self, request: BuildPromptRequest) -> BuildPromptResponse:
@@ -64,6 +55,7 @@ class PromptBuilder:
             examples=examples_prompt,
             paper_type_instructions=paper_type_instructions,
             exam_paper_type=context.exam_paper_type,
+            subject=context.subject or "수학",
         )
 
         return BuildPromptResponse(
@@ -79,35 +71,44 @@ class PromptBuilder:
     async def _get_base_prompt(self, context: ExamContext) -> str:
         """기본 프롬프트 가져오기"""
         # DB에서 기본 템플릿 조회
-        result = await self.db.execute(
-            select(PromptTemplate)
-            .where(
-                PromptTemplate.template_type == "base",
-                PromptTemplate.is_active == True,
-                PromptTemplate.problem_type_id == None,  # 기본 템플릿
-            )
-            .order_by(PromptTemplate.priority.desc())
-            .limit(1)
-        )
-        template = result.scalar_one_or_none()
+        result = await self.db.table("prompt_templates").select("*").eq(
+            "template_type", "base"
+        ).eq(
+            "is_active", True
+        ).is_(
+            "problem_type_id", "null"
+        ).order(
+            "priority", desc=True
+        ).limit(1).execute()
 
-        if template:
+        if result.data and len(result.data) > 0:
+            template = result.data[0]
             # 템플릿 사용 횟수 증가
-            template.usage_count += 1
-            return template.content
+            await self.db.table("prompt_templates").eq("id", template["id"]).update({
+                "usage_count": template.get("usage_count", 0) + 1
+            }).execute()
+            return template["content"]
 
         # 기본 템플릿이 없으면 하드코딩된 기본 프롬프트 반환
         return self._get_default_base_prompt(context)
 
     def _get_default_base_prompt(self, context: ExamContext) -> str:
         """기본 프롬프트 (DB에 템플릿이 없을 때)"""
+        subject = context.subject or "수학"
         grade_info = f"학년: {context.grade_level}" if context.grade_level else ""
         unit_info = f"단원: {context.unit}" if context.unit else ""
 
-        return f"""당신은 수학 시험지 분석 전문가입니다.
+        # 과목별 전문가 역할
+        expert_roles = {
+            "수학": "수학 시험지 분석 전문가",
+            "영어": "영어 시험지 분석 전문가",
+        }
+        expert_role = expert_roles.get(subject, f"{subject} 시험지 분석 전문가")
+
+        return f"""당신은 {expert_role}입니다.
 
 ## 분석 대상 정보
-- 과목: {context.subject}
+- 과목: {subject}
 {grade_info}
 {unit_info}
 
@@ -138,31 +139,35 @@ class PromptBuilder:
             guidelines.append("일부 문항만 답안이 작성된 시험지입니다.")
             guidelines.append("답안이 있는 문항은 분석하고, 빈 문항은 문제만 추출하세요.")
 
-        # 학년별 가이드라인
+        # 학년별 가이드라인 (과목별 분기)
         if context.grade_level:
-            grade_guidelines = await self._get_grade_specific_guidelines(context.grade_level)
-            guidelines.extend(grade_guidelines)
+            subject = context.subject or "수학"
+            grade_specific = get_grade_guidelines(subject, context.grade_level)
+            guidelines.extend(grade_specific)
 
         # DB에서 분석 가이드 템플릿 조회
-        result = await self.db.execute(
-            select(PromptTemplate)
-            .where(
-                PromptTemplate.template_type == "analysis_guide",
-                PromptTemplate.is_active == True,
-            )
-            .order_by(PromptTemplate.priority.desc())
-        )
-        templates = result.scalars().all()
+        result = await self.db.table("prompt_templates").select("*").eq(
+            "template_type", "analysis_guide"
+        ).eq(
+            "is_active", True
+        ).order(
+            "priority", desc=True
+        ).execute()
+
+        templates = result.data or []
 
         for template in templates:
             # 조건 확인
-            if self._check_conditions(template.conditions, context):
-                guidelines.append(template.content)
-                template.usage_count += 1
+            if self._check_conditions(template.get("conditions"), context):
+                guidelines.append(template["content"])
+                # 사용 횟수 증가
+                await self.db.table("prompt_templates").eq("id", template["id"]).update({
+                    "usage_count": template.get("usage_count", 0) + 1
+                }).execute()
 
         return guidelines
 
-    async def _get_grade_specific_guidelines(self, grade_level: str) -> list[str]:
+    def _get_grade_specific_guidelines(self, grade_level: str) -> list[str]:
         """학년별 분석 가이드라인"""
         grade_guidelines = {
             "중1": [
@@ -190,26 +195,26 @@ class PromptBuilder:
 
         # 감지된 문제 유형에 해당하는 오류 패턴 조회
         if context.detected_types:
-            result = await self.db.execute(
-                select(ErrorPattern)
-                .options(selectinload(ErrorPattern.problem_type))
-                .where(
-                    ErrorPattern.problem_type_id.in_(context.detected_types),
-                    ErrorPattern.is_active == True,
-                )
-                .order_by(ErrorPattern.frequency.desc(), ErrorPattern.occurrence_count.desc())
-            )
-            patterns = result.scalars().all()
+            result = await self.db.table("error_patterns").select(
+                "*, problem_types(*)"
+            ).in_(
+                "problem_type_id", context.detected_types
+            ).eq(
+                "is_active", True
+            ).order(
+                "occurrence_count", desc=True
+            ).execute()
+            patterns = result.data or []
         else:
             # 전체 활성 패턴 중 빈도 높은 것
-            result = await self.db.execute(
-                select(ErrorPattern)
-                .options(selectinload(ErrorPattern.problem_type))
-                .where(ErrorPattern.is_active == True)
-                .order_by(ErrorPattern.occurrence_count.desc())
-                .limit(20)
-            )
-            patterns = result.scalars().all()
+            result = await self.db.table("error_patterns").select(
+                "*, problem_types(*)"
+            ).eq(
+                "is_active", True
+            ).order(
+                "occurrence_count", desc=True
+            ).limit(20).execute()
+            patterns = result.data or []
 
         if not patterns:
             return None, []
@@ -218,45 +223,49 @@ class PromptBuilder:
         prompt_parts = ["## 자주 발생하는 오류 패턴\n분석 시 다음 오류 패턴들을 주의 깊게 확인하세요:\n"]
 
         for pattern in patterns:
-            matched_types.append(pattern.problem_type_id)
+            matched_types.append(pattern.get("problem_type_id"))
 
-            prompt_parts.append(f"\n### {pattern.name}")
-            prompt_parts.append(f"- 유형: {pattern.error_type}")
-            prompt_parts.append(f"- 빈도: {pattern.frequency}")
+            prompt_parts.append(f"\n### {pattern.get('name', '')}")
+            prompt_parts.append(f"- 유형: {pattern.get('error_type', '')}")
+            prompt_parts.append(f"- 빈도: {pattern.get('frequency', '')}")
 
-            if pattern.wrong_examples:
+            wrong_examples = pattern.get("wrong_examples")
+            if wrong_examples:
                 prompt_parts.append("- 오답 예시:")
-                for ex in pattern.wrong_examples[:2]:  # 최대 2개
+                for ex in wrong_examples[:2]:  # 최대 2개
                     prompt_parts.append(f"  - 문제: {ex.get('problem', '')}")
                     prompt_parts.append(f"    오답: {ex.get('wrong_answer', '')}")
 
-            prompt_parts.append(f"- 권장 피드백: {pattern.feedback_message}")
+            prompt_parts.append(f"- 권장 피드백: {pattern.get('feedback_message', '')}")
 
-        return "\n".join(prompt_parts), list(set(matched_types))
+        return "\n".join(prompt_parts), list(set(t for t in matched_types if t))
 
     async def _get_examples_prompt(self, context: ExamContext, max_per_pattern: int = 2) -> str:
         """검증된 예시 + 승인된 레퍼런스 기반 프롬프트 생성"""
         prompt_parts = []
 
         # 1. 기존: 검증된 PatternExample 조회
-        result = await self.db.execute(
-            select(PatternExample)
-            .options(selectinload(PatternExample.error_pattern))
-            .where(PatternExample.is_verified == True)
-            .order_by(PatternExample.created_at.desc())
-            .limit(max_per_pattern * 5)
-        )
-        examples = result.scalars().all()
+        result = await self.db.table("pattern_examples").select(
+            "*, error_patterns(*)"
+        ).eq(
+            "is_verified", True
+        ).order(
+            "created_at", desc=True
+        ).limit(max_per_pattern * 5).execute()
+
+        examples = result.data or []
 
         if examples:
             prompt_parts.append("## 분석 예시\n다음은 검증된 분석 예시입니다:\n")
             for ex in examples:
-                prompt_parts.append(f"\n### 예시: {ex.error_pattern.name if ex.error_pattern else '일반'}")
-                prompt_parts.append(f"- 문제: {ex.problem_text}")
-                prompt_parts.append(f"- 학생 답안: {ex.student_answer}")
-                prompt_parts.append(f"- 정답: {ex.correct_answer}")
-                if ex.ai_analysis:
-                    prompt_parts.append(f"- 분석 결과: {ex.ai_analysis}")
+                error_pattern = ex.get("error_patterns")
+                pattern_name = error_pattern.get("name") if error_pattern else "일반"
+                prompt_parts.append(f"\n### 예시: {pattern_name}")
+                prompt_parts.append(f"- 문제: {ex.get('problem_text', '')}")
+                prompt_parts.append(f"- 학생 답안: {ex.get('student_answer', '')}")
+                prompt_parts.append(f"- 정답: {ex.get('correct_answer', '')}")
+                if ex.get("ai_analysis"):
+                    prompt_parts.append(f"- 분석 결과: {ex.get('ai_analysis')}")
 
         # 2. 신규: 승인된 QuestionReference 조회 (학년별 필터링!)
         references = await self._get_approved_references(
@@ -267,21 +276,22 @@ class PromptBuilder:
         if references:
             prompt_parts.append("\n## 참고 문제 분석 (학년별 레퍼런스)\n이전 분석에서 검토된 문제들입니다:\n")
             for ref in references:
-                prompt_parts.append(f"\n### 참고 (학년: {ref.grade_level})")
-                if ref.topic:
-                    prompt_parts.append(f"- 단원: {ref.topic}")
-                prompt_parts.append(f"- 난이도: {ref.difficulty}")
-                if ref.ai_comment:
-                    prompt_parts.append(f"- 분석: {ref.ai_comment}")
-                if ref.confidence < 0.7:
-                    prompt_parts.append(f"- 주의: 이 유형의 문제는 분석 시 주의가 필요합니다 (기존 신뢰도: {ref.confidence:.2f})")
+                prompt_parts.append(f"\n### 참고 (학년: {ref.get('grade_level', '')})")
+                if ref.get("topic"):
+                    prompt_parts.append(f"- 단원: {ref.get('topic')}")
+                prompt_parts.append(f"- 난이도: {ref.get('difficulty', '')}")
+                if ref.get("ai_comment"):
+                    prompt_parts.append(f"- 분석: {ref.get('ai_comment')}")
+                confidence = ref.get("confidence", 1.0)
+                if confidence < 0.7:
+                    prompt_parts.append(f"- 주의: 이 유형의 문제는 분석 시 주의가 필요합니다 (기존 신뢰도: {confidence:.2f})")
 
         if not prompt_parts:
             return None
 
         return "\n".join(prompt_parts)
 
-    async def _get_approved_references(self, grade_level: str | None, limit: int = 5):
+    async def _get_approved_references(self, grade_level: str | None, limit: int = 5) -> list[dict]:
         """승인된 레퍼런스 조회 (학년별 필터링)
 
         Args:
@@ -291,21 +301,18 @@ class PromptBuilder:
         Returns:
             승인된 QuestionReference 목록
         """
-        from app.models.reference import QuestionReference
-
-        query = (
-            select(QuestionReference)
-            .where(QuestionReference.review_status == "approved")
+        query = self.db.table("question_references").select("*").eq(
+            "review_status", "approved"
         )
 
         # 학년별 필터링 (핵심!)
         if grade_level and grade_level not in ("전체", "unknown", None):
-            query = query.where(QuestionReference.grade_level == grade_level)
+            query = query.eq("grade_level", grade_level)
 
-        query = query.order_by(QuestionReference.created_at.desc()).limit(limit)
+        query = query.order("created_at", desc=True).limit(limit)
 
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        result = await query.execute()
+        return result.data or []
 
     def _get_paper_type_instructions(self, context: ExamContext) -> str:
         """시험지 유형별 추가 지시사항"""
@@ -332,7 +339,7 @@ class PromptBuilder:
         }
         return instructions.get(context.exam_paper_type, "")
 
-    def _check_conditions(self, conditions: dict, context: ExamContext) -> bool:
+    def _check_conditions(self, conditions: dict | None, context: ExamContext) -> bool:
         """템플릿 적용 조건 확인"""
         if not conditions:
             return True
@@ -366,6 +373,7 @@ class PromptBuilder:
         examples: str | None,
         paper_type_instructions: str,
         exam_paper_type: str = "blank",
+        subject: str = "수학",
     ) -> str:
         """모든 프롬프트 요소 조합"""
         parts = [base_prompt]
@@ -385,13 +393,19 @@ class PromptBuilder:
             parts.append(examples)
 
         # JSON 출력 스키마 추가 (필수!)
-        json_schema = self._get_json_schema(exam_paper_type)
+        json_schema = self._get_json_schema(exam_paper_type, subject)
         parts.append(json_schema)
 
         return "\n".join(parts)
 
-    def _get_json_schema(self, exam_paper_type: str) -> str:
-        """분석 결과 JSON 스키마 반환"""
+    def _get_json_schema(self, exam_paper_type: str, subject: str = "수학") -> str:
+        """분석 결과 JSON 스키마 반환 (과목별 분기)"""
+        if subject == "영어":
+            return self._get_english_json_schema(exam_paper_type)
+        return self._get_math_json_schema(exam_paper_type)
+
+    def _get_math_json_schema(self, exam_paper_type: str) -> str:
+        """수학 과목 JSON 스키마"""
         base_schema = """
 ## 필수 응답 형식 (JSON)
 
@@ -530,6 +544,147 @@ class PromptBuilder:
 - careless_mistake: 단순 실수 (문제 잘못 읽음, 답안 잘못 기재)
 - process_error: 풀이 과정 오류 (논리적 비약)
 - incomplete: 미완성 (시간 부족, 포기)
+
+⚠️ 중요 - 정오답 인식:
+- O, ○, ✓, 동그라미 = 정답 (is_correct: true)
+- X, ✗, 빗금, 빨간 줄 = 오답 (is_correct: false)
+- 부분 점수가 있으면 earned_points에 반영
+- 채점 표시가 없으면 is_correct: null
+"""
+
+        return base_schema
+
+    def _get_english_json_schema(self, exam_paper_type: str) -> str:
+        """영어 과목 JSON 스키마"""
+        base_schema = """
+## 필수 응답 형식 (JSON)
+
+반드시 아래 형식으로 정확하게 출력하세요:
+
+{
+    "exam_info": {
+        "total_questions": 25,
+        "total_points": 100,
+        "format_distribution": {
+            "objective": 20,
+            "short_answer": 3,
+            "essay": 2
+        }
+    },
+    "summary": {
+        "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+        "type_distribution": {
+            "vocabulary": 0, "grammar": 0, "reading_main_idea": 0,
+            "reading_detail": 0, "reading_inference": 0,
+            "listening": 0, "writing": 0, "sentence_completion": 0,
+            "conversation": 0
+        },
+        "average_difficulty": "medium",
+        "dominant_type": "grammar"
+    },
+    "questions": [
+        {
+            "question_number": 1,
+            "question_format": "objective",
+            "difficulty": "low",
+            "question_type": "grammar",
+            "points": 3,
+            "topic": "중2 영어 > 문법 > to부정사",
+            "ai_comment": "to부정사 용법 구분. 기초 문법.",
+            "confidence": 0.95,
+            "difficulty_reason": "기본 문법 적용"
+"""
+
+        # 학생 답안이 있는 경우 추가 필드
+        if exam_paper_type in ["answered", "mixed", "student"]:
+            base_schema += """,
+            "is_correct": true,
+            "student_answer": "2",
+            "earned_points": 3,
+            "error_type": null"""
+
+        # JSON 구조 닫기
+        base_schema += """
+        }
+    ]
+}
+
+## 토픽 분류표 (영어)
+
+⚠️ 시험지 상단의 학년 정보를 확인하고 해당 학교급의 분류표를 사용하세요!
+
+### 【중학교】
+
+[중1 영어]
+- 문법: be동사, 일반동사, 현재시제, 과거시제, 미래시제, 명령문, 의문문
+- 어휘: 기초 어휘 (가족, 학교, 음식, 날씨, 취미 등)
+- 독해: 짧은 대화문, 간단한 안내문, 일기/편지
+- 듣기: 기초 대화 듣기, 간단한 정보 파악
+
+[중2 영어]
+- 문법: to부정사, 동명사, 조동사(can/may/must), 비교급/최상급, 접속사
+- 어휘: 중급 어휘 (감정, 직업, 여행, 건강 등)
+- 독해: 중간 길이 지문, 대의파악, 세부정보 찾기
+- 듣기: 대화 세부정보, 그림/도표 연결
+
+[중3 영어]
+- 문법: 관계대명사(who/which/that), 현재완료, 수동태, 분사, 간접의문문
+- 어휘: 고급 어휘 (환경, 과학, 문화, 사회 등)
+- 독해: 긴 지문, 추론, 요지/주제 파악
+- 듣기: 담화 듣기, 화자 의도 파악
+
+### 【고등학교】
+
+[고1 영어]
+- 문법: 가정법 과거/과거완료, 분사구문, 강조/도치 구문, 관계부사
+- 어휘: 수능 기본 어휘, 어근/접사
+- 독해: 빈칸 추론, 문장 삽입, 글의 순서
+- 듣기: 수능형 듣기 (목적/주제/요지)
+
+[고2 영어]
+- 문법: 복잡한 구문 분석, 동사의 다양한 용법
+- 어휘: 수능 필수 어휘, 동의어/반의어, 문맥상 어휘
+- 독해: 함축 의미 추론, 심경/분위기 파악, 요약문 완성
+- 듣기: 담화 완성, 화자 관계 파악
+
+[고3 영어]
+- 문법: 고난도 구문, 문법성 판단
+- 어휘: 고급 어휘, 다의어, 연어(collocation)
+- 독해: 장문 독해, 복합 추론, 실용문 분석
+- 듣기: 수능 실전 듣기 전 유형
+
+## 규칙 (엄격 준수)
+
+1. 모든 텍스트(topic, ai_comment)는 한국어로 작성
+2. question_format: objective(객관식), short_answer(단답형), essay(서술형/서답형) 중 하나
+3. difficulty: high(상), medium(중), low(하) 중 하나
+4. question_type: vocabulary(어휘), grammar(문법), reading_main_idea(대의파악), reading_detail(세부정보), reading_inference(추론), listening(듣기), writing(영작), sentence_completion(문장완성), conversation(대화문) 중 하나
+5. points: 숫자 (소수점 허용)
+6. topic 형식: "학년 영어 > 대영역 > 세부영역"
+7. ai_comment: 정확히 2문장, 총 50자 이내
+8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
+9. question_number: 숫자 또는 "서술형 1" 형식
+10. difficulty_reason: 난이도 판단 근거 (특히 high일 때 필수, 15자 이내)
+    - high: "복합 구문", "고난도 어휘", "추론 필요", "긴 지문" 등
+    - medium: "중급 문법", "일반 어휘", "직접 정보" 등
+    - low: "기초 문법", "쉬운 어휘", "명시적 정보" 등
+
+⚠️ 중요 - 듣기 문항 처리:
+- 듣기 문항은 음성 없이 문항 유형과 난이도만 분석
+- question_type: "listening"으로 표기
+- topic: "학년 영어 > 듣기 > [세부유형]" 형식
+"""
+
+        if exam_paper_type in ["answered", "mixed", "student"]:
+            base_schema += """
+## 오류 유형 (error_type) - 영어
+
+- tense_error: 시제 오류 (현재/과거/완료 혼동)
+- word_order_error: 어순 오류 (주어-동사-목적어 순서)
+- vocabulary_error: 어휘 오류 (단어 의미 혼동, 철자 오류)
+- comprehension_error: 독해 오류 (지문 이해 실패, 잘못된 추론)
+- listening_error: 청취 오류 (발음/억양 혼동, 정보 누락)
+- careless_mistake: 단순 실수 (오답 마킹, 문제 잘못 읽음)
 
 ⚠️ 중요 - 정오답 인식:
 - O, ○, ✓, 동그라미 = 정답 (is_correct: true)

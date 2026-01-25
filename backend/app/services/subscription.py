@@ -1,10 +1,10 @@
-"""Subscription and usage service."""
+"""Subscription and usage service using Supabase REST API."""
 from datetime import datetime, timedelta
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from enum import Enum
+from typing import Optional, Any
 from fastapi import HTTPException, status
 
-from app.models.user import User, SubscriptionTier, TIER_LIMITS, MASTER_LIMITS
+from app.db.supabase_client import SupabaseClient
 from app.schemas.subscription import (
     UsageStatus,
     PurchaseCreditsRequest,
@@ -16,34 +16,98 @@ from app.schemas.subscription import (
 )
 
 
+class SubscriptionTier(str, Enum):
+    FREE = "free"
+    BASIC = "basic"
+    PRO = "pro"
+
+
+# 티어별 한도 설정
+TIER_LIMITS = {
+    SubscriptionTier.FREE: {
+        "monthly_analysis": 5,
+        "monthly_extended": 0,  # 미리보기만
+    },
+    SubscriptionTier.BASIC: {
+        "monthly_analysis": 20,
+        "monthly_extended": 5,
+    },
+    SubscriptionTier.PRO: {
+        "monthly_analysis": -1,  # 무제한
+        "monthly_extended": -1,  # 무제한
+    },
+}
+
+# MASTER (is_superuser=True) 한도 - 무제한
+MASTER_LIMITS = {
+    "monthly_analysis": -1,
+    "monthly_extended": -1,
+}
+
+
+class UserDict(dict):
+    """User data wrapper that allows attribute access."""
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"'UserDict' has no attribute '{name}'")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self[name] = value
+
+
 class SubscriptionService:
     """구독 및 사용량 관리 서비스"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: SupabaseClient):
         self.db = db
 
-    async def get_user(self, user_id: str) -> User:
+    async def get_user(self, user_id: str) -> UserDict:
         """사용자 조회"""
-        result = await self.db.execute(select(User).where(User.id == user_id))
-        user = result.scalar_one_or_none()
-        if not user:
+        result = await self.db.table("users").select("*").eq("id", user_id).maybe_single().execute()
+        if result.error or result.data is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                detail="사용자를 찾을 수 없습니다"
             )
-        return user
+        return UserDict(result.data)
 
-    async def check_and_reset_monthly_usage(self, user: User) -> None:
-        """월별 사용량 리셋 체크 (매월 1일)"""
+    async def _update_user(self, user_id: str, update_data: dict) -> None:
+        """사용자 정보 업데이트"""
+        update_data["updated_at"] = datetime.utcnow().isoformat()
+        result = await self.db.table("users").eq("id", user_id).update(update_data).execute()
+        if result.error:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"사용자 업데이트 실패: {result.error}"
+            )
+
+    async def check_and_reset_monthly_usage(self, user: UserDict) -> bool:
+        """월별 사용량 리셋 체크 (매월 1일). 리셋했으면 True 반환."""
         now = datetime.utcnow()
-        reset_date = user.usage_reset_at
+        reset_date_str = user.get("usage_reset_at")
+
+        if reset_date_str:
+            if isinstance(reset_date_str, str):
+                reset_date = datetime.fromisoformat(reset_date_str.replace("Z", "+00:00").replace("+00:00", ""))
+            else:
+                reset_date = reset_date_str
+        else:
+            reset_date = now
 
         # 다음 달이 되었으면 리셋
         if now.year > reset_date.year or (now.year == reset_date.year and now.month > reset_date.month):
-            user.monthly_analysis_count = 0
-            user.monthly_extended_count = 0
-            user.usage_reset_at = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            await self.db.commit()
+            await self._update_user(user["id"], {
+                "monthly_analysis_count": 0,
+                "monthly_extended_count": 0,
+                "usage_reset_at": now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat(),
+            })
+            # 로컬 객체도 업데이트
+            user["monthly_analysis_count"] = 0
+            user["monthly_extended_count"] = 0
+            return True
+        return False
 
     async def get_usage_status(self, user_id: str) -> UsageStatus:
         """현재 사용량 상태 조회"""
@@ -51,57 +115,83 @@ class SubscriptionService:
         await self.check_and_reset_monthly_usage(user)
 
         # MASTER 계정 (is_superuser) 체크
-        is_master = user.is_superuser
+        is_master = user.get("is_superuser", False)
 
-        tier = SubscriptionTier(user.subscription_tier)
+        tier = SubscriptionTier(user.get("subscription_tier", "free"))
 
         # MASTER는 무제한, 일반 유저는 티어별 한도
         limits = MASTER_LIMITS if is_master else TIER_LIMITS[tier]
 
         # 구독 만료 체크 (MASTER가 아닌 경우만)
         now = datetime.utcnow()
-        if not is_master and user.subscription_expires_at and user.subscription_expires_at < now:
+        subscription_expires_str = user.get("subscription_expires_at")
+        subscription_expires_at = None
+
+        if subscription_expires_str:
+            if isinstance(subscription_expires_str, str):
+                subscription_expires_at = datetime.fromisoformat(subscription_expires_str.replace("Z", "+00:00").replace("+00:00", ""))
+            else:
+                subscription_expires_at = subscription_expires_str
+
+        if not is_master and subscription_expires_at and subscription_expires_at < now:
             # 구독 만료 → 무료로 다운그레이드
-            user.subscription_tier = SubscriptionTier.FREE.value
-            user.subscription_expires_at = None
-            await self.db.commit()
+            await self._update_user(user["id"], {
+                "subscription_tier": SubscriptionTier.FREE.value,
+                "subscription_expires_at": None,
+            })
             tier = SubscriptionTier.FREE
             limits = TIER_LIMITS[tier]
+            subscription_expires_at = None
 
         # 크레딧 만료 체크
-        if user.credits_expires_at and user.credits_expires_at < now:
-            user.credits = 0
-            user.credits_expires_at = None
-            await self.db.commit()
+        credits_expires_str = user.get("credits_expires_at")
+        credits_expires_at = None
+
+        if credits_expires_str:
+            if isinstance(credits_expires_str, str):
+                credits_expires_at = datetime.fromisoformat(credits_expires_str.replace("Z", "+00:00").replace("+00:00", ""))
+            else:
+                credits_expires_at = credits_expires_str
+
+        credits = user.get("credits", 0)
+        if credits_expires_at and credits_expires_at < now:
+            await self._update_user(user["id"], {
+                "credits": 0,
+                "credits_expires_at": None,
+            })
+            credits = 0
+            credits_expires_at = None
 
         analysis_limit = limits["monthly_analysis"]
         extended_limit = limits["monthly_extended"]
+        monthly_analysis_count = user.get("monthly_analysis_count", 0)
+        monthly_extended_count = user.get("monthly_extended_count", 0)
 
         # 분석 가능 여부: MASTER이거나, 한도 내 OR 크레딧 있음
         can_analyze = (
             is_master or
             analysis_limit == -1 or
-            user.monthly_analysis_count < analysis_limit or
-            user.credits > 0
+            monthly_analysis_count < analysis_limit or
+            credits > 0
         )
 
         # 확장 분석 가능 여부
         can_use_extended = (
             is_master or
             extended_limit == -1 or
-            user.monthly_extended_count < extended_limit or
-            user.credits >= 2  # 확장 분석은 2크레딧
+            monthly_extended_count < extended_limit or
+            credits >= 2  # 확장 분석은 2크레딧
         )
 
         return UsageStatus(
             tier=tier,
-            subscription_expires_at=user.subscription_expires_at,
-            monthly_analysis_used=user.monthly_analysis_count,
+            subscription_expires_at=subscription_expires_at,
+            monthly_analysis_used=monthly_analysis_count,
             monthly_analysis_limit=analysis_limit,
-            monthly_extended_used=user.monthly_extended_count,
+            monthly_extended_used=monthly_extended_count,
             monthly_extended_limit=extended_limit,
-            credits=user.credits,
-            credits_expires_at=user.credits_expires_at,
+            credits=credits,
+            credits_expires_at=credits_expires_at,
             can_analyze=can_analyze,
             can_use_extended=can_use_extended,
             is_master=is_master,
@@ -120,33 +210,40 @@ class SubscriptionService:
         user = await self.get_user(user_id)
         await self.check_and_reset_monthly_usage(user)
 
+        monthly_analysis_count = user.get("monthly_analysis_count", 0)
+        credits = user.get("credits", 0)
+
         # MASTER는 무제한
-        if user.is_superuser:
-            user.monthly_analysis_count += 1
-            await self.db.commit()
+        if user.get("is_superuser", False):
+            await self._update_user(user["id"], {
+                "monthly_analysis_count": monthly_analysis_count + 1,
+            })
             return True
 
-        tier = SubscriptionTier(user.subscription_tier)
+        tier = SubscriptionTier(user.get("subscription_tier", "free"))
         limits = TIER_LIMITS[tier]
         analysis_limit = limits["monthly_analysis"]
 
         # 무제한이면 카운트만 증가
         if analysis_limit == -1:
-            user.monthly_analysis_count += 1
-            await self.db.commit()
+            await self._update_user(user["id"], {
+                "monthly_analysis_count": monthly_analysis_count + 1,
+            })
             return True
 
         # 한도 내면 카운트 증가
-        if user.monthly_analysis_count < analysis_limit:
-            user.monthly_analysis_count += 1
-            await self.db.commit()
+        if monthly_analysis_count < analysis_limit:
+            await self._update_user(user["id"], {
+                "monthly_analysis_count": monthly_analysis_count + 1,
+            })
             return True
 
         # 크레딧 사용 (exam_type에 따라 차등)
-        if user.credits >= credit_cost:
-            user.credits -= credit_cost
-            user.monthly_analysis_count += 1
-            await self.db.commit()
+        if credits >= credit_cost:
+            await self._update_user(user["id"], {
+                "credits": credits - credit_cost,
+                "monthly_analysis_count": monthly_analysis_count + 1,
+            })
             return True
 
         return False
@@ -156,33 +253,40 @@ class SubscriptionService:
         user = await self.get_user(user_id)
         await self.check_and_reset_monthly_usage(user)
 
+        monthly_extended_count = user.get("monthly_extended_count", 0)
+        credits = user.get("credits", 0)
+
         # MASTER는 무제한
-        if user.is_superuser:
-            user.monthly_extended_count += 1
-            await self.db.commit()
+        if user.get("is_superuser", False):
+            await self._update_user(user["id"], {
+                "monthly_extended_count": monthly_extended_count + 1,
+            })
             return True
 
-        tier = SubscriptionTier(user.subscription_tier)
+        tier = SubscriptionTier(user.get("subscription_tier", "free"))
         limits = TIER_LIMITS[tier]
         extended_limit = limits["monthly_extended"]
 
         # 무제한이면 카운트만 증가
         if extended_limit == -1:
-            user.monthly_extended_count += 1
-            await self.db.commit()
+            await self._update_user(user["id"], {
+                "monthly_extended_count": monthly_extended_count + 1,
+            })
             return True
 
         # 한도 내면 카운트 증가
-        if user.monthly_extended_count < extended_limit:
-            user.monthly_extended_count += 1
-            await self.db.commit()
+        if monthly_extended_count < extended_limit:
+            await self._update_user(user["id"], {
+                "monthly_extended_count": monthly_extended_count + 1,
+            })
             return True
 
         # 크레딧 사용 (2크레딧)
-        if user.credits >= 2:
-            user.credits -= 2
-            user.monthly_extended_count += 1
-            await self.db.commit()
+        if credits >= 2:
+            await self._update_user(user["id"], {
+                "credits": credits - 2,
+                "monthly_extended_count": monthly_extended_count + 1,
+            })
             return True
 
         return False
@@ -194,21 +298,25 @@ class SubscriptionService:
         if request.package not in CREDIT_PACKAGES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid package"
+                detail="유효하지 않은 패키지입니다"
             )
 
         package = CREDIT_PACKAGES[request.package]
         user = await self.get_user(user_id)
 
+        current_credits = user.get("credits", 0)
+        new_credits = current_credits + package["credits"]
+
         # Mock: 실제로는 결제 처리 필요
-        user.credits += package["credits"]
-        user.credits_expires_at = datetime.utcnow() + timedelta(days=180)  # 6개월
-        await self.db.commit()
+        await self._update_user(user["id"], {
+            "credits": new_credits,
+            "credits_expires_at": (datetime.utcnow() + timedelta(days=180)).isoformat(),  # 6개월
+        })
 
         return PurchaseCreditsResponse(
             success=True,
             credits_added=package["credits"],
-            total_credits=user.credits,
+            total_credits=new_credits,
             message=f"{package['credits']}크레딧이 추가되었습니다.",
         )
 
@@ -219,31 +327,33 @@ class SubscriptionService:
         if request.tier == SubscriptionTier.FREE:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot subscribe to free tier"
+                detail="무료 요금제는 구독할 수 없습니다"
             )
 
         user = await self.get_user(user_id)
 
         # 이미 동일 요금제인 경우 차단
-        if user.subscription_tier == request.tier.value:
+        if user.get("subscription_tier") == request.tier.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="이미 해당 요금제를 사용 중입니다."
             )
 
         # Mock: 실제로는 결제 처리 필요
-        user.subscription_tier = request.tier.value
-        user.subscription_expires_at = datetime.utcnow() + timedelta(days=30)
-        # 구독 시작 시 월별 사용량 리셋
-        user.monthly_analysis_count = 0
-        user.monthly_extended_count = 0
-        user.usage_reset_at = datetime.utcnow()
-        await self.db.commit()
+        expires_at = datetime.utcnow() + timedelta(days=30)
+        await self._update_user(user["id"], {
+            "subscription_tier": request.tier.value,
+            "subscription_expires_at": expires_at.isoformat(),
+            # 구독 시작 시 월별 사용량 리셋
+            "monthly_analysis_count": 0,
+            "monthly_extended_count": 0,
+            "usage_reset_at": datetime.utcnow().isoformat(),
+        })
 
         return SubscribeResponse(
             success=True,
             tier=request.tier,
-            expires_at=user.subscription_expires_at,
+            expires_at=expires_at,
             message=f"{SUBSCRIPTION_PRICES[request.tier]['name']} 구독이 시작되었습니다.",
         )
 
@@ -251,19 +361,27 @@ class SubscriptionService:
         """구독 취소 (만료일까지는 유지)"""
         user = await self.get_user(user_id)
 
-        if user.subscription_tier == SubscriptionTier.FREE.value:
+        if user.get("subscription_tier") == SubscriptionTier.FREE.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No active subscription"
+                detail="활성화된 구독이 없습니다"
             )
+
+        subscription_expires_str = user.get("subscription_expires_at")
+        subscription_expires_at = None
+        if subscription_expires_str:
+            if isinstance(subscription_expires_str, str):
+                subscription_expires_at = datetime.fromisoformat(subscription_expires_str.replace("Z", "+00:00").replace("+00:00", ""))
+            else:
+                subscription_expires_at = subscription_expires_str
 
         # 실제로는 다음 결제 취소 처리
         # 현재 구독은 만료일까지 유지
         return {
             "message": "구독이 취소되었습니다. 현재 구독은 만료일까지 유지됩니다.",
-            "expires_at": user.subscription_expires_at,
+            "expires_at": subscription_expires_at,
         }
 
 
-def get_subscription_service(db: AsyncSession) -> SubscriptionService:
+def get_subscription_service(db: SupabaseClient) -> SubscriptionService:
     return SubscriptionService(db)

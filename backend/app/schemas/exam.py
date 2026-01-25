@@ -106,9 +106,13 @@ class ExamBase(BaseModel):
     detected_type: str | None = None
     detection_confidence: float | None = None
     grading_status: str | None = None  # not_graded, partially_graded, fully_graded
+    detected_subject: str | None = None  # AI가 감지한 과목 (수학/영어)
+    subject_confidence: float | None = None  # 과목 감지 신뢰도
     # AI가 이미지에서 추출한 정보
     suggested_title: str | None = None  # 추출된 메타데이터 기반 제목 제안
     extracted_grade: str | None = None  # 추출된 학년 정보
+    # 분석 실패 시 에러 메시지
+    error_message: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

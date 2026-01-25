@@ -25,20 +25,22 @@ ExamPaperType = Literal["blank", "answered", "mixed", "unknown"]
 # unknown: 판단 불가
 
 # 채점 상태
-GradingStatus = Literal["not_graded", "partially_graded", "fully_graded", "not_applicable", "unknown"]
+GradingStatus = Literal["not_graded", "partially_graded", "fully_graded", "not_applicable", "uncertain", "unknown"]
 # not_graded: 채점 안됨 (답안만 있음)
 # partially_graded: 일부만 채점됨
 # fully_graded: 전체 채점됨
 # not_applicable: 빈 시험지라 채점 불가
-# unknown: 판단 불가
+# uncertain: 판단 어려움 (흑백, 모호한 표시 등)
+# unknown: 정보 없음
 
 # 답안 정오 상태
-AnswerStatus = Literal["correct", "incorrect", "partial", "blank", "unknown"]
+AnswerStatus = Literal["correct", "incorrect", "partial", "blank", "uncertain", "unknown"]
 # correct: 정답 (O 표시)
 # incorrect: 오답 (X 표시)
 # partial: 부분점수
 # blank: 미작성
-# unknown: 판단 불가
+# uncertain: 판단 어려움 (표시가 모호함)
+# unknown: 정보 없음
 
 
 # ============================================
@@ -329,6 +331,11 @@ class ExamPaperClassification(BaseModel):
     paper_type: ExamPaperType
     confidence: float = Field(..., ge=0, le=1, description="신뢰도 (0~1)")
     indicators: list[str] = Field(default_factory=list, description="판단 근거")
+
+    # 과목 자동 감지
+    detected_subject: str = Field("수학", description="감지된 과목 (수학/영어)")
+    subject_confidence: float = Field(0.0, ge=0, le=1, description="과목 감지 신뢰도")
+    subject_indicators: list[str] = Field(default_factory=list, description="과목 판단 근거")
     # [
     #   "손글씨 답안 감지됨",
     #   "채점 표시 (O, X) 발견",
@@ -352,6 +359,7 @@ class ExamPaperClassification(BaseModel):
     answered_count: int = Field(0, description="답안 작성된 문항 수")
     correct_count: int = Field(0, description="정답 문항 수")
     incorrect_count: int = Field(0, description="오답 문항 수")
+    uncertain_count: int = Field(0, description="판단 불확실 문항 수")
     blank_count: int = Field(0, description="미작성 문항 수")
 
     # 시험지 메타데이터 (이미지에서 추출)

@@ -6,15 +6,19 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
+    "gunicorn",
     "pydantic",
     "pydantic-settings",
     "python-dotenv",
+    "python-multipart",
     "sqlalchemy[asyncio]",
     "asyncpg",
     "alembic",
     "pgvector",
     "python-jose[cryptography]",
     "passlib[bcrypt]",
+    "google-genai",
+    "httpx",
 ]
 
 [project.optional-dependencies]
@@ -97,4 +101,4 @@ addopts = "-v --strict-markers"
 
 [build-system]
 requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_backend"
+build-backend = "setuptools.build_meta"

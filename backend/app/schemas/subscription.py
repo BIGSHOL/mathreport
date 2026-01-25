@@ -53,15 +53,18 @@ class SubscribeResponse(BaseModel):
     message: str
 
 
-# 크레딧 패키지 정의
+# 크레딧 패키지 정의 (기본 단가: 500원/회)
+# 1, 3, 5회: 할인 없음 | 10회: 10% 할인 | 30회: 20% 할인
 CREDIT_PACKAGES = {
+    "1": {"credits": 1, "price": 500, "unit_price": 500},
     "3": {"credits": 3, "price": 1500, "unit_price": 500},
-    "10": {"credits": 10, "price": 3900, "unit_price": 390},
-    "30": {"credits": 30, "price": 9900, "unit_price": 330},
+    "5": {"credits": 5, "price": 2500, "unit_price": 500},
+    "10": {"credits": 10, "price": 4500, "unit_price": 450},  # 10% 할인
+    "30": {"credits": 30, "price": 12000, "unit_price": 400},  # 20% 할인
 }
 
 # 구독 가격 정의
 SUBSCRIPTION_PRICES = {
-    SubscriptionTier.BASIC: {"price": 3900, "name": "베이직"},
-    SubscriptionTier.PRO: {"price": 7900, "name": "프로"},
+    SubscriptionTier.BASIC: {"price": 5900, "name": "베이직"},
+    SubscriptionTier.PRO: {"price": 9900, "name": "프로"},
 }

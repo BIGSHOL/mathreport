@@ -1,11 +1,10 @@
-"""Analysis API endpoints."""
-from typing import Annotated
+"""Analysis API endpoints using Supabase REST API."""
+import uuid
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException, status
 
-from app.core.deps import CurrentUser
-from app.db.session import get_db
+from app.core.deps import CurrentUser, DbDep
 from app.schemas.analysis import (
     AnalysisCreateResponse,
     AnalysisDetailResponse,
@@ -17,11 +16,11 @@ from app.schemas.analysis import (
     ExtendedAnalysisResponse,
 )
 from app.schemas.feedback import FeedbackCreate, FeedbackResponse
-from app.models.feedback import Feedback
 from app.services.analysis import get_analysis_service
 from app.services.agents import AnalysisOrchestrator
 from app.services.subscription import get_subscription_service
 from app.services.exam import get_exam_service
+from app.services.ai_learning import get_ai_learning_service
 
 router = APIRouter(tags=["analysis"])
 
@@ -36,7 +35,7 @@ async def request_analysis(
     exam_id: str,
     request: AnalysisRequest,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ) -> AnalysisCreateResponse:
     """시험지 분석을 요청합니다.
 
@@ -46,7 +45,7 @@ async def request_analysis(
     """
     # 시험지 조회하여 exam_type 확인
     exam_service = get_exam_service(db)
-    exam = await exam_service.get_exam(exam_id, current_user.id)
+    exam = await exam_service.get_exam(exam_id, current_user["id"])
 
     if not exam:
         raise HTTPException(
@@ -60,12 +59,12 @@ async def request_analysis(
     # 사용량 체크 및 소비 (exam_type에 따라 차등)
     subscription_service = get_subscription_service(db)
     can_analyze = await subscription_service.consume_analysis(
-        current_user.id,
-        exam_type=exam.exam_type
+        current_user["id"],
+        exam_type=exam["exam_type"]
     )
 
     if not can_analyze:
-        credit_cost = 2 if exam.exam_type == "student" else 1
+        credit_cost = 2 if exam["exam_type"] == "student" else 1
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
@@ -77,7 +76,7 @@ async def request_analysis(
     analysis_service = get_analysis_service(db)
     result = await analysis_service.request_analysis(
         exam_id=exam_id,
-        user_id=current_user.id,
+        user_id=current_user["id"],
         force_reanalyze=request.force_reanalyze
     )
 
@@ -91,7 +90,7 @@ async def request_analysis(
 async def get_analysis_by_exam(
     exam_id: str,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ):
     """시험지에 연결된 분석 결과 ID를 조회합니다."""
     analysis_service = get_analysis_service(db)
@@ -103,13 +102,13 @@ async def get_analysis_by_exam(
             detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
         )
 
-    if analysis.user_id != current_user.id:
+    if analysis["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
         )
 
-    return {"analysis_id": analysis.id}
+    return {"analysis_id": analysis["id"]}
 
 
 @router.get(
@@ -120,7 +119,7 @@ async def get_analysis_by_exam(
 async def get_analysis(
     analysis_id: str,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ) -> AnalysisDetailResponse:
     """분석 결과를 조회합니다."""
 
@@ -134,7 +133,7 @@ async def get_analysis(
         )
 
     # Check ownership
-    if analysis.user_id != current_user.id:
+    if analysis["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
@@ -144,8 +143,8 @@ async def get_analysis(
         result_data = AnalysisResultSchema.model_validate(analysis)
     except Exception as e:
         print(f"[ERROR] Validation failed for analysis {analysis_id}: {e}")
-        print(f"  Summary: {analysis.summary}")
-        print(f"  Questions: {analysis.questions}")
+        print(f"  Summary: {analysis.get('summary')}")
+        print(f"  Questions: {analysis.get('questions')}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"code": "VALIDATION_ERROR", "message": f"데이터 검증 실패: {str(e)}"}
@@ -174,7 +173,7 @@ async def get_analysis(
 async def generate_extended_analysis(
     analysis_id: str,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
     force_regenerate: bool = False,
 ) -> AnalysisExtensionSchema:
     """확장 분석을 생성합니다.
@@ -195,7 +194,7 @@ async def generate_extended_analysis(
             detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
         )
 
-    if analysis.user_id != current_user.id:
+    if analysis["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
@@ -203,9 +202,9 @@ async def generate_extended_analysis(
 
     # 시험지 유형 확인 (빈 시험지는 확장 분석 불가)
     exam_service = get_exam_service(db)
-    exam = await exam_service.get_exam(str(analysis.exam_id), current_user.id)
+    exam = await exam_service.get_exam(str(analysis["exam_id"]), current_user["id"])
 
-    if exam and exam.exam_type == "blank":
+    if exam and exam["exam_type"] == "blank":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -216,7 +215,7 @@ async def generate_extended_analysis(
 
     # 사용량 체크 및 소비
     subscription_service = get_subscription_service(db)
-    can_use_extended = await subscription_service.consume_extended(current_user.id)
+    can_use_extended = await subscription_service.consume_extended(current_user["id"])
 
     if not can_use_extended:
         raise HTTPException(
@@ -231,7 +230,7 @@ async def generate_extended_analysis(
         orchestrator = AnalysisOrchestrator(db)
         extension = await orchestrator.generate_extended_analysis(
             analysis_id=analysis_id,
-            user_id=current_user.id,
+            user_id=current_user["id"],
             force_regenerate=force_regenerate,
         )
         return extension
@@ -251,7 +250,7 @@ async def generate_extended_analysis(
 async def get_extended_analysis(
     analysis_id: str,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ) -> AnalysisExtensionSchema:
     """저장된 확장 분석을 조회합니다."""
     # 기본 분석 소유권 확인
@@ -264,7 +263,7 @@ async def get_extended_analysis(
             detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
         )
 
-    if analysis.user_id != current_user.id:
+    if analysis["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
@@ -290,7 +289,7 @@ async def get_extended_analysis(
 async def get_full_report(
     analysis_id: str,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ) -> ExtendedAnalysisResponse:
     """기본 분석 + 확장 분석 통합 보고서를 조회합니다."""
     # 기본 분석
@@ -303,7 +302,7 @@ async def get_full_report(
             detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
         )
 
-    if analysis.user_id != current_user.id:
+    if analysis["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
@@ -336,11 +335,11 @@ async def submit_feedback(
     analysis_id: str,
     feedback: FeedbackCreate,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ) -> FeedbackResponse:
     """분석 결과에 대한 피드백을 제출합니다.
 
-    - feedback_type: wrong_recognition, wrong_topic, wrong_difficulty, other
+    - feedback_type: wrong_recognition, wrong_topic, wrong_difficulty, wrong_grading, other
     - 데이터 활용 동의한 사용자의 피드백만 AI 개선에 활용됩니다.
     """
     # 분석 결과 소유권 확인
@@ -353,25 +352,44 @@ async def submit_feedback(
             detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
         )
 
-    if analysis.user_id != current_user.id:
+    if analysis["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
         )
 
     # 피드백 저장
-    new_feedback = Feedback(
-        user_id=current_user.id,
-        analysis_id=analysis_id,
-        question_id=feedback.question_id,
-        feedback_type=feedback.feedback_type,
-        comment=feedback.comment,
-    )
-    db.add(new_feedback)
-    await db.commit()
-    await db.refresh(new_feedback)
+    now = datetime.utcnow().isoformat()
+    feedback_data = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user["id"],
+        "analysis_id": analysis_id,
+        "question_id": feedback.question_id,
+        "feedback_type": feedback.feedback_type,
+        "comment": feedback.comment,
+        "created_at": now,
+        "updated_at": now,
+    }
 
-    return FeedbackResponse.model_validate(new_feedback)
+    result = await db.table("feedbacks").insert(feedback_data).execute()
+
+    if result.error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "DB_ERROR", "message": f"피드백 저장 실패: {result.error}"}
+        )
+
+    # 자동 학습 트리거 (피드백 10개 이상 쌓이면 자동 분석)
+    try:
+        learning_service = get_ai_learning_service(db)
+        learn_result = await learning_service.check_and_auto_learn(threshold=10)
+        if learn_result:
+            print(f"[Feedback] 자동 학습 완료: {learn_result.get('auto_applied', 0)}개 패턴 적용")
+    except Exception as e:
+        # 학습 실패해도 피드백 저장은 성공으로 처리
+        print(f"[Feedback] 자동 학습 실패 (무시됨): {e}")
+
+    return FeedbackResponse.model_validate(result.data)
 
 
 # ============================================
@@ -388,7 +406,7 @@ async def submit_feedback(
 async def merge_analyses(
     request: AnalysisMergeRequest,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DbDep,
 ) -> AnalysisDetailResponse:
     """여러 분석 결과를 하나로 병합합니다.
 
@@ -413,7 +431,7 @@ async def merge_analyses(
                 }
             )
 
-        if analysis.user_id != current_user.id:
+        if analysis["user_id"] != current_user["id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
@@ -424,7 +442,7 @@ async def merge_analyses(
     # 병합 실행
     merged = await analysis_service.merge_analyses(
         analyses=analyses,
-        user_id=current_user.id,
+        user_id=current_user["id"],
         title=request.title
     )
 

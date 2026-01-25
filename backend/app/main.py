@@ -6,14 +6,10 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1 import auth, exam, users, analysis, subscription, ai_learning, pattern, reference
+from app.core.config import settings
 
-# CORS origins
-CORS_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-]
+# CORS origins - 환경변수에서 로드
+CORS_ORIGINS = settings.cors_origins_list
 
 
 class ErrorHandlingMiddleware(BaseHTTPMiddleware):
