@@ -111,12 +111,24 @@ class AILearningService:
 
         for suggestion in suggestions:
             if suggestion["type"] == "review_topic_keywords":
+                pattern_type = "topic_review_needed"
+                pattern_value = suggestion["reason"]
+
+                # 중복 체크
+                existing = await self.db.table("learned_patterns").select("id").eq(
+                    "pattern_type", pattern_type
+                ).eq("pattern_value", pattern_value).execute()
+
+                if existing.data and len(existing.data) > 0:
+                    # 이미 존재하면 스킵
+                    continue
+
                 # 반복되는 단원 분류 오류 패턴을 학습
                 pattern_data = {
                     "id": str(uuid.uuid4()),
-                    "pattern_type": "topic_review_needed",
+                    "pattern_type": pattern_type,
                     "pattern_key": "auto_detected",
-                    "pattern_value": suggestion["reason"],
+                    "pattern_value": pattern_value,
                     "apply_count": 0,
                     "confidence": 0.6,
                     "is_active": True,
@@ -166,7 +178,28 @@ class AILearningService:
         pattern_value: str,
         confidence: float = 0.8
     ) -> LearnedPatternDict:
-        """수동으로 학습 패턴을 추가합니다."""
+        """수동으로 학습 패턴을 추가합니다.
+
+        같은 pattern_type과 pattern_value를 가진 패턴이 이미 있으면
+        기존 패턴의 신뢰도를 업데이트합니다 (더 높은 값으로).
+        """
+        # 중복 체크: 같은 type과 value를 가진 패턴이 있는지 확인
+        existing = await self.db.table("learned_patterns").select("*").eq(
+            "pattern_type", pattern_type
+        ).eq("pattern_value", pattern_value).execute()
+
+        if existing.data and len(existing.data) > 0:
+            # 기존 패턴이 있으면 신뢰도가 더 높을 때만 업데이트
+            existing_pattern = existing.data[0]
+            if confidence > existing_pattern.get("confidence", 0):
+                await self.db.table("learned_patterns").update({
+                    "confidence": confidence,
+                    "updated_at": datetime.utcnow().isoformat(),
+                }).eq("id", existing_pattern["id"]).execute()
+                existing_pattern["confidence"] = confidence
+            return LearnedPatternDict(existing_pattern)
+
+        # 새 패턴 추가
         pattern_data = {
             "id": str(uuid.uuid4()),
             "pattern_type": pattern_type,
