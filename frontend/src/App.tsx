@@ -9,10 +9,11 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { ProtectedRoute, PublicRoute } from './components/ProtectedRoute';
 import { useAuthStore } from './stores/auth';
+import { supabase } from './lib/supabase';
 
 // Lazy load pages for code splitting (bundle-dynamic-imports)
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
-const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage').then(m => ({ default: m.AuthCallbackPage })));
 const ExamDashboardPage = lazy(() => import('./pages/ExamDashboardPage').then(m => ({ default: m.ExamDashboardPage })));
 const AnalysisResultPage = lazy(() => import('./pages/AnalysisResultPage').then(m => ({ default: m.AnalysisResultPage })));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
@@ -22,8 +23,35 @@ const AdminPatternPage = lazy(() => import('./pages/AdminPatternPage').then(m =>
 const PageLoading = <div className="flex items-center justify-center min-h-screen">로딩 중...</div>;
 
 function App() {
-  const { fetchUser, token } = useAuthStore();
+  const { restoreSession, setToken, fetchUser, token } = useAuthStore();
 
+  // 앱 시작 시 Supabase 세션 복원
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
+
+  // Supabase Auth 상태 변경 리스너
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.access_token) {
+          setToken(session.access_token);
+          fetchUser();
+        } else if (event === 'SIGNED_OUT') {
+          setToken(null);
+        } else if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+          // 토큰 자동 갱신 시 업데이트
+          setToken(session.access_token);
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [setToken, fetchUser]);
+
+  // 기존 토큰이 있으면 사용자 정보 가져오기
   useEffect(() => {
     if (token) {
       fetchUser();
@@ -37,9 +65,12 @@ function App() {
           {/* Public Routes */}
           <Route element={<PublicRoute />}>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/register" element={<Navigate to="/login" replace />} />
             <Route path="/" element={<Navigate to="/login" replace />} />
           </Route>
+
+          {/* OAuth Callback (공개 라우트) */}
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
           {/* Public - 가격 페이지 (로그인 없이도 접근 가능) */}
           <Route path="/pricing" element={<PricingPage />} />

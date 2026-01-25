@@ -1,29 +1,27 @@
 /**
- * Authentication API service.
+ * Authentication API service using Supabase Auth (Google OAuth only).
  */
+import { supabase } from '../lib/supabase';
 import api from './api';
-import type { AuthResponse, LoginRequest, RegisterRequest, User, PasswordChangeRequest } from '../types/auth';
+import type { User } from '../types/auth';
 
 const TOKEN_KEY = 'access_token';
 
 export const authService = {
   /**
-   * Register a new user.
+   * Login with Google OAuth.
    */
-  async register(data: RegisterRequest): Promise<User> {
-    const response = await api.post<User>('/api/v1/auth/register', data);
-    return response.data;
-  },
+  async loginWithGoogle(): Promise<void> {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
 
-  /**
-   * Login and get access token.
-   */
-  async login(data: LoginRequest): Promise<AuthResponse> {
-    const response = await api.post<AuthResponse>('/api/v1/auth/login', data);
-    if (response.data.access_token) {
-      this.setToken(response.data.access_token);
+    if (error) {
+      throw new Error(error.message);
     }
-    return response.data;
   },
 
   /**
@@ -31,14 +29,14 @@ export const authService = {
    */
   async logout(): Promise<void> {
     try {
-      await api.post('/api/v1/auth/logout');
+      await supabase.auth.signOut();
     } finally {
       this.removeToken();
     }
   },
 
   /**
-   * Get current user profile.
+   * Get current user profile from backend.
    */
   async getCurrentUser(): Promise<User> {
     const response = await api.get<User>('/api/v1/users/me');
@@ -54,18 +52,27 @@ export const authService = {
   },
 
   /**
-   * Change password.
-   */
-  async changePassword(data: PasswordChangeRequest): Promise<void> {
-    await api.post('/api/v1/auth/password/change', data);
-  },
-
-  /**
    * Delete current user account.
    */
   async deleteAccount(): Promise<void> {
     await api.delete('/api/v1/users/me');
+    await supabase.auth.signOut();
     this.removeToken();
+  },
+
+  /**
+   * Restore session from Supabase.
+   * Returns the access token if session exists.
+   */
+  async restoreSession(): Promise<string | null> {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (session?.access_token) {
+      this.setToken(session.access_token);
+      return session.access_token;
+    }
+
+    return null;
   },
 
   /**

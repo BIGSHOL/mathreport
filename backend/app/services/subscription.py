@@ -1,5 +1,5 @@
 """Subscription and usage service using Supabase REST API."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Optional, Any
 from fastapi import HTTPException, status
@@ -22,26 +22,26 @@ class SubscriptionTier(str, Enum):
     PRO = "pro"
 
 
-# 티어별 한도 설정
+# 티어별 주간 한도 설정 (매주 월요일 오전 9시 KST 초기화)
 TIER_LIMITS = {
     SubscriptionTier.FREE: {
-        "monthly_analysis": 5,
-        "monthly_extended": 0,  # 미리보기만
+        "weekly_analysis": 3,    # 주 3회
+        "weekly_extended": 0,    # 미리보기만
     },
     SubscriptionTier.BASIC: {
-        "monthly_analysis": 20,
-        "monthly_extended": 5,
+        "weekly_analysis": 10,   # 주 10회
+        "weekly_extended": 3,    # 주 3회
     },
     SubscriptionTier.PRO: {
-        "monthly_analysis": -1,  # 무제한
-        "monthly_extended": -1,  # 무제한
+        "weekly_analysis": -1,   # 무제한
+        "weekly_extended": -1,   # 무제한
     },
 }
 
 # MASTER (is_superuser=True) 한도 - 무제한
 MASTER_LIMITS = {
-    "monthly_analysis": -1,
-    "monthly_extended": -1,
+    "weekly_analysis": -1,
+    "weekly_extended": -1,
 }
 
 
@@ -83,8 +83,27 @@ class SubscriptionService:
                 detail=f"사용자 업데이트 실패: {result.error}"
             )
 
-    async def check_and_reset_monthly_usage(self, user: UserDict) -> bool:
-        """월별 사용량 리셋 체크 (매월 1일). 리셋했으면 True 반환."""
+    def _get_next_monday_9am_kst(self, from_time: datetime | None = None) -> datetime:
+        """다음 월요일 오전 9시 KST (UTC 기준 월요일 00:00) 계산"""
+        now = from_time or datetime.now(timezone.utc)
+        # KST = UTC + 9, 월요일 오전 9시 KST = 월요일 00:00 UTC
+        # weekday(): Monday=0, Sunday=6
+        days_until_monday = (7 - now.weekday()) % 7
+        if days_until_monday == 0:  # 이미 월요일이면 다음 주 월요일
+            days_until_monday = 7
+        next_monday = now + timedelta(days=days_until_monday)
+        return next_monday.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+
+    def _get_last_monday_9am_kst(self) -> datetime:
+        """가장 최근 월요일 오전 9시 KST (UTC 기준 월요일 00:00) 계산"""
+        now = datetime.utcnow()
+        # weekday(): Monday=0, Sunday=6
+        days_since_monday = now.weekday()
+        last_monday = now - timedelta(days=days_since_monday)
+        return last_monday.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    async def check_and_reset_weekly_usage(self, user: UserDict) -> bool:
+        """주간 사용량 리셋 체크 (매주 월요일 오전 9시 KST). 리셋했으면 True 반환."""
         now = datetime.utcnow()
         reset_date_str = user.get("usage_reset_at")
 
@@ -94,14 +113,15 @@ class SubscriptionService:
             else:
                 reset_date = reset_date_str
         else:
-            reset_date = now
+            reset_date = self._get_last_monday_9am_kst()
 
-        # 다음 달이 되었으면 리셋
-        if now.year > reset_date.year or (now.year == reset_date.year and now.month > reset_date.month):
+        # 마지막 월요일 00:00 UTC (= 월요일 09:00 KST) 이후로 리셋이 안됐으면 리셋
+        last_monday = self._get_last_monday_9am_kst()
+        if reset_date < last_monday:
             await self._update_user(user["id"], {
-                "monthly_analysis_count": 0,
+                "monthly_analysis_count": 0,  # DB 컬럼명 (주간 용도로 사용)
                 "monthly_extended_count": 0,
-                "usage_reset_at": now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat(),
+                "usage_reset_at": last_monday.isoformat(),
             })
             # 로컬 객체도 업데이트
             user["monthly_analysis_count"] = 0
@@ -112,7 +132,7 @@ class SubscriptionService:
     async def get_usage_status(self, user_id: str) -> UsageStatus:
         """현재 사용량 상태 조회"""
         user = await self.get_user(user_id)
-        await self.check_and_reset_monthly_usage(user)
+        await self.check_and_reset_weekly_usage(user)
 
         # MASTER 계정 (is_superuser) 체크
         is_master = user.get("is_superuser", False)
@@ -162,16 +182,16 @@ class SubscriptionService:
             credits = 0
             credits_expires_at = None
 
-        analysis_limit = limits["monthly_analysis"]
-        extended_limit = limits["monthly_extended"]
-        monthly_analysis_count = user.get("monthly_analysis_count", 0)
-        monthly_extended_count = user.get("monthly_extended_count", 0)
+        analysis_limit = limits["weekly_analysis"]
+        extended_limit = limits["weekly_extended"]
+        weekly_analysis_count = user.get("monthly_analysis_count", 0)  # DB 컬럼명
+        weekly_extended_count = user.get("monthly_extended_count", 0)  # DB 컬럼명
 
         # 분석 가능 여부: MASTER이거나, 한도 내 OR 크레딧 있음
         can_analyze = (
             is_master or
             analysis_limit == -1 or
-            monthly_analysis_count < analysis_limit or
+            weekly_analysis_count < analysis_limit or
             credits > 0
         )
 
@@ -179,17 +199,21 @@ class SubscriptionService:
         can_use_extended = (
             is_master or
             extended_limit == -1 or
-            monthly_extended_count < extended_limit or
+            weekly_extended_count < extended_limit or
             credits >= 2  # 확장 분석은 2크레딧
         )
+
+        # 다음 초기화 시간 계산
+        next_reset_at = self._get_next_monday_9am_kst()
 
         return UsageStatus(
             tier=tier,
             subscription_expires_at=subscription_expires_at,
-            monthly_analysis_used=monthly_analysis_count,
-            monthly_analysis_limit=analysis_limit,
-            monthly_extended_used=monthly_extended_count,
-            monthly_extended_limit=extended_limit,
+            weekly_analysis_used=weekly_analysis_count,
+            weekly_analysis_limit=analysis_limit,
+            weekly_extended_used=weekly_extended_count,
+            weekly_extended_limit=extended_limit,
+            next_reset_at=next_reset_at,
             credits=credits,
             credits_expires_at=credits_expires_at,
             can_analyze=can_analyze,
@@ -208,33 +232,33 @@ class SubscriptionService:
         credit_cost = 2 if exam_type == "student" else 1
 
         user = await self.get_user(user_id)
-        await self.check_and_reset_monthly_usage(user)
+        await self.check_and_reset_weekly_usage(user)
 
-        monthly_analysis_count = user.get("monthly_analysis_count", 0)
+        weekly_analysis_count = user.get("monthly_analysis_count", 0)  # DB 컬럼명
         credits = user.get("credits", 0)
 
         # MASTER는 무제한
         if user.get("is_superuser", False):
             await self._update_user(user["id"], {
-                "monthly_analysis_count": monthly_analysis_count + 1,
+                "monthly_analysis_count": weekly_analysis_count + 1,
             })
             return True
 
         tier = SubscriptionTier(user.get("subscription_tier", "free"))
         limits = TIER_LIMITS[tier]
-        analysis_limit = limits["monthly_analysis"]
+        analysis_limit = limits["weekly_analysis"]
 
         # 무제한이면 카운트만 증가
         if analysis_limit == -1:
             await self._update_user(user["id"], {
-                "monthly_analysis_count": monthly_analysis_count + 1,
+                "monthly_analysis_count": weekly_analysis_count + 1,
             })
             return True
 
         # 한도 내면 카운트 증가
-        if monthly_analysis_count < analysis_limit:
+        if weekly_analysis_count < analysis_limit:
             await self._update_user(user["id"], {
-                "monthly_analysis_count": monthly_analysis_count + 1,
+                "monthly_analysis_count": weekly_analysis_count + 1,
             })
             return True
 
@@ -242,7 +266,7 @@ class SubscriptionService:
         if credits >= credit_cost:
             await self._update_user(user["id"], {
                 "credits": credits - credit_cost,
-                "monthly_analysis_count": monthly_analysis_count + 1,
+                "monthly_analysis_count": weekly_analysis_count + 1,
             })
             return True
 
@@ -251,33 +275,33 @@ class SubscriptionService:
     async def consume_extended(self, user_id: str) -> bool:
         """확장 분석 1회 소비 (성공 시 True)"""
         user = await self.get_user(user_id)
-        await self.check_and_reset_monthly_usage(user)
+        await self.check_and_reset_weekly_usage(user)
 
-        monthly_extended_count = user.get("monthly_extended_count", 0)
+        weekly_extended_count = user.get("monthly_extended_count", 0)  # DB 컬럼명
         credits = user.get("credits", 0)
 
         # MASTER는 무제한
         if user.get("is_superuser", False):
             await self._update_user(user["id"], {
-                "monthly_extended_count": monthly_extended_count + 1,
+                "monthly_extended_count": weekly_extended_count + 1,
             })
             return True
 
         tier = SubscriptionTier(user.get("subscription_tier", "free"))
         limits = TIER_LIMITS[tier]
-        extended_limit = limits["monthly_extended"]
+        extended_limit = limits["weekly_extended"]
 
         # 무제한이면 카운트만 증가
         if extended_limit == -1:
             await self._update_user(user["id"], {
-                "monthly_extended_count": monthly_extended_count + 1,
+                "monthly_extended_count": weekly_extended_count + 1,
             })
             return True
 
         # 한도 내면 카운트 증가
-        if monthly_extended_count < extended_limit:
+        if weekly_extended_count < extended_limit:
             await self._update_user(user["id"], {
-                "monthly_extended_count": monthly_extended_count + 1,
+                "monthly_extended_count": weekly_extended_count + 1,
             })
             return True
 
@@ -285,7 +309,7 @@ class SubscriptionService:
         if credits >= 2:
             await self._update_user(user["id"], {
                 "credits": credits - 2,
-                "monthly_extended_count": monthly_extended_count + 1,
+                "monthly_extended_count": weekly_extended_count + 1,
             })
             return True
 
@@ -344,7 +368,7 @@ class SubscriptionService:
         await self._update_user(user["id"], {
             "subscription_tier": request.tier.value,
             "subscription_expires_at": expires_at.isoformat(),
-            # 구독 시작 시 월별 사용량 리셋
+            # 구독 시작 시 주간 사용량 리셋
             "monthly_analysis_count": 0,
             "monthly_extended_count": 0,
             "usage_reset_at": datetime.utcnow().isoformat(),

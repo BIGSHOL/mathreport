@@ -6,8 +6,10 @@
 3. 오류 패턴 기반 분석
 4. 패턴 매칭 이력 추적
 5. Chain of Thought 프롬프팅
+6. 분석 결과 캐싱 (속도 개선)
 """
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,12 @@ from app.schemas.pattern import (
     BuildPromptRequest,
     ExamPaperClassification,
     QuestionAnswerInfo,
+)
+from app.services.analysis_cache import (
+    get_analysis_cache,
+    get_pattern_matcher,
+    compute_file_hash,
+    compute_analysis_cache_key,
 )
 
 
@@ -82,22 +90,38 @@ class AIEngine:
 ## 분류 항목
 
 1. paper_type (시험지 유형):
-   - "blank": 빈 시험지 (답안 없음)
-   - "answered": 학생 답안 작성됨
+   - "blank": 빈 시험지 (손글씨 답안 전혀 없음)
+   - "answered": 학생 답안 작성됨 (손글씨로 답 작성)
    - "mixed": 일부만 답안 있음
 
-2. grading_status (채점 상태):
-   - "not_graded": 채점 안됨
-   - "partially_graded": 일부만 채점
-   - "fully_graded": 전체 채점됨
+2. grading_status (채점 상태) - 매우 중요!:
+   - "not_graded": 채점 표시(O/X) 전혀 없음
+   - "partially_graded": 일부 문항에만 O/X 표시
+   - "fully_graded": 대부분 문항에 O/X 표시
 
-3. 문항별 정보 (가능한 경우)
+## ⚠️ 채점 표시 판단 기준 (핵심!)
 
-## 판단 기준
-- 손글씨 답안 유무
-- 채점 표시 (O, X, ○, ✗, 동그라미, 체크)
-- 점수 기재 여부
-- 빨간펜/파란펜 표시
+### 채점됨 (grading_status ≠ "not_graded")으로 판단하는 경우:
+- 문항에 O, ○, ✓, 체크 표시 존재
+- 문항에 X, ✗, 빗금(/) 표시 존재
+- 점수가 기재되어 있음 (3점, 0점 등)
+- 빨간펜으로 정답을 따로 써줌
+- **문제번호에 빨간 동그라미** → 틀린 문제 표시 = 채점됨!
+
+### 미채점 (grading_status = "not_graded")으로 판단하는 경우:
+- 학생 답만 있고 O/X 표시가 **전혀 없음**
+- 점수 기재 없음
+- 채점자의 펜 흔적 없음
+
+### 정오답 판정 테이블
+
+| 표시 | 위치 | 의미 | grading_result |
+|------|------|------|----------------|
+| O, ○, ✓ | 학생 답안 옆 | 정답 | "correct" |
+| X, ✗, / | 학생 답안 옆 | 오답 | "incorrect" |
+| 빨간 동그라미 | **문제번호** 옆 | 틀린 문제 표시 | "incorrect" |
+| 빨간펜 정답 | 문항 근처 | 학생 답이 틀림 | "incorrect" |
+| 없음 | - | 미채점 | null |
 
 ## 응답 형식 (JSON)
 {
@@ -115,12 +139,29 @@ class AIEngine:
             "has_grading_mark": true,
             "grading_result": "correct",
             "confidence": 0.95
+        },
+        {
+            "question_number": 2,
+            "has_answer": true,
+            "has_grading_mark": true,
+            "grading_result": "incorrect",
+            "confidence": 0.90,
+            "note": "문제번호에 빨간 동그라미 = 틀린 문제 표시"
+        },
+        {
+            "question_number": 3,
+            "has_answer": true,
+            "has_grading_mark": false,
+            "grading_result": null,
+            "confidence": 0.85,
+            "note": "O/X 표시 없음 - 미채점"
         }
     ],
     "summary": {
         "answered_count": 10,
         "correct_count": 7,
-        "incorrect_count": 3,
+        "incorrect_count": 2,
+        "ungraded_count": 1,
         "blank_count": 0
     }
 }
@@ -224,7 +265,7 @@ class AIEngine:
                 return self._get_student_prompt()
 
     # ============================================
-    # 3. 통합 분석 (패턴 시스템 포함)
+    # 3. 통합 분석 (패턴 시스템 포함) - 분류 통합 버전
     # ============================================
     async def analyze_exam_with_patterns(
         self,
@@ -236,18 +277,21 @@ class AIEngine:
         exam_id: str | None = None,
     ) -> dict:
         """
-        패턴 시스템을 활용한 통합 분석
+        패턴 시스템을 활용한 통합 분석 (분류 통합 - 단일 API 호출)
 
         Args:
             db: 데이터베이스 세션
             file_path: 분석할 파일 경로 (여러 이미지인 경우 콤마로 구분)
             grade_level: 학년 (예: "중1", "고1")
             unit: 단원 (예: "이차방정식")
-            auto_classify: 시험지 유형 자동 분류 여부
+            auto_classify: 시험지 유형 자동 분류 여부 (통합 버전에서는 항상 분석 내에서 수행)
+            exam_id: 시험지 ID (진행 상태 업데이트용)
 
         Returns:
             분석 결과 딕셔너리
         """
+        start_time = time.time()
+
         # 헬퍼: 분석 단계 업데이트
         async def update_step(step: int):
             if exam_id and db:
@@ -256,65 +300,280 @@ class AIEngine:
                 except Exception as e:
                     print(f"[Step Update Error] {e}")
 
-        # 1. 시험지 유형 자동 분류
-        classification = None
-        exam_paper_type = "unknown"
+        # ============ 캐싱 시스템 ============
+        cache = get_analysis_cache()
+        file_hash = None
 
-        if auto_classify:
-            await update_step(1)
-            print("[Step 1] 시험지 유형 분류 중...")
-            classification = await self.classify_exam_paper(file_path)
-            exam_paper_type = classification.paper_type
-            print(f"  - 유형: {exam_paper_type} (신뢰도: {classification.confidence:.2f})")
-            print(f"  - 채점 상태: {classification.grading_status}")
+        # 파일 해시 계산 (캐시 키 생성용)
+        try:
+            file_paths = [p.strip() for p in file_path.split(",")]
+            combined_content = b""
+            for fp in file_paths:
+                content, _ = await self._load_file_content(fp)
+                if content:
+                    combined_content += content
+            if combined_content:
+                file_hash = compute_file_hash(combined_content)
+                cache_key = compute_analysis_cache_key(file_hash, grade_level, unit)
 
-        # 2. exam_type 결정
-        if exam_paper_type == "blank":
-            exam_type = "blank"
-        elif exam_paper_type in ["answered", "mixed"]:
-            exam_type = "student"
-        else:
-            exam_type = "blank"  # 기본값
+                # 캐시 히트 확인
+                cached_result = cache.get(cache_key)
+                if cached_result:
+                    elapsed = time.time() - start_time
+                    print(f"[Cache HIT] {cache_key[:20]}... ({elapsed:.2f}초)")
+                    cached_result["_cache_hit"] = True
+                    cached_result["_elapsed_seconds"] = elapsed
+                    return cached_result
+        except Exception as e:
+            print(f"[Cache Error] {e}")
 
-        # 3. 동적 프롬프트 생성
-        await update_step(2)
-        print("[Step 2] 동적 프롬프트 생성 중...")
+        # 1. 동적 프롬프트 생성 (분류 없이 통합 프롬프트 사용)
+        await update_step(1)
+        print("[Step 1] 통합 프롬프트 생성 중...")
+
         exam_context = ExamContext(
             grade_level=grade_level,
             subject="수학",
             unit=unit,
-            exam_paper_type=exam_paper_type,
+            exam_paper_type="unknown",  # 분석 시 자동 판단
         )
 
-        dynamic_prompt = await self.build_dynamic_prompt(
-            db=db,
-            exam_context=exam_context,
-            include_error_patterns=(exam_type == "student"),
-            include_examples=(exam_type == "student"),
-        )
+        # 통합 프롬프트 사용 (분류 + 분석 동시 수행)
+        dynamic_prompt = self._get_unified_prompt()
 
-        # 4. AI 분석 실행
-        await update_step(3)
-        print(f"[Step 3] AI 분석 실행 중... (exam_type={exam_type})")
+        # ============ 패턴 시스템 전체 통합 ============
+        all_additions = []
+        detected_paper_type = "unknown"  # 1차 분류 결과 (캐시용)
+
+        # 1. learned_patterns 테이블: 학습된 인식 규칙
+        try:
+            from app.services.ai_learning import AILearningService
+            learning_service = AILearningService(db)
+            learned_additions = await learning_service.get_dynamic_prompt_additions()
+            if learned_additions:
+                all_additions.append(learned_additions)
+                print(f"[Pattern] 학습 패턴 추가됨 ({len(learned_additions)}자)")
+        except Exception as e:
+            print(f"[Pattern Error] learned_patterns: {e}")
+
+        # 2. error_patterns 테이블: 오류 패턴 (빈도 높은 상위 패턴 + 상세 정보)
+        try:
+            result = await db.table("error_patterns").select(
+                "name, error_type, frequency, feedback_message, feedback_detail, wrong_examples, detection_keywords"
+            ).eq("is_active", True).order(
+                "occurrence_count", desc=True
+            ).limit(15).execute()
+
+            if result.data:
+                error_prompt_parts = ["\n## [자주 발생하는 오류 패턴 - AI 분석 시 참고]"]
+                for pattern in result.data:
+                    part = f"\n### {pattern.get('name', '')} ({pattern.get('error_type', '')})"
+                    part += f"\n- 피드백: {pattern.get('feedback_message', '')}"
+                    if pattern.get('feedback_detail'):
+                        part += f"\n- 상세: {pattern.get('feedback_detail', '')}"
+                    # 오답 예시 추가
+                    wrong_examples = pattern.get('wrong_examples') or []
+                    if wrong_examples and len(wrong_examples) > 0:
+                        ex = wrong_examples[0]
+                        if isinstance(ex, dict):
+                            part += f"\n- 예시: {ex.get('problem', '')} → 오답: {ex.get('wrong_answer', '')}"
+                    error_prompt_parts.append(part)
+                error_additions = "\n".join(error_prompt_parts)
+                all_additions.append(error_additions)
+                print(f"[Pattern] 오류 패턴 {len(result.data)}개 추가됨")
+        except Exception as e:
+            print(f"[Pattern Error] error_patterns: {e}")
+
+        # 3. prompt_templates 테이블: 모든 유형의 템플릿 활용
+        try:
+            # 3-1. 기본 분석 가이드 (analysis_guide)
+            result = await db.table("prompt_templates").select(
+                "name, content, template_type, conditions"
+            ).eq("is_active", True).in_(
+                "template_type", ["analysis_guide", "error_detection"]
+            ).order("priority", desc=True).limit(5).execute()
+
+            if result.data:
+                for t in result.data:
+                    # 조건 기반 필터링 (시험지 유형)
+                    conditions = t.get("conditions") or {}
+                    cond_paper_type = conditions.get("exam_paper_type")
+
+                    # 조건이 없거나 unknown이면 항상 포함
+                    if not cond_paper_type or cond_paper_type == "unknown":
+                        all_additions.append(f"\n## [{t.get('name', '')}]\n{t.get('content', '')}")
+                print(f"[Pattern] 분석 가이드 템플릿 {len(result.data)}개 로드됨")
+
+            # 3-2. 단원별 가이드 (topic_guide) - 학년/단원 기반
+            if grade_level or unit:
+                topic_result = await db.table("prompt_templates").select(
+                    "name, content, conditions"
+                ).eq("is_active", True).eq(
+                    "template_type", "topic_guide"
+                ).order("priority", desc=True).execute()
+
+                if topic_result.data:
+                    for t in topic_result.data:
+                        conditions = t.get("conditions") or {}
+                        cond_topic = conditions.get("topic", "").lower()
+
+                        # 단원 매칭 (부분 일치)
+                        unit_lower = (unit or "").lower()
+                        if not cond_topic or cond_topic in unit_lower or unit_lower in cond_topic:
+                            all_additions.append(f"\n## [단원 가이드: {t.get('name', '')}]\n{t.get('content', '')}")
+                            print(f"[Pattern] 단원 가이드 '{t.get('name', '')}' 추가됨")
+                            break  # 가장 우선순위 높은 1개만
+
+            # 3-3. 교육과정 가이드 (curriculum_guide) - 22개정
+            curriculum_result = await db.table("prompt_templates").select(
+                "name, content"
+            ).eq("is_active", True).eq(
+                "template_type", "curriculum_guide"
+            ).order("priority", desc=True).limit(2).execute()
+
+            if curriculum_result.data:
+                for t in curriculum_result.data:
+                    all_additions.append(f"\n## [교육과정 가이드: {t.get('name', '')}]\n{t.get('content', '')}")
+                print(f"[Pattern] 교육과정 가이드 {len(curriculum_result.data)}개 추가됨")
+
+            # 3-4. 피드백 템플릿 (feedback) - 코멘트 작성 참고용
+            feedback_result = await db.table("prompt_templates").select(
+                "name, content"
+            ).eq("is_active", True).eq(
+                "template_type", "feedback"
+            ).order("priority", desc=True).limit(2).execute()
+
+            if feedback_result.data:
+                feedback_content = "\n## [AI 코멘트 작성 가이드]\n"
+                for t in feedback_result.data:
+                    feedback_content += f"\n### {t.get('name', '')}\n{t.get('content', '')}"
+                all_additions.append(feedback_content)
+                print(f"[Pattern] 피드백 템플릿 {len(feedback_result.data)}개 추가됨")
+
+        except Exception as e:
+            print(f"[Pattern Error] prompt_templates: {e}")
+
+        # 4. problem_categories + problem_types: 토픽 분류 가이드
+        try:
+            # 활성화된 카테고리와 유형 로드
+            cat_result = await db.table("problem_categories").select(
+                "id, name, description"
+            ).eq("is_active", True).order("display_order").execute()
+
+            if cat_result.data:
+                topic_guide_parts = ["\n## [문제 유형 분류 가이드 - DB 기반]"]
+
+                for cat in cat_result.data:
+                    # 해당 카테고리의 문제 유형 로드
+                    types_result = await db.table("problem_types").select(
+                        "name, keywords, core_concepts, grade_levels"
+                    ).eq("category_id", cat["id"]).eq("is_active", True).order("display_order").limit(10).execute()
+
+                    if types_result.data:
+                        cat_part = f"\n### [{cat.get('name', '')}] {cat.get('description', '')}"
+                        for pt in types_result.data:
+                            keywords = pt.get("keywords") or []
+                            grades = pt.get("grade_levels") or []
+                            cat_part += f"\n- {pt.get('name', '')}"
+                            if keywords:
+                                cat_part += f" (키워드: {', '.join(keywords[:3])})"
+                            if grades:
+                                cat_part += f" [{', '.join(grades)}]"
+                        topic_guide_parts.append(cat_part)
+
+                if len(topic_guide_parts) > 1:
+                    all_additions.append("\n".join(topic_guide_parts))
+                    print(f"[Pattern] 문제 유형 분류 가이드 {len(cat_result.data)}개 카테고리 추가됨")
+        except Exception as e:
+            print(f"[Pattern Error] problem_categories/types: {e}")
+
+        # 5. 시험 유형별 가이드 (exam_type_guide) - 수능/내신 구분
+        try:
+            exam_type_result = await db.table("prompt_templates").select(
+                "name, content, conditions"
+            ).eq("is_active", True).eq(
+                "template_type", "exam_type_guide"
+            ).order("priority", desc=True).execute()
+
+            if exam_type_result.data:
+                # 모든 시험 유형 가이드 추가 (조건 무시 - 분석 시 AI가 판단)
+                for t in exam_type_result.data:
+                    all_additions.append(f"\n## [시험 유형 참고: {t.get('name', '')}]\n{t.get('content', '')}")
+                print(f"[Pattern] 시험 유형 가이드 {len(exam_type_result.data)}개 추가됨")
+        except Exception as e:
+            print(f"[Pattern Error] exam_type_guide: {e}")
+
+        # 모든 패턴 정보 병합
+        combined_additions = "\n\n".join(all_additions) if all_additions else ""
+        print(f"[Pattern] 총 프롬프트 추가 길이: {len(combined_additions)}자")
+
+        # 2. AI 분석 실행 (분류 + 분석 통합)
+        await update_step(2)
+        print("[Step 2] AI 통합 분석 실행 중...")
         result = await self.analyze_exam_file(
             file_path=file_path,
-            dynamic_prompt_additions="",  # 동적 프롬프트가 이미 포함됨
-            exam_type=exam_type,
+            dynamic_prompt_additions=combined_additions,  # 모든 패턴 시스템 통합
+            exam_type="unified",  # 통합 분석 모드
             custom_prompt=dynamic_prompt,
         )
 
-        # 5. 분류 결과 추가
-        if classification:
-            result["_classification"] = {
-                "paper_type": classification.paper_type,
-                "paper_type_confidence": classification.confidence,
-                "grading_status": classification.grading_status,
-                "indicators": classification.indicators,
-                "grading_indicators": classification.grading_indicators,
-            }
+        # 3. 분류 결과 추출 및 조건부 템플릿 적용
+        await update_step(3)
+        paper_type = result.get("paper_type", "blank")
+        grading_status = result.get("grading_status", "not_graded")
 
-        # 6. 패턴 매칭 (향후 구현)
+        print(f"  - 유형: {paper_type}")
+        print(f"  - 채점 상태: {grading_status}")
+
+        # 분류 결과에 따른 추가 템플릿 로드 (조건 기반)
+        try:
+            conditional_result = await db.table("prompt_templates").select(
+                "name, content, conditions"
+            ).eq("is_active", True).order("priority", desc=True).execute()
+
+            if conditional_result.data:
+                for t in conditional_result.data:
+                    conditions = t.get("conditions") or {}
+                    cond_paper_type = conditions.get("exam_paper_type")
+
+                    # 조건이 현재 분류 결과와 일치하면 피드백에 활용
+                    if cond_paper_type and cond_paper_type == paper_type:
+                        print(f"[Pattern] 조건부 템플릿 '{t.get('name', '')}' 적용됨 (paper_type={paper_type})")
+                        # 결과에 적용된 템플릿 정보 기록
+                        if "_applied_templates" not in result:
+                            result["_applied_templates"] = []
+                        result["_applied_templates"].append(t.get("name", ""))
+        except Exception as e:
+            print(f"[Pattern Error] conditional templates: {e}")
+
+        # exam_type 결정 (후처리용)
+        if paper_type in ["answered", "mixed"]:
+            exam_type = "student"
+        else:
+            exam_type = "blank"
+
+        # 분류 결과를 _classification에 저장
+        result["_classification"] = {
+            "paper_type": paper_type,
+            "paper_type_confidence": result.get("paper_type_confidence", 0.9),
+            "grading_status": grading_status,
+            "indicators": result.get("paper_type_indicators", []),
+            "grading_indicators": result.get("grading_indicators", []),
+        }
+
+        # 4. 패턴 매칭 (향후 구현)
         # TODO: 분석 결과에서 패턴 매칭 후 PatternMatchHistory에 기록
+
+        # ============ 결과 캐싱 ============
+        elapsed = time.time() - start_time
+        result["_cache_hit"] = False
+        result["_elapsed_seconds"] = round(elapsed, 2)
+
+        if file_hash:
+            cache_key = compute_analysis_cache_key(file_hash, grade_level, unit)
+            cache.set(cache_key, result)
+            print(f"[Cache SAVE] {cache_key[:20]}... ({elapsed:.2f}초)")
+            print(f"[Cache Stats] {cache.get_stats()}")
 
         return result
 
@@ -465,6 +724,14 @@ class AIEngine:
         """분석 결과 검증 및 신뢰도 점수 계산."""
         confidence = 1.0
         issues = []
+
+        # unified 모드: paper_type에서 실제 유형 추론
+        if exam_type == "unified":
+            paper_type = result.get("paper_type", "blank")
+            if paper_type in ["answered", "mixed"]:
+                exam_type = "student"
+            else:
+                exam_type = "blank"
 
         # 1. 필수 필드 검증
         if "summary" not in result:
@@ -797,6 +1064,157 @@ class AIEngine:
 8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
 """
 
+    def _get_unified_prompt(self) -> str:
+        """통합 프롬프트 (분류 + 분석 동시 수행) - 속도 최적화"""
+        return """
+당신은 한국 고등학교 수학 시험지 분석 전문가입니다.
+
+## STEP 0: 시험지 유형 판별 (먼저 수행)
+
+이미지를 보고 다음을 판단하세요:
+1. **paper_type** (시험지 유형):
+   - "blank": 빈 시험지 (손글씨 답안 없음)
+   - "answered": 학생 답안 작성됨 (손글씨, 채점 표시 있음)
+   - "mixed": 일부만 답안 있음
+
+2. **grading_status** (채점 상태):
+   - "not_graded": 채점 안됨 (O/X 표시 전혀 없음)
+   - "partially_graded": 일부만 채점 (일부 문항에만 O/X)
+   - "fully_graded": 전체 채점됨 (대부분 문항에 O/X)
+
+## ⚠️ 채점 표시 인식 (매우 중요!) ⚠️
+
+### 정답 표시 → is_correct: true
+- 학생이 **쓴 답안 바로 옆**에 O, ○, ✓, 체크 표시
+- 객관식: 학생이 고른 번호에 동그라미 표시
+- 점수가 배점 그대로 기재 (예: 3점짜리에 "3" 기재)
+
+### 오답 표시 → is_correct: false
+- 학생 답안에 X, ✗, 빗금(/), 사선 표시
+- **문제번호에 빨간 동그라미** = 틀린 문제 표시 → 오답!
+- 빨간펜으로 **정답을 따로 써준 경우** → 학생 답이 틀렸다는 의미
+- 점수가 0 또는 감점된 경우
+
+### 미채점 → is_correct: null
+- O/X 표시가 **전혀 없는** 문항
+- 학생이 답을 썼지만 채점 표시가 없음 → **절대 정답 처리 금지!**
+- 확신이 없으면 null 처리
+
+### 핵심 구분법
+| 위치 | 표시 | 의미 |
+|------|------|------|
+| 문제번호(1,2,3) 옆 빨간 동그라미 | ① ② ③ | 틀린 문제 표시 → **오답** |
+| 학생 답안 옆 동그라미 | 답: ③ ○ | 정답 표시 → **정답** |
+| 아무 표시 없음 | 답: ③ | 미채점 → **null** |
+
+## STEP 1: 문제 추출 (⚠️ 누락 금지)
+
+시험지를 주의 깊게 살펴보고:
+- 총 문항 수 (객관식 + 서답형)
+- 각 문항의 번호와 배점
+- 서답형 문제의 소문제 구조
+
+⚠️ **필수**: 1번부터 마지막 문항까지 **빠짐없이** 모두 분석하세요.
+
+🔢 **번호 추론 규칙**:
+- 번호가 가려지거나 안 보여도, **위치로 번호를 추론**하세요
+- 1번 다음에 나오는 문제 → 2번
+- N번 다음에 나오는 문제 → N+1번
+
+## STEP 2: 문항별 분류
+
+각 문항에 대해:
+1. 토픽 분류 (어떤 개념?)
+2. 난이도 판정 (high/medium/low)
+3. 문제 유형 (calculation/geometry/application/proof/graph/statistics)
+4. **학생 답안지인 경우**: is_correct, error_type, earned_points 추가
+
+## JSON 출력 형식
+
+{
+    "paper_type": "blank 또는 answered 또는 mixed",
+    "paper_type_confidence": 0.95,
+    "paper_type_indicators": ["판단 근거1", "판단 근거2"],
+    "grading_status": "not_graded 또는 partially_graded 또는 fully_graded",
+    "grading_indicators": ["채점 근거"],
+    "exam_info": {
+        "total_questions": 16,
+        "total_points": 100,
+        "objective_count": 12,
+        "subjective_count": 4,
+        "earned_total_points": 72,
+        "correct_count": 10,
+        "wrong_count": 6
+    },
+    "summary": {
+        "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+        "type_distribution": {
+            "calculation": 0, "geometry": 0, "application": 0,
+            "proof": 0, "graph": 0, "statistics": 0
+        },
+        "average_difficulty": "medium",
+        "dominant_type": "calculation"
+    },
+    "questions": [
+        {
+            "question_number": 1,
+            "difficulty": "low",
+            "question_type": "calculation",
+            "points": 3,
+            "topic": "공통수학1 > 다항식 > 다항식의 연산",
+            "ai_comment": "핵심 개념. 주의사항.",
+            "confidence": 0.95,
+            "is_correct": true,
+            "student_answer": "3",
+            "earned_points": 3,
+            "error_type": null
+        },
+        {
+            "question_number": 2,
+            "difficulty": "medium",
+            "question_type": "calculation",
+            "points": 4,
+            "topic": "공통수학1 > 방정식과 부등식 > 이차방정식",
+            "ai_comment": "근의 공식 활용. 계산 주의.",
+            "confidence": 0.90,
+            "is_correct": null,
+            "student_answer": "5",
+            "earned_points": null,
+            "error_type": null,
+            "grading_note": "채점 표시 없음 - 미채점"
+        }
+    ]
+}
+
+## 토픽 분류표
+
+[공통수학1] 다항식, 방정식과 부등식, 경우의 수
+[공통수학2] 도형의 방정식, 집합과 명제, 함수
+[수학1] 지수함수와 로그함수, 삼각함수, 수열
+[수학2] 함수의 극한과 연속, 미분, 적분
+[확률과 통계] 경우의 수, 확률, 통계
+[미적분] 수열의 극한, 미분법, 적분법
+[기하] 이차곡선, 평면벡터, 공간도형과 공간좌표
+
+## 오류 유형 (error_type) - 오답일 때만 해당
+
+- calculation_error: 계산 실수
+- concept_error: 개념 오해
+- careless_mistake: 단순 실수
+- process_error: 풀이 과정 오류
+- incomplete: 미완성
+
+## 규칙 (엄격 준수)
+
+1. 모든 텍스트는 한국어로 작성
+2. **빈 시험지(blank)**: is_correct, student_answer, earned_points, error_type 필드 생략
+3. **학생 답안지(answered/mixed)**: 정오답 필드 포함
+4. **채점 표시 없으면 is_correct: null** (정답 추측 금지!)
+5. topic 형식: "과목명 > 대단원 > 소단원"
+6. ai_comment: 정확히 2문장, 총 50자 이내
+7. confidence: 0.0 ~ 1.0
+"""
+
     def _get_student_prompt(self) -> str:
         """학생 답안지용 기본 프롬프트"""
         return """
@@ -892,22 +1310,43 @@ class AIEngine:
 - process_error: 풀이 과정 오류 (논리적 비약)
 - incomplete: 미완성 (시간 부족, 포기)
 
+## ⚠️ 채점 표시 인식 (가장 중요!) ⚠️
+
+### 채점 판정 테이블 (반드시 참조!)
+
+| 상황 | is_correct | 판단 근거 |
+|------|------------|-----------|
+| 학생 답안 옆 O/✓ 표시 | true | 정답 표시 |
+| 배점 그대로 점수 기재 | true | 3점→"3" |
+| 학생 답안에 X/빗금 표시 | false | 오답 표시 |
+| **문제번호에 빨간 동그라미** | **false** | 틀린 문제 표시! |
+| 빨간펜으로 정답 따로 기재 | false | 학생 답이 틀림 |
+| 점수 0점 또는 감점 | false | 오답 |
+| **O/X 표시 전혀 없음** | **null** | 미채점! |
+| 답은 썼지만 표시 없음 | null | 미채점! |
+
+### 핵심 구분법 (혼동 주의!)
+```
+❌ 틀린 것: ①← 문제번호에 동그라미 = 틀린 문제 표시 → is_correct: false
+✅ 맞는 것: 답: ③ ○ = 답안에 동그라미 = 정답 → is_correct: true
+❓ 미채점: 답: ③ (표시 없음) = 채점 안됨 → is_correct: null
+```
+
+### 절대 금지 사항
+- 채점 표시 없이 **정답으로 추측 금지**
+- 문제번호 동그라미를 정답 표시로 오해 금지
+- 학생이 답을 썼다고 정답 처리 금지 (표시 확인 필수!)
+
 ## 규칙 (엄격 준수)
 
 1. 모든 텍스트(topic, ai_comment)는 한국어로 작성
 2. difficulty: high(상), medium(중), low(하) 중 하나
 3. question_type: calculation, geometry, application, proof, graph, statistics 중 하나
 4. points: 숫자
-
-⚠️ 중요 - 정오답 인식:
-- O, ○, ✓, 동그라미 = 정답 (is_correct: true)
-- X, ✗, 빗금, 빨간 줄 = 오답 (is_correct: false)
-- 부분 점수가 있으면 earned_points에 반영
-- 채점 표시가 없으면 is_correct: null
-
-5. topic 형식: "과목명 > 대단원 > 소단원"
-6. ai_comment: 정확히 2문장, 총 50자 이내
-7. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
+5. **채점 표시 없으면 반드시 is_correct: null** (추측 금지!)
+6. topic 형식: "과목명 > 대단원 > 소단원"
+7. ai_comment: 정확히 2문장, 총 50자 이내
+8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
 """
 
 

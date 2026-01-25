@@ -1,0 +1,1820 @@
+"""
+한국 수학 교육과정 기반 패턴 시스템 시드 데이터
+중학교/고등학교 수학 문제 유형 및 오류 패턴
+
+실행: python -m scripts.seed_patterns
+"""
+import asyncio
+import uuid
+from datetime import datetime
+
+from app.db.supabase_client import get_supabase
+
+
+def now():
+    return datetime.utcnow().isoformat()
+
+
+def uid():
+    return str(uuid.uuid4())
+
+
+# ============================================
+# 1. 문제 카테고리 (대분류)
+# - 중학교: 2015 개정 교육과정 기준
+# - 고등학교: 2022 개정 교육과정 반영
+# ============================================
+CATEGORIES = [
+    # 중학교 공통 (중1~3)
+    {"name": "수와 연산", "description": "정수, 유리수, 실수의 연산", "display_order": 1},
+    {"name": "문자와 식", "description": "다항식, 방정식, 부등식", "display_order": 2},
+    {"name": "함수", "description": "일차함수, 이차함수, 함수의 그래프", "display_order": 3},
+    {"name": "기하(중)", "description": "도형, 삼각비, 원 (중학교)", "display_order": 4},
+    {"name": "확률과 통계(중)", "description": "경우의 수, 확률, 통계 (중학교)", "display_order": 5},
+
+    # 고등학교 - 22개정 공통과목
+    {"name": "공통수학1", "description": "다항식, 방정식과 부등식, 도형의 방정식 (22개정)", "display_order": 10},
+    {"name": "공통수학2", "description": "집합과 명제, 함수, 경우의 수 (22개정)", "display_order": 11},
+
+    # 고등학교 - 22개정 일반선택
+    {"name": "대수", "description": "지수/로그/삼각함수, 수열 (22개정)", "display_order": 20},
+    {"name": "미적분I", "description": "수열의 극한, 미분, 적분 기초 (22개정)", "display_order": 21},
+    {"name": "확률과 통계(고)", "description": "순열/조합, 확률, 통계 (22개정)", "display_order": 22},
+    {"name": "기하(고)", "description": "이차곡선, 평면벡터, 공간벡터 (22개정)", "display_order": 23},
+
+    # 고등학교 - 22개정 진로선택
+    {"name": "미적분II", "description": "여러 가지 미분법, 적분법, 미분방정식 (22개정)", "display_order": 30},
+    {"name": "기하와 벡터", "description": "공간도형, 공간벡터 심화 (22개정)", "display_order": 31},
+
+    # 기존 과정 호환 (15개정 명칭)
+    {"name": "수학(상)", "description": "다항식, 방정식, 부등식, 도형의 방정식 (15개정)", "display_order": 40},
+    {"name": "수학(하)", "description": "집합, 명제, 함수, 경우의 수 (15개정)", "display_order": 41},
+    {"name": "수학I", "description": "지수, 로그, 삼각함수 (15개정)", "display_order": 42},
+    {"name": "수학II", "description": "함수의 극한, 미분, 적분 (15개정)", "display_order": 43},
+    {"name": "미적분", "description": "수열의 극한, 여러 가지 미분법/적분법 (15개정)", "display_order": 44},
+]
+
+
+# ============================================
+# 2. 문제 유형 (세부 분류) - 카테고리별
+# - 중학교: 수와 연산, 문자와 식, 함수, 기하, 확률과 통계
+# - 고등학교 22개정: 공통수학1/2, 대수, 미적분I/II, 확률과 통계, 기하
+# ============================================
+PROBLEM_TYPES = {
+    # ==========================================
+    # 중학교 (중1 ~ 중3)
+    # ==========================================
+    "수와 연산": [
+        {
+            "name": "정수의 사칙연산",
+            "grade_levels": ["중1"],
+            "keywords": ["정수", "덧셈", "뺄셈", "곱셈", "나눗셈", "음수"],
+            "core_concepts": ["부호 규칙", "절댓값"],
+        },
+        {
+            "name": "유리수의 연산",
+            "grade_levels": ["중1", "중2"],
+            "keywords": ["유리수", "분수", "소수", "통분"],
+            "core_concepts": ["통분", "약분", "분수의 나눗셈"],
+        },
+        {
+            "name": "제곱근과 실수",
+            "grade_levels": ["중3"],
+            "keywords": ["제곱근", "루트", "무리수", "실수"],
+            "core_concepts": ["제곱근의 성질", "유리화"],
+        },
+    ],
+    "문자와 식": [
+        {
+            "name": "일차방정식",
+            "grade_levels": ["중1"],
+            "keywords": ["일차방정식", "등식", "이항"],
+            "core_concepts": ["등식의 성질", "이항", "계수"],
+        },
+        {
+            "name": "연립방정식",
+            "grade_levels": ["중2"],
+            "keywords": ["연립방정식", "대입법", "가감법"],
+            "core_concepts": ["대입법", "가감법", "미지수 소거"],
+        },
+        {
+            "name": "이차방정식",
+            "grade_levels": ["중3", "고1"],
+            "keywords": ["이차방정식", "근의 공식", "인수분해"],
+            "core_concepts": ["인수분해", "근의 공식", "판별식"],
+        },
+        {
+            "name": "일차부등식",
+            "grade_levels": ["중2"],
+            "keywords": ["부등식", "부등호", "해집합"],
+            "core_concepts": ["부등호 방향", "음수 곱셈 시 부등호 반전"],
+        },
+        {
+            "name": "이차부등식",
+            "grade_levels": ["고1"],
+            "keywords": ["이차부등식", "이차함수", "해집합"],
+            "core_concepts": ["그래프와 부등식", "판별식 활용"],
+        },
+        {
+            "name": "다항식의 연산",
+            "grade_levels": ["고1"],
+            "keywords": ["다항식", "나눗셈", "나머지정리", "인수정리"],
+            "core_concepts": ["조립제법", "나머지정리", "인수정리"],
+        },
+    ],
+    "함수": [
+        {
+            "name": "일차함수",
+            "grade_levels": ["중2"],
+            "keywords": ["일차함수", "기울기", "y절편", "그래프"],
+            "core_concepts": ["기울기", "y절편", "x절편"],
+        },
+        {
+            "name": "이차함수",
+            "grade_levels": ["중3", "고1"],
+            "keywords": ["이차함수", "포물선", "꼭짓점", "대칭축"],
+            "core_concepts": ["표준형", "일반형", "꼭짓점 공식"],
+        },
+        {
+            "name": "함수의 합성과 역함수",
+            "grade_levels": ["고1"],
+            "keywords": ["합성함수", "역함수", "일대일대응"],
+            "core_concepts": ["합성 순서", "역함수 조건", "그래프 대칭"],
+        },
+        {
+            "name": "유리함수와 무리함수",
+            "grade_levels": ["고1"],
+            "keywords": ["유리함수", "무리함수", "점근선"],
+            "core_concepts": ["정의역", "점근선", "그래프 이동"],
+        },
+    ],
+    "기하(중)": [
+        {
+            "name": "삼각형의 성질",
+            "grade_levels": ["중1", "중2"],
+            "keywords": ["삼각형", "합동", "닮음", "내각"],
+            "core_concepts": ["합동 조건", "닮음 조건", "내각의 합"],
+        },
+        {
+            "name": "사각형의 성질",
+            "grade_levels": ["중2"],
+            "keywords": ["사각형", "평행사변형", "마름모", "대각선"],
+            "core_concepts": ["평행사변형 조건", "대각선 성질"],
+        },
+        {
+            "name": "원의 성질",
+            "grade_levels": ["중3"],
+            "keywords": ["원", "현", "접선", "원주각", "중심각"],
+            "core_concepts": ["원주각과 중심각", "접선의 성질", "원의 방정식"],
+        },
+        {
+            "name": "삼각비",
+            "grade_levels": ["중3"],
+            "keywords": ["삼각비", "sin", "cos", "tan", "직각삼각형"],
+            "core_concepts": ["삼각비 정의", "특수각", "삼각비 표"],
+        },
+        {
+            "name": "피타고라스 정리",
+            "grade_levels": ["중2", "중3"],
+            "keywords": ["피타고라스", "직각삼각형", "빗변"],
+            "core_concepts": ["피타고라스 정리", "역정리"],
+        },
+        {
+            "name": "도형의 닮음",
+            "grade_levels": ["중2", "중3"],
+            "keywords": ["닮음", "닮음비", "축척"],
+            "core_concepts": ["닮음비", "넓이비", "부피비"],
+        },
+        {
+            "name": "좌표평면과 직선의 방정식",
+            "grade_levels": ["중2", "고1"],
+            "keywords": ["좌표", "직선", "기울기", "수직", "평행"],
+            "core_concepts": ["두 점 사이 거리", "내분점", "직선의 방정식"],
+        },
+        {
+            "name": "원의 방정식",
+            "grade_levels": ["고1"],
+            "keywords": ["원", "방정식", "중심", "반지름"],
+            "core_concepts": ["표준형", "일반형", "원과 직선"],
+        },
+    ],
+    "확률과 통계(중)": [
+        {
+            "name": "경우의 수",
+            "grade_levels": ["중2", "고1"],
+            "keywords": ["경우의 수", "순열", "조합", "합의 법칙", "곱의 법칙"],
+            "core_concepts": ["합의 법칙", "곱의 법칙", "수형도"],
+        },
+        {
+            "name": "순열과 조합",
+            "grade_levels": ["고1"],
+            "keywords": ["순열", "조합", "팩토리얼", "nPr", "nCr"],
+            "core_concepts": ["순열 공식", "조합 공식", "중복순열"],
+        },
+        {
+            "name": "확률의 기본",
+            "grade_levels": ["중2", "고1"],
+            "keywords": ["확률", "시행", "사건", "표본공간"],
+            "core_concepts": ["확률의 정의", "여사건", "독립시행"],
+        },
+        {
+            "name": "조건부 확률",
+            "grade_levels": ["고1"],
+            "keywords": ["조건부확률", "독립", "종속"],
+            "core_concepts": ["조건부확률 공식", "독립사건", "베이즈 정리"],
+        },
+        {
+            "name": "통계적 추정",
+            "grade_levels": ["고1", "고2"],
+            "keywords": ["평균", "분산", "표준편차", "정규분포"],
+            "core_concepts": ["평균", "분산", "표준편차", "정규분포"],
+        },
+    ],
+    # ==========================================
+    # 고등학교 22개정 - 공통수학1
+    # ==========================================
+    "공통수학1": [
+        {
+            "name": "다항식의 연산",
+            "grade_levels": ["고1"],
+            "keywords": ["다항식", "곱셈", "나눗셈", "조립제법"],
+            "core_concepts": ["다항식 곱셈", "조립제법", "나머지정리"],
+        },
+        {
+            "name": "항등식과 나머지정리",
+            "grade_levels": ["고1"],
+            "keywords": ["항등식", "나머지정리", "인수정리"],
+            "core_concepts": ["항등식", "나머지정리", "인수정리"],
+        },
+        {
+            "name": "인수분해",
+            "grade_levels": ["고1"],
+            "keywords": ["인수분해", "공통인수", "치환"],
+            "core_concepts": ["인수분해 공식", "치환을 이용한 인수분해"],
+        },
+        {
+            "name": "복소수",
+            "grade_levels": ["고1"],
+            "keywords": ["복소수", "허수", "켤레복소수"],
+            "core_concepts": ["복소수 연산", "켤레복소수", "i"],
+        },
+        {
+            "name": "이차방정식",
+            "grade_levels": ["고1"],
+            "keywords": ["이차방정식", "판별식", "근과 계수"],
+            "core_concepts": ["근의 공식", "판별식", "근과 계수의 관계"],
+        },
+        {
+            "name": "이차함수와 이차방정식",
+            "grade_levels": ["고1"],
+            "keywords": ["이차함수", "그래프", "최대최소"],
+            "core_concepts": ["이차함수 그래프", "최댓값 최솟값"],
+        },
+        {
+            "name": "여러 가지 방정식",
+            "grade_levels": ["고1"],
+            "keywords": ["삼차방정식", "사차방정식", "연립방정식"],
+            "core_concepts": ["인수분해를 이용한 풀이", "치환"],
+        },
+        {
+            "name": "여러 가지 부등식",
+            "grade_levels": ["고1"],
+            "keywords": ["이차부등식", "연립부등식", "절댓값"],
+            "core_concepts": ["이차부등식", "연립부등식"],
+        },
+        {
+            "name": "평면좌표",
+            "grade_levels": ["고1"],
+            "keywords": ["좌표", "거리", "내분점", "외분점"],
+            "core_concepts": ["두 점 사이 거리", "내분점 공식"],
+        },
+        {
+            "name": "직선의 방정식",
+            "grade_levels": ["고1"],
+            "keywords": ["직선", "기울기", "수직", "평행"],
+            "core_concepts": ["직선의 방정식", "두 직선의 관계"],
+        },
+        {
+            "name": "원의 방정식",
+            "grade_levels": ["고1"],
+            "keywords": ["원", "중심", "반지름", "접선"],
+            "core_concepts": ["원의 방정식", "원과 직선의 위치관계"],
+        },
+        {
+            "name": "도형의 이동",
+            "grade_levels": ["고1"],
+            "keywords": ["평행이동", "대칭이동"],
+            "core_concepts": ["평행이동", "대칭이동"],
+        },
+    ],
+
+    # ==========================================
+    # 고등학교 22개정 - 공통수학2
+    # ==========================================
+    "공통수학2": [
+        {
+            "name": "집합",
+            "grade_levels": ["고1"],
+            "keywords": ["집합", "원소", "부분집합", "합집합", "교집합"],
+            "core_concepts": ["집합의 연산", "부분집합의 개수"],
+        },
+        {
+            "name": "명제",
+            "grade_levels": ["고1"],
+            "keywords": ["명제", "역", "이", "대우", "진리집합"],
+            "core_concepts": ["명제의 역이대우", "필요충분조건"],
+        },
+        {
+            "name": "함수",
+            "grade_levels": ["고1"],
+            "keywords": ["함수", "정의역", "공역", "치역"],
+            "core_concepts": ["함수의 정의", "일대일함수", "대응"],
+        },
+        {
+            "name": "합성함수와 역함수",
+            "grade_levels": ["고1"],
+            "keywords": ["합성함수", "역함수"],
+            "core_concepts": ["합성함수", "역함수"],
+        },
+        {
+            "name": "유리함수",
+            "grade_levels": ["고1"],
+            "keywords": ["유리함수", "점근선", "그래프"],
+            "core_concepts": ["유리함수 그래프", "점근선"],
+        },
+        {
+            "name": "무리함수",
+            "grade_levels": ["고1"],
+            "keywords": ["무리함수", "루트", "그래프"],
+            "core_concepts": ["무리함수 그래프", "정의역"],
+        },
+        {
+            "name": "경우의 수",
+            "grade_levels": ["고1"],
+            "keywords": ["경우의 수", "합의 법칙", "곱의 법칙"],
+            "core_concepts": ["합의 법칙", "곱의 법칙"],
+        },
+        {
+            "name": "순열",
+            "grade_levels": ["고1"],
+            "keywords": ["순열", "팩토리얼", "원순열"],
+            "core_concepts": ["순열 공식", "원순열", "중복순열"],
+        },
+        {
+            "name": "조합",
+            "grade_levels": ["고1"],
+            "keywords": ["조합", "이항계수"],
+            "core_concepts": ["조합 공식", "이항계수", "중복조합"],
+        },
+    ],
+
+    # ==========================================
+    # 고등학교 22개정 - 대수
+    # ==========================================
+    "대수": [
+        {
+            "name": "지수",
+            "grade_levels": ["고2"],
+            "keywords": ["지수", "거듭제곱", "지수법칙"],
+            "core_concepts": ["지수법칙", "유리수 지수", "실수 지수"],
+        },
+        {
+            "name": "로그",
+            "grade_levels": ["고2"],
+            "keywords": ["로그", "상용로그", "자연로그"],
+            "core_concepts": ["로그 정의", "로그 성질", "밑 변환"],
+        },
+        {
+            "name": "지수함수",
+            "grade_levels": ["고2"],
+            "keywords": ["지수함수", "그래프", "점근선"],
+            "core_concepts": ["지수함수 그래프", "점근선"],
+        },
+        {
+            "name": "로그함수",
+            "grade_levels": ["고2"],
+            "keywords": ["로그함수", "그래프", "역함수"],
+            "core_concepts": ["로그함수 그래프", "지수함수와의 관계"],
+        },
+        {
+            "name": "지수/로그 방정식과 부등식",
+            "grade_levels": ["고2"],
+            "keywords": ["지수방정식", "로그방정식", "부등식"],
+            "core_concepts": ["지수방정식 풀이", "로그방정식 풀이"],
+        },
+        {
+            "name": "삼각함수",
+            "grade_levels": ["고2"],
+            "keywords": ["삼각함수", "호도법", "단위원"],
+            "core_concepts": ["호도법", "단위원", "삼각함수 정의"],
+        },
+        {
+            "name": "삼각함수의 그래프",
+            "grade_levels": ["고2"],
+            "keywords": ["주기", "진폭", "위상"],
+            "core_concepts": ["주기", "진폭", "그래프 변환"],
+        },
+        {
+            "name": "삼각함수의 활용",
+            "grade_levels": ["고2"],
+            "keywords": ["사인법칙", "코사인법칙", "삼각형 넓이"],
+            "core_concepts": ["사인법칙", "코사인법칙"],
+        },
+        {
+            "name": "등차수열",
+            "grade_levels": ["고2"],
+            "keywords": ["등차수열", "공차", "일반항"],
+            "core_concepts": ["일반항 공식", "등차중항", "등차수열의 합"],
+        },
+        {
+            "name": "등비수열",
+            "grade_levels": ["고2"],
+            "keywords": ["등비수열", "공비", "일반항"],
+            "core_concepts": ["일반항 공식", "등비중항", "등비수열의 합"],
+        },
+        {
+            "name": "수열의 합",
+            "grade_levels": ["고2"],
+            "keywords": ["시그마", "합", "자연수 거듭제곱의 합"],
+            "core_concepts": ["Σ 기호", "자연수 거듭제곱의 합"],
+        },
+        {
+            "name": "수학적 귀납법",
+            "grade_levels": ["고2"],
+            "keywords": ["귀납법", "증명"],
+            "core_concepts": ["귀납적 정의", "수학적 귀납법"],
+        },
+    ],
+
+    # ==========================================
+    # 고등학교 22개정 - 미적분I
+    # ==========================================
+    "미적분I": [
+        {
+            "name": "수열의 극한",
+            "grade_levels": ["고2"],
+            "keywords": ["수열", "극한", "수렴", "발산"],
+            "core_concepts": ["수열의 극한", "급수", "등비급수"],
+        },
+        {
+            "name": "급수",
+            "grade_levels": ["고2"],
+            "keywords": ["급수", "등비급수", "수렴", "발산"],
+            "core_concepts": ["급수의 수렴", "등비급수"],
+        },
+        {
+            "name": "함수의 극한",
+            "grade_levels": ["고2"],
+            "keywords": ["극한", "연속", "좌극한", "우극한"],
+            "core_concepts": ["극한의 성질", "연속성"],
+        },
+        {
+            "name": "함수의 연속",
+            "grade_levels": ["고2"],
+            "keywords": ["연속", "불연속", "최대최소정리"],
+            "core_concepts": ["연속함수의 성질", "사잇값 정리"],
+        },
+        {
+            "name": "미분계수와 도함수",
+            "grade_levels": ["고2"],
+            "keywords": ["미분계수", "도함수", "미분"],
+            "core_concepts": ["미분계수 정의", "도함수"],
+        },
+        {
+            "name": "미분법",
+            "grade_levels": ["고2"],
+            "keywords": ["미분", "곱의 미분", "합성함수 미분"],
+            "core_concepts": ["미분 공식", "합성함수 미분법"],
+        },
+        {
+            "name": "도함수의 활용",
+            "grade_levels": ["고2"],
+            "keywords": ["접선", "극값", "최대", "최소", "변화율"],
+            "core_concepts": ["접선의 방정식", "증가감소", "극대극소"],
+        },
+        {
+            "name": "부정적분",
+            "grade_levels": ["고2"],
+            "keywords": ["부정적분", "원시함수", "적분상수"],
+            "core_concepts": ["적분 공식", "적분상수"],
+        },
+        {
+            "name": "정적분",
+            "grade_levels": ["고2"],
+            "keywords": ["정적분", "구분구적법", "넓이"],
+            "core_concepts": ["정적분 정의", "미적분의 기본정리"],
+        },
+        {
+            "name": "정적분의 활용",
+            "grade_levels": ["고2"],
+            "keywords": ["넓이", "부피", "속도"],
+            "core_concepts": ["넓이 계산", "부피 계산"],
+        },
+    ],
+
+    # ==========================================
+    # 고등학교 22개정 - 확률과 통계
+    # ==========================================
+    "확률과 통계(고)": [
+        {
+            "name": "순열과 조합 심화",
+            "grade_levels": ["고2"],
+            "keywords": ["순열", "조합", "분할", "이항정리"],
+            "core_concepts": ["같은 것이 있는 순열", "조합의 활용", "이항정리"],
+        },
+        {
+            "name": "확률의 뜻과 활용",
+            "grade_levels": ["고2"],
+            "keywords": ["확률", "시행", "사건", "여사건"],
+            "core_concepts": ["확률의 정의", "확률의 덧셈정리"],
+        },
+        {
+            "name": "조건부확률",
+            "grade_levels": ["고2"],
+            "keywords": ["조건부확률", "독립", "종속"],
+            "core_concepts": ["조건부확률 공식", "사건의 독립"],
+        },
+        {
+            "name": "확률분포",
+            "grade_levels": ["고2"],
+            "keywords": ["확률변수", "확률분포", "기댓값", "분산"],
+            "core_concepts": ["이산확률변수", "기댓값", "분산"],
+        },
+        {
+            "name": "이항분포",
+            "grade_levels": ["고2"],
+            "keywords": ["이항분포", "베르누이"],
+            "core_concepts": ["이항분포", "이항분포의 평균과 분산"],
+        },
+        {
+            "name": "정규분포",
+            "grade_levels": ["고2"],
+            "keywords": ["정규분포", "표준정규분포", "Z"],
+            "core_concepts": ["정규분포", "표준화", "표준정규분포표"],
+        },
+        {
+            "name": "통계적 추정",
+            "grade_levels": ["고2"],
+            "keywords": ["모평균", "신뢰구간", "추정"],
+            "core_concepts": ["표본평균의 분포", "모평균 추정", "신뢰구간"],
+        },
+    ],
+
+    # ==========================================
+    # 고등학교 22개정 - 기하
+    # ==========================================
+    "기하(고)": [
+        {
+            "name": "이차곡선 - 포물선",
+            "grade_levels": ["고2", "고3"],
+            "keywords": ["포물선", "초점", "준선"],
+            "core_concepts": ["포물선의 정의", "포물선의 방정식"],
+        },
+        {
+            "name": "이차곡선 - 타원",
+            "grade_levels": ["고2", "고3"],
+            "keywords": ["타원", "초점", "장축", "단축"],
+            "core_concepts": ["타원의 정의", "타원의 방정식"],
+        },
+        {
+            "name": "이차곡선 - 쌍곡선",
+            "grade_levels": ["고2", "고3"],
+            "keywords": ["쌍곡선", "초점", "점근선"],
+            "core_concepts": ["쌍곡선의 정의", "쌍곡선의 방정식"],
+        },
+        {
+            "name": "평면벡터",
+            "grade_levels": ["고2"],
+            "keywords": ["벡터", "성분", "내적"],
+            "core_concepts": ["벡터 연산", "내적", "수직"],
+        },
+        {
+            "name": "평면벡터의 활용",
+            "grade_levels": ["고2"],
+            "keywords": ["직선의 방정식", "원의 방정식"],
+            "core_concepts": ["벡터를 이용한 직선/원의 방정식"],
+        },
+        {
+            "name": "공간도형",
+            "grade_levels": ["고3"],
+            "keywords": ["공간도형", "직선", "평면", "수직", "평행"],
+            "core_concepts": ["직선과 평면의 위치관계", "삼수선의 정리"],
+        },
+        {
+            "name": "공간벡터",
+            "grade_levels": ["고3"],
+            "keywords": ["공간벡터", "좌표공간", "외적"],
+            "core_concepts": ["공간좌표", "벡터 연산", "평면의 방정식"],
+        },
+    ],
+
+    # ==========================================
+    # 고등학교 22개정 - 미적분II (진로선택)
+    # ==========================================
+    "미적분II": [
+        {
+            "name": "여러 가지 미분법",
+            "grade_levels": ["고3"],
+            "keywords": ["지수함수 미분", "로그함수 미분", "삼각함수 미분"],
+            "core_concepts": ["지수/로그 미분", "삼각함수 미분", "음함수 미분"],
+        },
+        {
+            "name": "여러 가지 적분법",
+            "grade_levels": ["고3"],
+            "keywords": ["치환적분", "부분적분"],
+            "core_concepts": ["치환적분법", "부분적분법"],
+        },
+        {
+            "name": "정적분의 활용 심화",
+            "grade_levels": ["고3"],
+            "keywords": ["넓이", "부피", "회전체"],
+            "core_concepts": ["곡선의 길이", "회전체의 부피"],
+        },
+    ],
+}
+
+
+# ============================================
+# 3. 오류 패턴 - 문제 유형별
+# - 중학교 + 고등학교 공통 오류 패턴
+# ============================================
+ERROR_PATTERNS = {
+    # ==========================================
+    # 중학교 오류 패턴
+    # ==========================================
+    "일차방정식": [
+        {
+            "name": "이항 시 부호 미변경",
+            "error_type": "calculation",
+            "frequency": "very_high",
+            "feedback_message": "이항할 때는 부호를 반드시 바꿔야 합니다.",
+            "feedback_detail": "등호의 한쪽에서 다른 쪽으로 항을 옮길 때, + 는 - 로, - 는 + 로 바뀝니다.",
+            "wrong_examples": [
+                {"problem": "3x + 5 = 11", "wrong_answer": "3x = 16", "wrong_process": "5를 이항했으나 부호 유지"},
+            ],
+            "correct_examples": [
+                {"answer": "3x = 6, x = 2", "process": "3x = 11 - 5 = 6"},
+            ],
+            "detection_keywords": ["이항", "부호", "옮기"],
+        },
+        {
+            "name": "양변 나눗셈 누락",
+            "error_type": "process",
+            "frequency": "high",
+            "feedback_message": "양변을 계수로 나누어 x의 값을 구해야 합니다.",
+            "wrong_examples": [
+                {"problem": "3x = 6", "wrong_answer": "x = 6", "wrong_process": "계수 3으로 나누지 않음"},
+            ],
+            "detection_keywords": ["계수", "나누기"],
+        },
+    ],
+    "연립방정식": [
+        {
+            "name": "가감법 부호 오류",
+            "error_type": "calculation",
+            "frequency": "very_high",
+            "feedback_message": "가감법에서 더하거나 뺄 때 각 항의 부호에 주의하세요.",
+            "wrong_examples": [
+                {
+                    "problem": "x + y = 5, x - y = 1",
+                    "wrong_answer": "2x = 4",
+                    "wrong_process": "두 식을 더했으나 부호 오류",
+                },
+            ],
+            "detection_keywords": ["가감법", "더하기", "빼기", "부호"],
+        },
+        {
+            "name": "대입 후 계산 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "대입 후 계산을 꼼꼼히 확인하세요.",
+            "detection_keywords": ["대입", "치환"],
+        },
+    ],
+    "이차방정식": [
+        {
+            "name": "인수분해 부호 오류",
+            "error_type": "calculation",
+            "frequency": "very_high",
+            "feedback_message": "인수분해할 때 부호를 주의깊게 확인하세요. (x-a)(x-b)=0 형태에서 근은 x=a, x=b입니다.",
+            "wrong_examples": [
+                {
+                    "problem": "x² - 5x + 6 = 0",
+                    "wrong_answer": "x = -2, -3",
+                    "wrong_process": "(x-2)(x-3)=0에서 부호 혼동",
+                },
+            ],
+            "detection_keywords": ["인수분해", "인수", "근"],
+        },
+        {
+            "name": "근의 공식 계산 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "근의 공식 적용 시 판별식(b²-4ac) 계산을 정확히 하세요.",
+            "feedback_detail": "x = (-b ± √(b²-4ac)) / 2a에서 각 부분을 정확히 대입하세요.",
+            "detection_keywords": ["근의 공식", "판별식"],
+        },
+        {
+            "name": "중근 인식 실패",
+            "error_type": "concept",
+            "frequency": "medium",
+            "feedback_message": "판별식이 0이면 중근(서로 같은 두 근)을 가집니다.",
+            "detection_keywords": ["중근", "판별식", "D=0"],
+        },
+    ],
+    "일차부등식": [
+        {
+            "name": "음수 곱셈/나눗셈 시 부등호 방향 유지",
+            "error_type": "concept",
+            "frequency": "very_high",
+            "feedback_message": "부등식의 양변에 음수를 곱하거나 나눌 때는 부등호 방향이 바뀝니다!",
+            "wrong_examples": [
+                {"problem": "-2x > 6", "wrong_answer": "x > -3", "wrong_process": "음수로 나눴으나 부등호 방향 유지"},
+            ],
+            "correct_examples": [
+                {"answer": "x < -3", "process": "-2로 나누면 부등호 방향 반전"},
+            ],
+            "detection_keywords": ["부등호", "음수", "방향"],
+        },
+    ],
+    "일차함수": [
+        {
+            "name": "기울기 계산 오류 (분자/분모 혼동)",
+            "error_type": "calculation",
+            "frequency": "very_high",
+            "feedback_message": "기울기 = (y좌표 변화량)/(x좌표 변화량)입니다. 분자와 분모를 바꾸지 마세요.",
+            "feedback_detail": "두 점 (x₁,y₁), (x₂,y₂)에서 기울기 m = (y₂-y₁)/(x₂-x₁)",
+            "wrong_examples": [
+                {
+                    "problem": "두 점 (1,2), (3,6)을 지나는 직선의 기울기",
+                    "wrong_answer": "1/2",
+                    "wrong_process": "(3-1)/(6-2)로 계산",
+                },
+            ],
+            "detection_keywords": ["기울기", "변화량"],
+        },
+        {
+            "name": "y절편과 x절편 혼동",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "y절편은 x=0일 때 y값, x절편은 y=0일 때 x값입니다.",
+            "detection_keywords": ["절편", "y절편", "x절편"],
+        },
+    ],
+    "이차함수": [
+        {
+            "name": "꼭짓점 좌표 계산 오류",
+            "error_type": "calculation",
+            "frequency": "very_high",
+            "feedback_message": "y=a(x-p)²+q에서 꼭짓점은 (p,q)입니다. 부호에 주의하세요!",
+            "wrong_examples": [
+                {"problem": "y = (x-2)² + 3의 꼭짓점", "wrong_answer": "(-2, 3)", "wrong_process": "x-2=0에서 부호 혼동"},
+            ],
+            "detection_keywords": ["꼭짓점", "정점"],
+        },
+        {
+            "name": "대칭축 공식 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "y=ax²+bx+c의 대칭축은 x=-b/2a입니다.",
+            "detection_keywords": ["대칭축", "축"],
+        },
+        {
+            "name": "최댓값/최솟값 혼동",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "a>0이면 아래로 볼록(최솟값), a<0이면 위로 볼록(최댓값)입니다.",
+            "detection_keywords": ["최댓값", "최솟값", "볼록"],
+        },
+    ],
+    "삼각비": [
+        {
+            "name": "sin, cos, tan 정의 혼동",
+            "error_type": "concept",
+            "frequency": "very_high",
+            "feedback_message": "sin=대변/빗변, cos=밑변/빗변, tan=대변/밑변입니다.",
+            "feedback_detail": "SOH-CAH-TOA를 기억하세요!",
+            "detection_keywords": ["sin", "cos", "tan", "삼각비"],
+        },
+        {
+            "name": "특수각 값 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "30°, 45°, 60° 등 특수각의 삼각비 값을 정확히 외우세요.",
+            "detection_keywords": ["30도", "45도", "60도", "특수각"],
+        },
+    ],
+    "경우의 수": [
+        {
+            "name": "합의 법칙과 곱의 법칙 혼동",
+            "error_type": "concept",
+            "frequency": "very_high",
+            "feedback_message": "'또는'은 더하기, '그리고/동시에'는 곱하기입니다.",
+            "detection_keywords": ["합의 법칙", "곱의 법칙", "또는", "그리고"],
+        },
+        {
+            "name": "중복 카운팅",
+            "error_type": "process",
+            "frequency": "high",
+            "feedback_message": "경우의 수를 셀 때 같은 경우를 여러 번 세지 않았는지 확인하세요.",
+            "detection_keywords": ["중복", "겹치는"],
+        },
+    ],
+    "순열과 조합": [
+        {
+            "name": "순열과 조합 구분 오류",
+            "error_type": "concept",
+            "frequency": "very_high",
+            "feedback_message": "순서가 중요하면 순열(P), 순서가 상관없으면 조합(C)입니다.",
+            "wrong_examples": [
+                {
+                    "problem": "5명 중 3명을 뽑는 경우의 수",
+                    "wrong_answer": "5P3 = 60",
+                    "wrong_process": "순서 상관없이 뽑는데 순열 사용",
+                },
+            ],
+            "detection_keywords": ["순열", "조합", "뽑는", "선택"],
+        },
+        {
+            "name": "팩토리얼 계산 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "n! = n × (n-1) × ... × 2 × 1입니다. 계산을 다시 확인하세요.",
+            "detection_keywords": ["팩토리얼", "!"],
+        },
+    ],
+    "확률의 기본": [
+        {
+            "name": "확률 범위 오류",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "확률은 항상 0과 1 사이입니다. 결과가 이 범위를 벗어났다면 계산을 다시 확인하세요.",
+            "detection_keywords": ["확률", "범위"],
+        },
+        {
+            "name": "여사건 활용 미숙",
+            "error_type": "process",
+            "frequency": "medium",
+            "feedback_message": "'적어도 하나'는 여사건(전체 - 아무것도 아닌 경우)을 활용하면 쉽습니다.",
+            "detection_keywords": ["적어도", "여사건"],
+        },
+    ],
+    "지수": [
+        {
+            "name": "지수법칙 오적용",
+            "error_type": "concept",
+            "frequency": "very_high",
+            "feedback_message": "aᵐ × aⁿ = aᵐ⁺ⁿ, (aᵐ)ⁿ = aᵐⁿ입니다. 법칙을 혼동하지 마세요.",
+            "wrong_examples": [
+                {"problem": "2³ × 2⁴", "wrong_answer": "2¹²", "wrong_process": "지수를 곱함"},
+            ],
+            "detection_keywords": ["지수법칙", "거듭제곱"],
+        },
+    ],
+    "로그": [
+        {
+            "name": "로그 정의 혼동",
+            "error_type": "concept",
+            "frequency": "very_high",
+            "feedback_message": "log_a(b) = c는 aᶜ = b와 같습니다.",
+            "detection_keywords": ["로그", "정의", "밑"],
+        },
+        {
+            "name": "로그 성질 오적용",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "log(A×B) = logA + logB, log(A/B) = logA - logB입니다.",
+            "wrong_examples": [
+                {"problem": "log(3×4)", "wrong_answer": "log3 × log4", "wrong_process": "성질 혼동"},
+            ],
+            "detection_keywords": ["로그 성질"],
+        },
+    ],
+    "등차수열": [
+        {
+            "name": "일반항 공식 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "aₙ = a₁ + (n-1)d입니다. (n-1)을 빠뜨리지 마세요.",
+            "detection_keywords": ["일반항", "공차"],
+        },
+        {
+            "name": "합 공식 혼동",
+            "error_type": "concept",
+            "frequency": "medium",
+            "feedback_message": "Sₙ = n(a₁ + aₙ)/2 = n(2a₁ + (n-1)d)/2입니다.",
+            "detection_keywords": ["합", "시그마"],
+        },
+    ],
+    "등비수열": [
+        {
+            "name": "일반항 지수 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "aₙ = a₁ × rⁿ⁻¹입니다. 지수가 n-1임을 주의하세요.",
+            "detection_keywords": ["일반항", "공비"],
+        },
+    ],
+    "함수의 극한": [
+        {
+            "name": "0/0 꼴 처리 미숙",
+            "error_type": "process",
+            "frequency": "very_high",
+            "feedback_message": "0/0 꼴일 때는 인수분해나 유리화로 약분 가능한지 확인하세요.",
+            "detection_keywords": ["극한", "0/0", "부정형"],
+        },
+    ],
+    "미분계수와 도함수": [
+        {
+            "name": "미분 공식 오류",
+            "error_type": "calculation",
+            "frequency": "very_high",
+            "feedback_message": "(xⁿ)' = nxⁿ⁻¹입니다. 지수를 앞으로 내리고 1을 뺍니다.",
+            "wrong_examples": [
+                {"problem": "x³의 미분", "wrong_answer": "x²", "wrong_process": "계수 3 누락"},
+            ],
+            "detection_keywords": ["미분", "도함수"],
+        },
+        {
+            "name": "곱의 미분법 오류",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "(fg)' = f'g + fg'입니다. 두 항 모두 써야 합니다.",
+            "detection_keywords": ["곱의 미분", "곱미분"],
+        },
+    ],
+    "부정적분": [
+        {
+            "name": "적분상수 누락",
+            "error_type": "process",
+            "frequency": "very_high",
+            "feedback_message": "부정적분에서는 항상 적분상수 C를 붙여야 합니다.",
+            "detection_keywords": ["적분상수", "+C"],
+        },
+    ],
+    "정적분": [
+        {
+            "name": "정적분 구간 대입 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "∫[a,b] = F(b) - F(a)입니다. 위끝 - 아래끝 순서를 지키세요.",
+            "detection_keywords": ["정적분", "구간"],
+        },
+    ],
+
+    # ==========================================
+    # 고등학교 22개정 오류 패턴 (추가)
+    # ==========================================
+    "복소수": [
+        {
+            "name": "i² = -1 미적용",
+            "error_type": "concept",
+            "frequency": "very_high",
+            "feedback_message": "i² = -1입니다. 복소수 계산 시 반드시 적용하세요.",
+            "wrong_examples": [
+                {"problem": "i³", "wrong_answer": "i³", "wrong_process": "i² = -1 미적용"},
+            ],
+            "correct_examples": [
+                {"answer": "-i", "process": "i³ = i² × i = -1 × i = -i"},
+            ],
+            "detection_keywords": ["허수", "i²", "복소수"],
+        },
+        {
+            "name": "켤레복소수 부호 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "a+bi의 켤레복소수는 a-bi입니다. 실수부는 그대로, 허수부 부호만 바꿉니다.",
+            "detection_keywords": ["켤레", "켤레복소수"],
+        },
+    ],
+    "항등식과 나머지정리": [
+        {
+            "name": "나머지정리 대입값 오류",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "f(x)를 (x-a)로 나눈 나머지는 f(a)입니다.",
+            "feedback_detail": "나머지정리: f(x) ÷ (x-a)의 나머지 = f(a)",
+            "detection_keywords": ["나머지정리", "나머지"],
+        },
+    ],
+    "집합": [
+        {
+            "name": "부분집합 개수 공식 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "원소가 n개인 집합의 부분집합 개수는 2ⁿ개입니다.",
+            "wrong_examples": [
+                {"problem": "{1,2,3}의 부분집합 개수", "wrong_answer": "6개", "wrong_process": "3!로 계산"},
+            ],
+            "detection_keywords": ["부분집합", "개수"],
+        },
+        {
+            "name": "합집합/교집합 혼동",
+            "error_type": "concept",
+            "frequency": "medium",
+            "feedback_message": "∪는 합집합(또는), ∩는 교집합(그리고)입니다.",
+            "detection_keywords": ["합집합", "교집합", "∪", "∩"],
+        },
+    ],
+    "수열의 극한": [
+        {
+            "name": "∞/∞ 꼴 처리 미숙",
+            "error_type": "process",
+            "frequency": "very_high",
+            "feedback_message": "분자/분모 모두 ∞일 때, 최고차항으로 나누어 정리하세요.",
+            "feedback_detail": "분자, 분모를 최고차항으로 나누면 극한값을 구할 수 있습니다.",
+            "detection_keywords": ["극한", "무한대", "∞"],
+        },
+        {
+            "name": "등비급수 수렴 조건 무시",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "등비급수 Σarⁿ은 |r|<1일 때만 수렴합니다.",
+            "detection_keywords": ["등비급수", "수렴", "공비"],
+        },
+    ],
+    "이차곡선 - 포물선": [
+        {
+            "name": "초점/준선 공식 혼동",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "y²=4px에서 초점 (p,0), 준선 x=-p입니다.",
+            "detection_keywords": ["포물선", "초점", "준선"],
+        },
+    ],
+    "이차곡선 - 타원": [
+        {
+            "name": "장축/단축 구분 오류",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "타원에서 a>b이면 x축이 장축, a<b이면 y축이 장축입니다.",
+            "detection_keywords": ["타원", "장축", "단축"],
+        },
+        {
+            "name": "초점 거리 공식 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "타원의 초점: c²=a²-b² (a>b일 때)",
+            "detection_keywords": ["타원", "초점"],
+        },
+    ],
+    "이차곡선 - 쌍곡선": [
+        {
+            "name": "점근선 공식 오류",
+            "error_type": "calculation",
+            "frequency": "high",
+            "feedback_message": "쌍곡선 x²/a² - y²/b² = 1의 점근선은 y = ±(b/a)x입니다.",
+            "detection_keywords": ["쌍곡선", "점근선"],
+        },
+    ],
+    "조건부확률": [
+        {
+            "name": "조건부확률 공식 오류",
+            "error_type": "concept",
+            "frequency": "very_high",
+            "feedback_message": "P(A|B) = P(A∩B)/P(B)입니다. 분자는 교집합 확률!",
+            "wrong_examples": [
+                {"problem": "P(A|B) 계산", "wrong_answer": "P(A)/P(B)", "wrong_process": "분자 P(A∩B) 대신 P(A) 사용"},
+            ],
+            "detection_keywords": ["조건부확률", "P(A|B)"],
+        },
+        {
+            "name": "독립사건 판정 오류",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "A, B가 독립 ⟺ P(A∩B) = P(A)×P(B)",
+            "detection_keywords": ["독립", "독립사건"],
+        },
+    ],
+    "정규분포": [
+        {
+            "name": "표준화 공식 오류",
+            "error_type": "calculation",
+            "frequency": "very_high",
+            "feedback_message": "Z = (X-μ)/σ입니다. 분모는 표준편차(σ)!",
+            "feedback_detail": "표준화: X ~ N(μ,σ²) → Z = (X-μ)/σ ~ N(0,1)",
+            "wrong_examples": [
+                {"problem": "X~N(50,25)에서 X=60의 Z값", "wrong_answer": "Z=10/25", "wrong_process": "분모에 분산 사용"},
+            ],
+            "detection_keywords": ["표준화", "정규분포", "Z"],
+        },
+    ],
+    "여러 가지 미분법": [
+        {
+            "name": "합성함수 미분 체인룰 미적용",
+            "error_type": "concept",
+            "frequency": "very_high",
+            "feedback_message": "{f(g(x))}' = f'(g(x)) × g'(x) - 안쪽 함수도 미분해야 합니다!",
+            "wrong_examples": [
+                {"problem": "(sin 2x)'", "wrong_answer": "cos 2x", "wrong_process": "안쪽 2x 미분 누락"},
+            ],
+            "correct_examples": [
+                {"answer": "2cos 2x", "process": "cos 2x × (2x)' = 2cos 2x"},
+            ],
+            "detection_keywords": ["합성함수", "체인룰", "연쇄법칙"],
+        },
+        {
+            "name": "삼각함수 미분 공식 혼동",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "(sin x)' = cos x, (cos x)' = -sin x입니다. 부호에 주의!",
+            "detection_keywords": ["삼각함수", "미분"],
+        },
+    ],
+    "여러 가지 적분법": [
+        {
+            "name": "치환적분 dx 변환 누락",
+            "error_type": "process",
+            "frequency": "very_high",
+            "feedback_message": "t=g(x)로 치환 시, dt = g'(x)dx도 변환해야 합니다.",
+            "detection_keywords": ["치환적분", "치환"],
+        },
+        {
+            "name": "부분적분 공식 오류",
+            "error_type": "concept",
+            "frequency": "high",
+            "feedback_message": "∫f'g dx = fg - ∫fg' dx입니다.",
+            "feedback_detail": "LIATE 규칙: 로그-역삼각-대수-삼각-지수 순으로 f 선택",
+            "detection_keywords": ["부분적분"],
+        },
+    ],
+}
+
+
+# ============================================
+# 4. 프롬프트 템플릿
+# ============================================
+PROMPT_TEMPLATES = [
+    # ==========================================
+    # 기본 분석 가이드
+    # ==========================================
+    {
+        "name": "수학 문제 분석 기본 가이드",
+        "template_type": "analysis_guide",
+        "content": """## 수학 문제 분석 가이드라인
+
+1. **문제 유형 판별**
+   - 문제에 사용된 수학적 개념을 파악하세요
+   - 방정식, 함수, 도형, 확률 등 대분류를 먼저 결정하세요
+
+2. **난이도 판정 기준**
+   - 상(high): 복합 개념 적용, 다단계 풀이, 증명 문제
+   - 중(medium): 단일 개념의 응용, 2-3단계 풀이
+   - 하(low): 기본 공식 적용, 계산 위주
+
+3. **단원 분류**
+   - 문제에서 핵심 키워드를 추출하세요
+   - 교육과정에 맞는 단원명을 사용하세요
+
+4. **배점 추정**
+   - 객관식: 2-4점
+   - 단답형: 3-4점
+   - 서술형: 4-6점 (풀이 과정에 따라)""",
+        "priority": 100,
+        "conditions": {"exam_paper_type": "blank"},
+    },
+    {
+        "name": "학생 답안 분석 가이드",
+        "template_type": "analysis_guide",
+        "content": """## 학생 답안 분석 가이드라인
+
+1. **정오답 판정**
+   - O, ✓, 동그라미: 정답
+   - X, ✗, 빗금: 오답
+   - △, 부분점수 표시: 부분정답
+
+2. **오류 유형 분류**
+   - calculation_error: 계산 실수 (부호, 연산 오류)
+   - concept_error: 개념 이해 부족 (공식, 정의 오류)
+   - careless_mistake: 단순 실수 (옮겨쓰기, 누락)
+   - process_error: 풀이 과정 오류
+   - incomplete: 미완성 풀이
+
+3. **AI 코멘트 작성**
+   - 구체적인 오류 지점을 지적하세요
+   - 올바른 접근법을 간략히 제시하세요
+   - 격려와 함께 개선점을 알려주세요""",
+        "priority": 100,
+        "conditions": {"exam_paper_type": "answered"},
+    },
+    {
+        "name": "채점된 시험지 분석 가이드",
+        "template_type": "analysis_guide",
+        "content": """## 채점된 시험지 분석 가이드라인
+
+1. **채점 결과 인식**
+   - 문제별 점수 표시 확인
+   - 총점 및 평균 계산
+   - 정답률 산출
+
+2. **오답 패턴 분석**
+   - 반복되는 실수 유형 파악
+   - 취약 단원 식별
+   - 개념 이해도 평가
+
+3. **학습 처방**
+   - 우선 보완할 개념 제시
+   - 유사 문제 유형 추천
+   - 복습 전략 제안""",
+        "priority": 100,
+        "conditions": {"exam_paper_type": "graded"},
+    },
+
+    # ==========================================
+    # 난이도 판정
+    # ==========================================
+    {
+        "name": "난이도 상세 판정 기준",
+        "template_type": "analysis_guide",
+        "content": """## 난이도 판정 상세 기준
+
+### 상(high) - 다음 중 2개 이상 해당
+- 여러 개념의 복합 적용 필요
+- 4단계 이상의 풀이 과정
+- 조건 분기(경우 나누기) 필요
+- 증명이나 논리적 서술 요구
+- 전형적이지 않은 새로운 접근 필요
+
+### 중(medium) - 다음 중 해당
+- 교과서 예제 수준의 응용
+- 2-3단계 풀이
+- 공식의 변형 적용
+- 그래프 해석 필요
+
+### 하(low) - 다음 중 해당
+- 기본 공식 직접 대입
+- 1-2단계로 해결
+- 단순 계산 문제
+- 개념 확인 문제""",
+        "priority": 90,
+    },
+
+    # ==========================================
+    # 오류 감지
+    # ==========================================
+    {
+        "name": "일반적인 오류 주의사항",
+        "template_type": "error_detection",
+        "content": """## 자주 발생하는 오류 패턴 (분석 시 주의)
+
+1. **부호 관련 오류**
+   - 이항 시 부호 미변경
+   - 음수 제곱 처리 오류
+   - 분수 나눗셈 시 부호
+
+2. **공식 관련 오류**
+   - 근의 공식 판별식 계산 오류
+   - 삼각비 정의 혼동
+   - 지수법칙/로그 성질 오적용
+
+3. **풀이 과정 오류**
+   - 적분상수 누락
+   - 정의역 조건 무시
+   - 검산 미실시""",
+        "priority": 80,
+    },
+
+    # ==========================================
+    # 단원별 분석 가이드
+    # ==========================================
+    {
+        "name": "방정식 분석 가이드",
+        "template_type": "topic_guide",
+        "content": """## 방정식 문제 분석 가이드
+
+### 유형 구분
+- 일차방정식: ax + b = 0 형태
+- 이차방정식: ax² + bx + c = 0 형태
+- 연립방정식: 2개 이상 미지수
+- 고차방정식: 삼차 이상
+
+### 풀이 방법 체크
+- 인수분해 가능 여부
+- 근의 공식 필요 여부
+- 치환 활용 여부
+
+### 주요 오류 포인트
+- 이항 시 부호 변경
+- 근의 공식 대입 오류
+- 중근 처리
+- 허근 처리 (복소수 범위)""",
+        "priority": 70,
+        "conditions": {"topic": "방정식"},
+    },
+    {
+        "name": "함수 분석 가이드",
+        "template_type": "topic_guide",
+        "content": """## 함수 문제 분석 가이드
+
+### 유형 구분
+- 일차함수: y = ax + b
+- 이차함수: y = ax² + bx + c
+- 유리함수: 분수 형태
+- 무리함수: 루트 포함
+- 지수/로그함수
+- 삼각함수
+
+### 분석 포인트
+- 정의역/치역 확인
+- 그래프 특성 (대칭축, 꼭짓점, 점근선)
+- 함수의 증가/감소
+- 역함수 존재 조건
+
+### 주요 오류 포인트
+- 정의역 조건 무시
+- 그래프 이동 방향 혼동
+- 합성함수 순서 오류""",
+        "priority": 70,
+        "conditions": {"topic": "함수"},
+    },
+    {
+        "name": "도형 분석 가이드",
+        "template_type": "topic_guide",
+        "content": """## 도형 문제 분석 가이드
+
+### 유형 구분
+- 삼각형: 합동, 닮음, 넓이
+- 사각형: 평행사변형, 마름모, 사다리꼴
+- 원: 원의 성질, 원주각, 접선
+- 좌표기하: 직선, 원의 방정식
+
+### 분석 포인트
+- 보조선 필요 여부
+- 닮음비/넓이비 활용
+- 원주각-중심각 관계
+- 접선의 성질
+
+### 주요 오류 포인트
+- 합동/닮음 조건 혼동
+- 원주각 정리 오적용
+- 좌표 계산 실수""",
+        "priority": 70,
+        "conditions": {"topic": "기하"},
+    },
+    {
+        "name": "확률통계 분석 가이드",
+        "template_type": "topic_guide",
+        "content": """## 확률과 통계 문제 분석 가이드
+
+### 유형 구분
+- 경우의 수: 합/곱의 법칙
+- 순열/조합: nPr, nCr
+- 확률: 고전적/조건부/독립
+- 통계: 평균, 분산, 정규분포
+
+### 분석 포인트
+- 순서 고려 여부 (순열 vs 조합)
+- 중복 허용 여부
+- 독립/종속 사건 구분
+- 이항분포/정규분포 적용
+
+### 주요 오류 포인트
+- 순열/조합 공식 혼동
+- 여사건 활용 누락
+- 조건부확률 공식 오류
+- 표준화 계산 실수""",
+        "priority": 70,
+        "conditions": {"topic": "확률"},
+    },
+    {
+        "name": "미적분 분석 가이드",
+        "template_type": "topic_guide",
+        "content": """## 미적분 문제 분석 가이드
+
+### 유형 구분
+- 극한: 수열의 극한, 함수의 극한
+- 미분: 미분계수, 도함수, 접선
+- 적분: 부정적분, 정적분, 넓이/부피
+
+### 분석 포인트
+- 극한의 부정형(0/0, ∞/∞) 처리
+- 미분 공식 적용 (합성함수, 곱/몫)
+- 적분 기법 (치환, 부분적분)
+- 정적분의 기하학적 의미
+
+### 주요 오류 포인트
+- 극한값 계산 실수
+- 합성함수 미분 체인룰 누락
+- 적분상수 누락
+- 정적분 구간 대입 순서""",
+        "priority": 70,
+        "conditions": {"topic": "미적분"},
+    },
+
+    # ==========================================
+    # 피드백 템플릿
+    # ==========================================
+    {
+        "name": "격려형 피드백",
+        "template_type": "feedback",
+        "content": """## 격려형 피드백 템플릿
+
+### 정답일 때
+- 정확하게 풀었습니다! {concept}에 대한 이해가 탄탄하네요.
+- 풀이 과정이 깔끔합니다. 계속 이런 식으로 정리하면 좋겠어요.
+
+### 부분 정답일 때
+- 좋은 시도입니다! {correct_part}까지는 잘 했는데, {improvement} 부분을 보완하면 완벽해요.
+- 거의 다 왔어요! {hint}만 주의하면 됩니다.
+
+### 오답일 때
+- {error_type} 실수가 있었지만, 접근 방향은 맞았어요. {solution_hint}를 다시 확인해보세요.
+- 어려운 문제인데 도전한 것 자체가 훌륭해요! {key_concept}를 복습하면 다음엔 풀 수 있을 거예요.""",
+        "priority": 60,
+    },
+    {
+        "name": "학습 처방 피드백",
+        "template_type": "feedback",
+        "content": """## 학습 처방 피드백 템플릿
+
+### 개념 부족 시
+- 📚 {concept} 개념을 교과서에서 다시 정리해보세요.
+- 📝 {concept} 기본 문제 5개를 먼저 풀어보는 것을 추천합니다.
+
+### 계산 실수 시
+- ✏️ 계산 과정을 한 줄씩 정리하며 풀어보세요.
+- 🔍 답을 구한 후 검산하는 습관을 들이면 좋겠어요.
+
+### 풀이 과정 오류 시
+- 📋 풀이 순서를 미리 계획하고 시작해보세요.
+- 💡 비슷한 유형의 예제 풀이를 먼저 참고해보세요.""",
+        "priority": 60,
+    },
+
+    # ==========================================
+    # 시험 유형별 가이드
+    # ==========================================
+    {
+        "name": "수능/모의고사 분석 가이드",
+        "template_type": "exam_type_guide",
+        "content": """## 수능/모의고사 문제 분석 가이드
+
+### 문항 구조
+- 1~15번: 공통과목 (수학Ⅰ, 수학Ⅱ)
+- 16~22번: 선택과목 (확률과 통계/미적분/기하)
+- 22번: 고난도 문항 (킬러)
+
+### 난이도 분포
+- 쉬운 문항 (1~3점): 1~9번
+- 중간 문항 (3점): 10~18번
+- 어려운 문항 (4점): 19~22번
+
+### 분석 포인트
+- 출제 경향 파악
+- 자주 출제되는 개념 확인
+- 킬러 문항 유형 분석""",
+        "priority": 75,
+        "conditions": {"exam_type": "수능"},
+    },
+    {
+        "name": "내신 시험 분석 가이드",
+        "template_type": "exam_type_guide",
+        "content": """## 내신 시험 분석 가이드
+
+### 문항 구조
+- 객관식: 보통 15~20문항
+- 주관식: 5~10문항
+- 서술형: 2~5문항
+
+### 출제 범위
+- 교과서 예제 및 유제 변형
+- 익힘책 문제 유사 유형
+- 학교별 기출문제 패턴
+
+### 분석 포인트
+- 교과서 내용과의 연관성
+- 선생님 스타일 파악
+- 배점 분포 확인""",
+        "priority": 75,
+        "conditions": {"exam_type": "내신"},
+    },
+
+    # ==========================================
+    # 22개정 교육과정 가이드
+    # ==========================================
+    {
+        "name": "22개정 공통수학 가이드",
+        "template_type": "curriculum_guide",
+        "content": """## 22개정 공통수학 분석 가이드
+
+### 공통수학1 (고1)
+- 다항식: 연산, 항등식, 나머지정리
+- 방정식: 복소수, 이차방정식, 고차방정식
+- 부등식: 일차/이차부등식
+- 도형의 방정식: 평면좌표, 직선, 원
+
+### 공통수학2 (고1)
+- 집합과 명제
+- 함수: 합성함수, 역함수, 유리/무리함수
+- 경우의 수: 순열, 조합
+
+### 변경 사항 (15개정 대비)
+- 집합/명제가 공통수학2로 이동
+- 경우의 수가 공통과목에 포함
+- 지수/로그는 대수로 이동""",
+        "priority": 85,
+        "conditions": {"curriculum": "22개정"},
+    },
+    {
+        "name": "22개정 선택과목 가이드",
+        "template_type": "curriculum_guide",
+        "content": """## 22개정 선택과목 분석 가이드
+
+### 대수 (일반선택)
+- 지수함수와 로그함수
+- 삼각함수
+- 수열
+
+### 미적분Ⅰ (일반선택)
+- 수열의 극한
+- 미분
+- 적분
+
+### 확률과 통계 (일반선택)
+- 순열과 조합 심화
+- 확률
+- 통계
+
+### 기하 (일반선택)
+- 이차곡선
+- 평면벡터
+- 공간벡터
+
+### 미적분Ⅱ (진로선택)
+- 여러 가지 미분법
+- 여러 가지 적분법""",
+        "priority": 85,
+        "conditions": {"curriculum": "22개정"},
+    },
+]
+
+
+# ============================================
+# 5. 학습 패턴 (키워드-단원 매핑)
+# ============================================
+LEARNED_PATTERNS = [
+    # 문자와 식
+    {"pattern_type": "topic_keyword", "pattern_key": "일차방정식", "pattern_value": "문자와 식 > 일차방정식", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "이차방정식", "pattern_value": "문자와 식 > 이차방정식", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "연립방정식", "pattern_value": "문자와 식 > 연립방정식", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "부등식", "pattern_value": "문자와 식 > 부등식", "confidence": 0.90},
+    {"pattern_type": "topic_keyword", "pattern_key": "인수분해", "pattern_value": "문자와 식 > 이차방정식", "confidence": 0.85},
+    # 함수
+    {"pattern_type": "topic_keyword", "pattern_key": "일차함수", "pattern_value": "함수 > 일차함수", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "이차함수", "pattern_value": "함수 > 이차함수", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "함수의 그래프", "pattern_value": "함수", "confidence": 0.85},
+    {"pattern_type": "topic_keyword", "pattern_key": "꼭짓점", "pattern_value": "함수 > 이차함수", "confidence": 0.90},
+    {"pattern_type": "topic_keyword", "pattern_key": "대칭축", "pattern_value": "함수 > 이차함수", "confidence": 0.90},
+    # 기하
+    {"pattern_type": "topic_keyword", "pattern_key": "삼각비", "pattern_value": "기하 > 삼각비", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "sin", "pattern_value": "기하 > 삼각비", "confidence": 0.90},
+    {"pattern_type": "topic_keyword", "pattern_key": "cos", "pattern_value": "기하 > 삼각비", "confidence": 0.90},
+    {"pattern_type": "topic_keyword", "pattern_key": "피타고라스", "pattern_value": "기하 > 피타고라스 정리", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "닮음", "pattern_value": "기하 > 도형의 닮음", "confidence": 0.90},
+    {"pattern_type": "topic_keyword", "pattern_key": "합동", "pattern_value": "기하 > 삼각형의 성질", "confidence": 0.85},
+    # 확률과 통계
+    {"pattern_type": "topic_keyword", "pattern_key": "경우의 수", "pattern_value": "확률과 통계 > 경우의 수", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "확률", "pattern_value": "확률과 통계 > 확률", "confidence": 0.90},
+    {"pattern_type": "topic_keyword", "pattern_key": "순열", "pattern_value": "확률과 통계 > 순열과 조합", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "조합", "pattern_value": "확률과 통계 > 순열과 조합", "confidence": 0.95},
+    # 지수와 로그
+    {"pattern_type": "topic_keyword", "pattern_key": "지수", "pattern_value": "지수와 로그 > 지수", "confidence": 0.85},
+    {"pattern_type": "topic_keyword", "pattern_key": "로그", "pattern_value": "지수와 로그 > 로그", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "log", "pattern_value": "지수와 로그 > 로그", "confidence": 0.90},
+    # 수열
+    {"pattern_type": "topic_keyword", "pattern_key": "등차수열", "pattern_value": "수열 > 등차수열", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "등비수열", "pattern_value": "수열 > 등비수열", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "수열의 합", "pattern_value": "수열 > 수열의 합", "confidence": 0.90},
+    {"pattern_type": "topic_keyword", "pattern_key": "시그마", "pattern_value": "수열 > 수열의 합", "confidence": 0.85},
+    {"pattern_type": "topic_keyword", "pattern_key": "귀납법", "pattern_value": "수열 > 수학적 귀납법", "confidence": 0.95},
+    # 미분
+    {"pattern_type": "topic_keyword", "pattern_key": "극한", "pattern_value": "미분 > 함수의 극한", "confidence": 0.90},
+    {"pattern_type": "topic_keyword", "pattern_key": "미분", "pattern_value": "미분", "confidence": 0.90},
+    {"pattern_type": "topic_keyword", "pattern_key": "도함수", "pattern_value": "미분 > 미분계수와 도함수", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "접선", "pattern_value": "미분 > 도함수의 활용", "confidence": 0.85},
+    # 적분
+    {"pattern_type": "topic_keyword", "pattern_key": "적분", "pattern_value": "적분", "confidence": 0.90},
+    {"pattern_type": "topic_keyword", "pattern_key": "정적분", "pattern_value": "적분 > 정적분", "confidence": 0.95},
+    {"pattern_type": "topic_keyword", "pattern_key": "부정적분", "pattern_value": "적분 > 부정적분", "confidence": 0.95},
+    # 난이도 규칙
+    {"pattern_type": "difficulty_rule", "pattern_key": "증명", "pattern_value": "상", "confidence": 0.85},
+    {"pattern_type": "difficulty_rule", "pattern_key": "논술형", "pattern_value": "상", "confidence": 0.80},
+    {"pattern_type": "difficulty_rule", "pattern_key": "서술형", "pattern_value": "중~상", "confidence": 0.75},
+]
+
+
+async def seed_categories(db):
+    """카테고리 시드"""
+    print("\n[1/5] 문제 카테고리 생성 중...")
+    category_map = {}
+
+    for cat in CATEGORIES:
+        # 중복 체크
+        existing = await db.table("problem_categories").select("id").eq("name", cat["name"]).maybe_single().execute()
+        if existing.data:
+            print(f"  - {cat['name']}: 이미 존재 (건너뜀)")
+            category_map[cat["name"]] = existing.data["id"]
+            continue
+
+        cat_data = {
+            "id": uid(),
+            "name": cat["name"],
+            "description": cat["description"],
+            "display_order": cat["display_order"],
+            "is_active": True,
+            "created_at": now(),
+            "updated_at": now(),
+        }
+        result = await db.table("problem_categories").insert(cat_data).execute()
+        if result.data:
+            category_map[cat["name"]] = cat_data["id"]
+            print(f"  + {cat['name']}: 생성됨")
+
+    print(f"  총 {len(category_map)}개 카테고리")
+    return category_map
+
+
+async def seed_problem_types(db, category_map):
+    """문제 유형 시드"""
+    print("\n[2/5] 문제 유형 생성 중...")
+    type_map = {}
+    count = 0
+
+    for cat_name, types in PROBLEM_TYPES.items():
+        if cat_name not in category_map:
+            print(f"  ! {cat_name} 카테고리를 찾을 수 없음")
+            continue
+
+        cat_id = category_map[cat_name]
+
+        for i, t in enumerate(types):
+            # 중복 체크
+            existing = await db.table("problem_types").select("id").eq("name", t["name"]).maybe_single().execute()
+            if existing.data:
+                type_map[t["name"]] = existing.data["id"]
+                continue
+
+            type_data = {
+                "id": uid(),
+                "category_id": cat_id,
+                "name": t["name"],
+                "description": f"{t['name']} 관련 문제",
+                "grade_levels": t.get("grade_levels", []),
+                "keywords": t.get("keywords", []),
+                "core_concepts": t.get("core_concepts", []),
+                "prerequisite_types": [],  # 선수 학습 유형 (빈 배열)
+                "display_order": i + 1,
+                "is_active": True,
+                "usage_count": 0,
+                "accuracy_rate": 0.0,
+                "created_at": now(),
+                "updated_at": now(),
+            }
+            result = await db.table("problem_types").insert(type_data).execute()
+            if result.error:
+                print(f"    ERROR inserting {t['name']}: {result.error}")
+            elif result.data:
+                type_map[t["name"]] = type_data["id"]
+                count += 1
+            else:
+                # result.data가 없어도 성공일 수 있음
+                type_map[t["name"]] = type_data["id"]
+                count += 1
+
+    print(f"  + {count}개 문제 유형 생성됨 (총 {len(type_map)}개)")
+    return type_map
+
+
+async def seed_error_patterns(db, type_map):
+    """오류 패턴 시드"""
+    print("\n[3/5] 오류 패턴 생성 중...")
+    count = 0
+
+    for type_name, patterns in ERROR_PATTERNS.items():
+        if type_name not in type_map:
+            print(f"  ! {type_name} 유형을 찾을 수 없음")
+            continue
+
+        type_id = type_map[type_name]
+
+        for p in patterns:
+            # 중복 체크
+            existing = await db.table("error_patterns").select("id").eq("name", p["name"]).maybe_single().execute()
+            if existing.data:
+                continue
+
+            pattern_data = {
+                "id": uid(),
+                "problem_type_id": type_id,
+                "name": p["name"],
+                "description": p.get("feedback_detail", p["feedback_message"]),
+                "error_type": p.get("error_type", "calculation"),
+                "frequency": p.get("frequency", "medium"),
+                "occurrence_count": 0,
+                "wrong_examples": p.get("wrong_examples"),
+                "correct_examples": p.get("correct_examples"),
+                "feedback_message": p["feedback_message"],
+                "feedback_detail": p.get("feedback_detail"),
+                "detection_keywords": p.get("detection_keywords", []),
+                "is_active": True,
+                "created_at": now(),
+                "updated_at": now(),
+            }
+            result = await db.table("error_patterns").insert(pattern_data).execute()
+            if result.data:
+                count += 1
+
+    print(f"  + {count}개 오류 패턴 생성됨")
+
+
+async def seed_prompt_templates(db):
+    """프롬프트 템플릿 시드"""
+    print("\n[4/5] 프롬프트 템플릿 생성 중...")
+    count = 0
+
+    for t in PROMPT_TEMPLATES:
+        # 중복 체크
+        existing = await db.table("prompt_templates").select("id").eq("name", t["name"]).maybe_single().execute()
+        if existing.data:
+            print(f"  - {t['name']}: 이미 존재")
+            continue
+
+        template_data = {
+            "id": uid(),
+            "name": t["name"],
+            "template_type": t["template_type"],
+            "content": t["content"],
+            "conditions": t.get("conditions"),
+            "priority": t.get("priority", 50),
+            "usage_count": 0,
+            "accuracy_score": 0.0,
+            "is_active": True,
+            "created_at": now(),
+            "updated_at": now(),
+        }
+        result = await db.table("prompt_templates").insert(template_data).execute()
+        if result.data:
+            count += 1
+            print(f"  + {t['name']}: 생성됨")
+
+    print(f"  + {count}개 템플릿 생성됨")
+
+
+async def seed_learned_patterns(db):
+    """학습 패턴 시드"""
+    print("\n[5/5] 학습 패턴 생성 중...")
+    count = 0
+
+    for p in LEARNED_PATTERNS:
+        # 중복 체크
+        existing = await db.table("learned_patterns").select("id").eq("pattern_key", p["pattern_key"]).eq("pattern_type", p["pattern_type"]).maybe_single().execute()
+        if existing.data:
+            continue
+
+        pattern_data = {
+            "id": uid(),
+            "pattern_type": p["pattern_type"],
+            "pattern_key": p["pattern_key"],
+            "pattern_value": p["pattern_value"],
+            "confidence": p.get("confidence", 0.8),
+            "apply_count": 0,
+            "is_active": True,
+            "created_at": now(),
+            "updated_at": now(),
+        }
+        result = await db.table("learned_patterns").insert(pattern_data).execute()
+        if result.data:
+            count += 1
+
+    print(f"  + {count}개 학습 패턴 생성됨")
+
+
+async def main():
+    print("=" * 60)
+    print("한국 수학 교육과정 기반 패턴 시스템 시드")
+    print("=" * 60)
+
+    db = get_supabase()
+
+    # 1. 카테고리 생성
+    category_map = await seed_categories(db)
+
+    # 2. 문제 유형 생성
+    type_map = await seed_problem_types(db, category_map)
+
+    # 3. 오류 패턴 생성
+    await seed_error_patterns(db, type_map)
+
+    # 4. 프롬프트 템플릿 생성
+    await seed_prompt_templates(db)
+
+    # 5. 학습 패턴 생성
+    await seed_learned_patterns(db)
+
+    print("\n" + "=" * 60)
+    print("시드 완료!")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

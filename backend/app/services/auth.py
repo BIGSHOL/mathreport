@@ -119,3 +119,59 @@ async def update_user(db: SupabaseClient, user_id: str, update_data: dict) -> Op
         raise Exception(f"Failed to update user: {result.error}")
 
     return await get_user_by_id(db, user_id)
+
+
+async def get_or_create_user_from_supabase(
+    db: SupabaseClient,
+    auth_user_id: str,
+    email: str,
+    user_metadata: dict
+) -> Optional[UserDict]:
+    """
+    Supabase Auth 사용자 정보를 기반으로 public.users 테이블의 사용자를 조회하거나 생성합니다.
+
+    Supabase Auth의 auth.users 테이블과 우리의 public.users 테이블을 동기화합니다.
+    - auth_user_id: Supabase auth.users의 UUID (JWT의 sub 클레임)
+    - email: 사용자 이메일
+    - user_metadata: Supabase user_metadata (nickname, provider 등)
+    """
+    # 먼저 기존 사용자 조회 (auth_user_id로)
+    user = await get_user_by_id(db, auth_user_id)
+
+    if user:
+        return user
+
+    # ID로 못 찾으면 이메일로 조회 (기존 사용자)
+    user = await get_user_by_email(db, email)
+    if user:
+        return user  # 기존 사용자 반환
+
+    # 사용자가 없으면 새로 생성
+    # user_metadata에서 정보 추출
+    nickname = user_metadata.get("nickname") or user_metadata.get("name") or user_metadata.get("full_name") or email.split("@")[0]
+
+    # 새 사용자 데이터 구성
+    user_data = {
+        "id": auth_user_id,  # Supabase auth.users의 UUID를 그대로 사용
+        "email": email,
+        "hashed_password": "",  # Supabase Auth 사용자는 비밀번호 불필요
+        "nickname": nickname,
+        "is_active": True,
+        "is_superuser": False,
+        "data_consent": False,
+        "subscription_tier": "free",
+        "credits": 0,
+        "monthly_analysis_count": 0,
+        "monthly_extended_count": 0,
+        "usage_reset_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+
+    result = await db.table("users").insert(user_data).execute()
+
+    if result.error:
+        # 이미 생성된 경우 (동시성 처리)
+        return await get_user_by_id(db, auth_user_id)
+
+    return UserDict(result.data)

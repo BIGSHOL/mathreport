@@ -10,6 +10,15 @@ class FeedbackCreate(BaseModel):
     comment: str | None = None
 
 
+class BadgeEarned(BaseModel):
+    """새로 획득한 배지 정보"""
+    id: str
+    name: str
+    icon: str
+    description: str
+    tier: str
+
+
 class FeedbackResponse(BaseModel):
     id: str
     user_id: str
@@ -18,6 +27,7 @@ class FeedbackResponse(BaseModel):
     feedback_type: str
     comment: str | None
     created_at: datetime
+    badge_earned: BadgeEarned | None = None  # 새로 획득한 배지
 
     class Config:
         from_attributes = True

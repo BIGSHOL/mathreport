@@ -48,7 +48,7 @@ async def list_references(
         query = query.eq("collection_reason", collection_reason)
 
     # 전체 개수 조회 (필터 적용된 상태)
-    count_query = db.table("question_references").select("id", count="exact")
+    count_query = db.table("question_references").select("id")
     if review_status:
         count_query = count_query.eq("review_status", review_status)
     if grade_level:
@@ -57,10 +57,10 @@ async def list_references(
         count_query = count_query.eq("collection_reason", collection_reason)
 
     count_result = await count_query.execute()
-    total = count_result.count if count_result.count is not None else len(count_result.data or [])
+    total = len(count_result.data or [])
 
     # 페이지네이션 적용
-    query = query.range(skip, skip + limit - 1)
+    query = query.limit(limit).offset(skip)
     result = await query.execute()
     references = result.data or []
 
@@ -116,10 +116,18 @@ async def get_reference_stats(
 
     # 최근 7일 수집 수
     week_ago = datetime.utcnow() - timedelta(days=7)
-    recent_count = sum(
-        1 for ref in all_refs
-        if ref.get("created_at") and datetime.fromisoformat(ref["created_at"].replace("Z", "+00:00").replace("+00:00", "")) >= week_ago
-    )
+    recent_count = 0
+    for ref in all_refs:
+        created_at_str = ref.get("created_at")
+        if created_at_str:
+            try:
+                # ISO 형식 파싱 (Z 또는 +00:00 처리)
+                ts = created_at_str.replace("Z", "+00:00")
+                created_at = datetime.fromisoformat(ts).replace(tzinfo=None)
+                if created_at >= week_ago:
+                    recent_count += 1
+            except ValueError:
+                pass
 
     return ReferenceStats(
         total=total,
@@ -217,7 +225,7 @@ async def approve_reference(
     if result.error:
         raise HTTPException(status_code=500, detail=f"업데이트 실패: {result.error}")
 
-    return result.data
+    return result.data[0] if result.data else None
 
 
 # ============================================
@@ -253,7 +261,7 @@ async def reject_reference(
     if result.error:
         raise HTTPException(status_code=500, detail=f"업데이트 실패: {result.error}")
 
-    return result.data
+    return result.data[0] if result.data else None
 
 
 # ============================================

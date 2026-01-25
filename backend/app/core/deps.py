@@ -1,17 +1,24 @@
 """Dependencies for authentication."""
+import httpx
+import logging
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jose import jwt, jwk
+from jose.exceptions import JWTError, JWKError
 
 from app.core.config import settings
-from app.core.security import ALGORITHM
 from app.db.supabase_client import SupabaseClient, get_supabase
-from app.services.auth import UserDict, get_user_by_id
-from app.schemas.auth import TokenPayload
+from app.services.auth import UserDict, get_or_create_user_from_supabase
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+
+# JWKS 캐시 (앱 시작 시 한 번만 로드)
+_jwks_cache: dict | None = None
 
 
 def get_db() -> SupabaseClient:
@@ -23,36 +30,139 @@ def get_db() -> SupabaseClient:
 DbDep = Annotated[SupabaseClient, Depends(get_db)]
 
 
+async def get_supabase_jwks() -> dict:
+    """Supabase JWKS(JSON Web Key Set) 가져오기."""
+    global _jwks_cache
+
+    if _jwks_cache is not None:
+        return _jwks_cache
+
+    if not settings.SUPABASE_URL:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="SUPABASE_URL이 설정되지 않았습니다"
+        )
+
+    jwks_url = f"{settings.SUPABASE_URL}/auth/v1/.well-known/jwks.json"
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(jwks_url)
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Supabase JWKS를 가져올 수 없습니다"
+            )
+        _jwks_cache = response.json()
+        return _jwks_cache
+
+
+def get_signing_key(jwks: dict, token: str) -> str:
+    """JWT의 kid에 맞는 서명 키 찾기."""
+    try:
+        # JWT 헤더에서 kid 추출
+        unverified_header = jwt.get_unverified_header(token)
+        kid = unverified_header.get("kid")
+        alg = unverified_header.get("alg")
+
+        logger.info(f"[AUTH] Token alg: {alg}, kid: {kid}")
+
+        # JWKS에서 매칭되는 키 찾기
+        for key in jwks.get("keys", []):
+            if key.get("kid") == kid:
+                return key
+
+        raise JWKError(f"No matching key found for kid: {kid}")
+    except Exception as e:
+        logger.info(f"[AUTH] Error getting signing key: {e}")
+        raise
+
+
 async def get_current_user(
     db: DbDep,
-    token: Annotated[str, Depends(oauth2_scheme)],
+    token: Annotated[str | None, Depends(oauth2_scheme)],
 ) -> UserDict:
-    """Get current authenticated user from JWT token."""
+    """Get current authenticated user from Supabase JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="인증 정보를 확인할 수 없습니다",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+    if not token:
+        logger.info("[AUTH] No token provided")
+        raise credentials_exception
+
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+        # JWT 헤더 확인
+        unverified_header = jwt.get_unverified_header(token)
+        alg = unverified_header.get("alg")
+        logger.info(f"[AUTH] Token algorithm: {alg}")
+
+        if alg == "ES256":
+            # ES256: JWKS 사용하여 검증
+            jwks = await get_supabase_jwks()
+            signing_key = get_signing_key(jwks, token)
+
+            payload = jwt.decode(
+                token,
+                signing_key,
+                algorithms=["ES256"],
+                audience="authenticated",
+                options={"verify_aud": True}
+            )
+            logger.info("[AUTH] ES256 JWT verified successfully")
+
+        else:
+            # HS256: 기존 방식 (JWT Secret 사용)
+            jwt_secret = settings.SUPABASE_JWT_SECRET or settings.SECRET_KEY
+            logger.info(f"[AUTH] Using HS256 with secret (length: {len(jwt_secret)})")
+
+            payload = jwt.decode(
+                token,
+                jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+                options={"verify_aud": True}
+            )
+            logger.info("[AUTH] HS256 JWT verified successfully")
+
+        # Supabase JWT에서 사용자 정보 추출
         user_id: str = payload.get("sub")
+        email: str = payload.get("email")
+        user_metadata: dict = payload.get("user_metadata", {})
+
+        logger.info(f"[AUTH] User ID: {user_id}, Email: {email}")
+
         if user_id is None:
+            logger.info("[AUTH] No user_id in token")
             raise credentials_exception
-        token_data = TokenPayload(sub=user_id)
-    except JWTError:
+
+    except JWTError as e:
+        logger.info(f"[AUTH] JWT verification failed: {e}")
+        raise credentials_exception from None
+    except JWKError as e:
+        logger.info(f"[AUTH] JWK error: {e}")
         raise credentials_exception from None
 
-    user = await get_user_by_id(db, token_data.sub)
+    # public.users 테이블에서 사용자 조회 또는 생성
+    user = await get_or_create_user_from_supabase(
+        db,
+        auth_user_id=user_id,
+        email=email,
+        user_metadata=user_metadata
+    )
 
     if user is None:
+        logger.info("[AUTH] User not found and could not be created")
         raise credentials_exception
+
     if not user.get("is_active", True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="비활성화된 계정입니다"
         )
 
+    logger.info(f"[AUTH] User authenticated: {user.get('email')}")
     return user
 
 

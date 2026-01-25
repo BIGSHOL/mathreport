@@ -3,7 +3,7 @@
  */
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import type { QuestionAnalysis } from '../../services/analysis';
+import type { QuestionAnalysis, BadgeEarned } from '../../services/analysis';
 import { analysisService } from '../../services/analysis';
 
 interface AnswerAnalysisProps {
@@ -28,11 +28,12 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
   analysisId?: string;
 }) {
   const [showFeedback, setShowFeedback] = useState(false);
-  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const [badgeEarned, setBadgeEarned] = useState<BadgeEarned | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +41,7 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
   const updateDropdownPosition = useCallback(() => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const dropdownHeight = 200; // 예상 높이
+      const dropdownHeight = 220; // 예상 높이 (코멘트 입력 포함)
       const spaceBelow = window.innerHeight - rect.bottom;
       const spaceAbove = rect.top;
 
@@ -48,12 +49,12 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
       if (spaceBelow >= dropdownHeight || spaceBelow > spaceAbove) {
         setDropdownPos({
           top: rect.bottom + 4,
-          left: rect.right - 176, // w-44 = 176px
+          left: rect.right - 208, // w-52 = 208px
         });
       } else {
         setDropdownPos({
           top: rect.top - dropdownHeight - 4,
-          left: rect.right - 176,
+          left: rect.right - 208,
         });
       }
     }
@@ -68,7 +69,7 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
         dropdownRef.current && !dropdownRef.current.contains(target)
       ) {
         setShowFeedback(false);
-        setShowCommentInput(false);
+        setSelectedType(null);
         setComment('');
       }
     };
@@ -90,7 +91,7 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
     if (!analysisId) return;
     setIsSubmitting(true);
     try {
-      await analysisService.submitFeedback(
+      const badge = await analysisService.submitFeedback(
         analysisId,
         q.id,
         feedbackType as 'wrong_recognition' | 'wrong_topic' | 'wrong_difficulty' | 'other',
@@ -98,7 +99,13 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
       );
       setFeedbackSent(true);
       setShowFeedback(false);
-      setShowCommentInput(false);
+      setSelectedType(null);
+      setComment('');
+      if (badge) {
+        setBadgeEarned(badge);
+        // 3초 후 배지 알림 숨김
+        setTimeout(() => setBadgeEarned(null), 3000);
+      }
     } catch (error) {
       console.error('피드백 전송 실패:', error);
     } finally {
@@ -106,10 +113,30 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
     }
   };
 
+  const handleTypeSelect = (type: string) => {
+    setSelectedType(type);
+    updateDropdownPosition(); // 코멘트 입력 UI 높이 변경 대응
+  };
+
+  const handleCommentSubmit = () => {
+    if (selectedType) {
+      handleFeedback(selectedType, comment.trim() || undefined);
+    }
+  };
+
+  const handleBack = () => {
+    setSelectedType(null);
+    setComment('');
+  };
+
   const handleCancel = () => {
     setShowFeedback(false);
-    setShowCommentInput(false);
+    setSelectedType(null);
     setComment('');
+  };
+
+  const getSelectedTypeLabel = () => {
+    return FEEDBACK_TYPES.find(t => t.value === selectedType)?.label || '';
   };
 
   return (
@@ -144,7 +171,7 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
       <td className="px-3 py-2 text-gray-600 text-xs">
         {q.ai_comment || '-'}
       </td>
-      <td className="px-3 py-2 text-center">
+      <td className="px-3 py-2 text-center whitespace-nowrap">
         {analysisId && (
           <div className="relative inline-block">
             {feedbackSent ? (
@@ -176,72 +203,99 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
             {showFeedback && !feedbackSent && createPortal(
               <div
                 ref={dropdownRef}
-                className="fixed z-[9999] w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
+                className="fixed z-[9999] w-52 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
                 style={{ top: dropdownPos.top, left: Math.max(8, dropdownPos.left) }}
               >
-                <div className="px-3 py-1.5 border-b border-gray-100">
-                  <p className="text-xs font-medium text-gray-600">오류 유형</p>
-                </div>
-
-                {showCommentInput ? (
+                {selectedType ? (
+                  /* 코멘트 입력 단계 */
                   <div className="p-2">
-                    <input
-                      type="text"
+                    <div className="flex items-center gap-2 mb-2">
+                      <button
+                        onClick={handleBack}
+                        className="text-gray-400 hover:text-gray-600"
+                        title="뒤로"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <span className="text-xs font-medium text-gray-700">{getSelectedTypeLabel()}</span>
+                    </div>
+                    <textarea
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
-                      placeholder="오류 내용 입력"
-                      className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="상세 내용 입력 (선택사항)&#10;예: 3번 문제가 정답인데 오답으로 표시됨"
+                      className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                      rows={3}
                       disabled={isSubmitting}
                       autoFocus
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && comment.trim()) handleFeedback('other', comment.trim());
                         if (e.key === 'Escape') handleCancel();
                       }}
                     />
                     <div className="flex gap-1.5 mt-2">
                       <button
-                        onClick={() => handleFeedback('other', comment.trim())}
-                        disabled={isSubmitting || !comment.trim()}
-                        className="flex-1 text-xs px-2 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white rounded-md transition-colors"
-                      >
-                        제출
-                      </button>
-                      <button
-                        onClick={handleCancel}
+                        onClick={handleCommentSubmit}
                         disabled={isSubmitting}
-                        className="text-xs px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                        className="flex-1 text-xs px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white rounded-md transition-colors"
                       >
-                        취소
+                        {isSubmitting ? '전송중...' : comment.trim() ? '코멘트와 함께 제출' : '제출'}
                       </button>
                     </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5 text-center">
+                      코멘트 없이 제출해도 됩니다
+                    </p>
                   </div>
                 ) : (
-                  <div className="py-0.5">
-                    {FEEDBACK_TYPES.map((type) => (
+                  /* 유형 선택 단계 */
+                  <>
+                    <div className="px-3 py-1.5 border-b border-gray-100">
+                      <p className="text-xs font-medium text-gray-600">오류 유형 선택</p>
+                      <p className="text-[10px] text-indigo-500 mt-0.5">더 정확한 분석에 도움이 됩니다</p>
+                    </div>
+                    <div className="py-0.5">
+                      {FEEDBACK_TYPES.map((type) => (
+                        <button
+                          key={type.value}
+                          onClick={() => handleTypeSelect(type.value)}
+                          disabled={isSubmitting}
+                          className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            type.value === 'wrong_grading' ? 'bg-red-400' :
+                            type.value === 'wrong_recognition' ? 'bg-orange-400' :
+                            type.value === 'wrong_topic' ? 'bg-amber-400' : 'bg-gray-400'
+                          }`} />
+                          {type.label}
+                          <svg className="w-3 h-3 ml-auto text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="border-t border-gray-100 px-2 py-1.5">
                       <button
-                        key={type.value}
-                        onClick={() => type.value === 'other' ? setShowCommentInput(true) : handleFeedback(type.value)}
-                        disabled={isSubmitting}
-                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        onClick={handleCancel}
+                        className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors"
                       >
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          type.value === 'wrong_grading' ? 'bg-red-400' :
-                          type.value === 'wrong_recognition' ? 'bg-orange-400' :
-                          type.value === 'wrong_topic' ? 'bg-amber-400' : 'bg-gray-400'
-                        }`} />
-                        {type.label}
+                        닫기
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  </>
                 )}
+              </div>,
+              document.body
+            )}
 
-                <div className="border-t border-gray-100 px-2 py-1.5">
-                  <button
-                    onClick={handleCancel}
-                    className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    닫기
-                  </button>
+            {/* 배지 획득 토스트 */}
+            {badgeEarned && createPortal(
+              <div className="fixed bottom-4 right-4 z-[9999] animate-bounce">
+                <div className="bg-gradient-to-r from-amber-400 to-yellow-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
+                  <span className="text-2xl">{badgeEarned.icon}</span>
+                  <div>
+                    <p className="font-bold text-sm">배지 획득!</p>
+                    <p className="text-xs opacity-90">{badgeEarned.name}</p>
+                  </div>
                 </div>
               </div>,
               document.body
@@ -288,8 +342,8 @@ export const AnswerAnalysis = memo(function AnswerAnalysis({
   const correctQuestions = questionsWithAnswers.filter(q => q.is_correct === true);
   const wrongQuestions = questionsWithAnswers.filter(q => q.is_correct === false);
 
-  const totalPoints = questionsWithAnswers.reduce((sum, q) => sum + (q.points || 0), 0);
-  const earnedPoints = questionsWithAnswers.reduce((sum, q) => sum + (q.earned_points || 0), 0);
+  const totalPoints = Math.round(questionsWithAnswers.reduce((sum, q) => sum + (q.points || 0), 0) * 10) / 10;
+  const earnedPoints = Math.round(questionsWithAnswers.reduce((sum, q) => sum + (q.earned_points || 0), 0) * 10) / 10;
   const scorePercent = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
 
   // 오류 유형별 집계
@@ -362,7 +416,7 @@ export const AnswerAnalysis = memo(function AnswerAnalysis({
                   <th className="px-3 py-2 text-center w-20">배점</th>
                   <th className="px-3 py-2 text-center w-24">오류 유형</th>
                   <th className="px-3 py-2 text-left">AI 코멘트</th>
-                  {analysisId && <th className="px-3 py-2 text-center w-20">피드백</th>}
+                  {analysisId && <th className="px-3 py-2 text-center w-16 whitespace-nowrap">피드백</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

@@ -8,10 +8,11 @@ export type SubscriptionTier = 'free' | 'basic' | 'pro';
 export interface UsageStatus {
     tier: SubscriptionTier;
     subscription_expires_at: string | null;
-    monthly_analysis_used: number;
-    monthly_analysis_limit: number;  // -1 = 무제한
-    monthly_extended_used: number;
-    monthly_extended_limit: number;  // -1 = 무제한
+    weekly_analysis_used: number;
+    weekly_analysis_limit: number;  // -1 = 무제한
+    weekly_extended_used: number;
+    weekly_extended_limit: number;  // -1 = 무제한
+    next_reset_at: string;  // 다음 초기화 시간 (월요일 오전 9시 KST)
     credits: number;
     credits_expires_at: string | null;
     can_analyze: boolean;
@@ -23,8 +24,8 @@ export interface Plan {
     tier: SubscriptionTier;
     name: string;
     price: number;
-    monthly_analysis: number;
-    monthly_extended: number;
+    weekly_analysis: number;
+    weekly_extended: number;
     features: string[];
 }
 

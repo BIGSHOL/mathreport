@@ -248,6 +248,117 @@ class AILearningService:
             "active_patterns": active_patterns,
         }
 
+    async def list_patterns(
+        self,
+        pattern_type: str | None = None,
+        is_active: bool | None = None,
+    ) -> list[dict]:
+        """모든 패턴을 조회합니다."""
+        query = self.db.table("learned_patterns").select("*")
+
+        if pattern_type:
+            query = query.eq("pattern_type", pattern_type)
+        if is_active is not None:
+            query = query.eq("is_active", is_active)
+
+        result = await query.order("created_at", desc=True).execute()
+        return result.data or []
+
+    async def get_pattern(self, pattern_id: str) -> dict | None:
+        """특정 패턴을 조회합니다."""
+        result = await self.db.table("learned_patterns").select("*").eq(
+            "id", pattern_id
+        ).maybe_single().execute()
+        return result.data
+
+    async def update_pattern(self, pattern_id: str, update_data: dict) -> dict | None:
+        """패턴을 수정합니다."""
+        # 먼저 존재 여부 확인
+        existing = await self.get_pattern(pattern_id)
+        if not existing:
+            return None
+
+        update_data["updated_at"] = datetime.utcnow().isoformat()
+
+        result = await self.db.table("learned_patterns").select("*").eq(
+            "id", pattern_id
+        ).update(update_data).execute()
+
+        if result.error:
+            raise Exception(f"Failed to update pattern: {result.error}")
+
+        return result.data[0] if result.data else None
+
+    async def delete_pattern(self, pattern_id: str) -> bool:
+        """패턴을 삭제합니다."""
+        # 먼저 존재 여부 확인
+        existing = await self.get_pattern(pattern_id)
+        if not existing:
+            return False
+
+        result = await self.db.table("learned_patterns").select("*").eq(
+            "id", pattern_id
+        ).delete().execute()
+
+        return result.error is None
+
+    async def toggle_pattern(self, pattern_id: str) -> dict | None:
+        """패턴 활성화/비활성화를 토글합니다."""
+        existing = await self.get_pattern(pattern_id)
+        if not existing:
+            return None
+
+        new_active = not existing.get("is_active", True)
+        return await self.update_pattern(pattern_id, {"is_active": new_active})
+
+    async def list_feedbacks(
+        self,
+        feedback_type: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        """사용자 피드백(신고) 목록을 조회합니다."""
+        query = self.db.table("feedbacks").select("*")
+
+        if feedback_type:
+            query = query.eq("feedback_type", feedback_type)
+
+        result = await query.order("created_at", desc=True).limit(limit).offset(offset).execute()
+        feedbacks = result.data or []
+
+        # 전체 개수 조회
+        count_query = self.db.table("feedbacks").select("id")
+        if feedback_type:
+            count_query = count_query.eq("feedback_type", feedback_type)
+        count_result = await count_query.execute()
+        total = len(count_result.data) if count_result.data else 0
+
+        return {
+            "feedbacks": feedbacks,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    async def get_feedback(self, feedback_id: str) -> dict | None:
+        """특정 피드백을 조회합니다."""
+        result = await self.db.table("feedbacks").select("*").eq(
+            "id", feedback_id
+        ).maybe_single().execute()
+        return result.data
+
+    async def delete_feedback(self, feedback_id: str) -> bool:
+        """피드백을 삭제합니다."""
+        existing = await self.get_feedback(feedback_id)
+        if not existing:
+            return False
+
+        result = await self.db.table("feedbacks").select("*").eq(
+            "id", feedback_id
+        ).delete().execute()
+
+        return result.error is None
+
 
 def get_ai_learning_service(db: SupabaseClient) -> AILearningService:
     return AILearningService(db)

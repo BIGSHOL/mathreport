@@ -123,7 +123,7 @@ export const ExamScopeView = memo(function ExamScopeView({
               <th className="text-left px-3 py-2 font-medium text-gray-600">과목</th>
               <th className="text-left px-3 py-2 font-medium text-gray-600">단원</th>
               <th className="text-right px-3 py-2 font-medium text-gray-600 w-16">문항</th>
-              <th className="text-right px-3 py-2 font-medium text-gray-600 w-16">배점</th>
+              <th className="text-right px-3 py-2 font-medium text-gray-600 w-20 whitespace-nowrap">배점</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -146,7 +146,7 @@ export const ExamScopeView = memo(function ExamScopeView({
                   ) : null}
                   <td className="px-3 py-2 text-gray-700">{unit.name}</td>
                   <td className="px-3 py-2 text-right text-gray-600">{unit.count}</td>
-                  <td className="px-3 py-2 text-right text-gray-600">{Number(unit.points.toFixed(1))}점</td>
+                  <td className="px-3 py-2 text-right text-gray-600 whitespace-nowrap">{Number(unit.points.toFixed(1))}점</td>
                 </tr>
               ))
             ))}
@@ -157,7 +157,7 @@ export const ExamScopeView = memo(function ExamScopeView({
               <td className="px-3 py-2 text-right">
                 {coveredSubjects.reduce((sum, s) => sum + s.count, 0)}
               </td>
-              <td className="px-3 py-2 text-right">
+              <td className="px-3 py-2 text-right whitespace-nowrap">
                 {Number(coveredSubjects.reduce((sum, s) => sum + s.points, 0).toFixed(1))}점
               </td>
             </tr>

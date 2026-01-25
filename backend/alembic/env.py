@@ -50,10 +50,16 @@ def do_run_migrations(connection):
         context.run_migrations()
 
 async def run_async_migrations():
+    # pgbouncer (Session Pooler) 사용 시 prepared statement 비활성화
+    connect_args = {}
+    if settings.use_supabase_db:
+        connect_args = {"statement_cache_size": 0}
+
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

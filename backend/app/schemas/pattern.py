@@ -15,12 +15,22 @@ GradeLevelType = Literal["초5", "초6", "중1", "중2", "중3", "고1", "고2",
 DifficultyType = Literal["하", "중", "상", "최상"]
 FrequencyType = Literal["very_high", "high", "medium", "low"]
 ErrorType = Literal["calculation", "concept", "notation", "process", "other"]
-TemplateType = Literal["base", "analysis_guide", "error_detection", "feedback_style"]
+TemplateType = Literal[
+    "base",              # 기본 프롬프트
+    "analysis_guide",    # 분석 가이드
+    "error_detection",   # 오류 감지
+    "feedback_style",    # 피드백 스타일
+    "topic_guide",       # 단원별 가이드
+    "feedback",          # 피드백 템플릿
+    "exam_type_guide",   # 시험 유형별 가이드
+    "curriculum_guide",  # 교육과정 가이드
+]
 
 # 시험지 유형
-ExamPaperType = Literal["blank", "answered", "mixed", "unknown"]
+ExamPaperType = Literal["blank", "answered", "graded", "mixed", "unknown"]
 # blank: 빈 시험지 (답안 없음)
-# answered: 학생 답안 작성됨
+# answered: 학생 답안 작성됨 (채점 전)
+# graded: 채점 완료된 시험지
 # mixed: 일부만 답안 있음
 # unknown: 판단 불가
 

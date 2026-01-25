@@ -10,6 +10,20 @@ import subscriptionService, {
     type UsageStatus,
 } from '../services/subscription';
 
+// 초기화까지 남은 시간 계산
+function getTimeUntilReset(nextResetAt: string): string {
+    const now = new Date();
+    const reset = new Date(nextResetAt);
+    const diffMs = reset.getTime() - now.getTime();
+
+    if (diffMs <= 0) return '0일 0시간';
+
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+    return `${diffDays}일 ${diffHours}시간`;
+}
+
 export function PricingPage() {
     const { user } = useAuthStore();
     const [plans, setPlans] = useState<Plan[]>([]);
@@ -86,14 +100,14 @@ export function PricingPage() {
                         <div>
                             <span className="text-xs text-indigo-600">기본 분석</span>
                             <p className="text-lg font-bold text-indigo-900">
-                                {usage.monthly_analysis_used}/{usage.monthly_analysis_limit === -1 ? '∞' : usage.monthly_analysis_limit}
+                                {usage.weekly_analysis_used}/{usage.weekly_analysis_limit === -1 ? '∞' : usage.weekly_analysis_limit}
                             </p>
                         </div>
                         <div className="h-8 w-px bg-indigo-200 hidden sm:block" />
                         <div>
                             <span className="text-xs text-indigo-600">확장 분석</span>
                             <p className="text-lg font-bold text-indigo-900">
-                                {usage.monthly_extended_used}/{usage.monthly_extended_limit === -1 ? '∞' : usage.monthly_extended_limit}
+                                {usage.weekly_extended_used}/{usage.weekly_extended_limit === -1 ? '∞' : usage.weekly_extended_limit}
                             </p>
                         </div>
                         <div className="h-8 w-px bg-indigo-200 hidden sm:block" />
@@ -101,6 +115,12 @@ export function PricingPage() {
                             <span className="text-xs text-indigo-600">크레딧</span>
                             <p className="text-lg font-bold text-indigo-900">{usage.credits}</p>
                         </div>
+                    </div>
+                    {/* 초기화 카운트다운 */}
+                    <div className="text-center mt-3 pt-3 border-t border-indigo-200">
+                        <span className="text-xs text-indigo-500">
+                            초기화까지 {getTimeUntilReset(usage.next_reset_at)}
+                        </span>
                     </div>
                 </div>
             )}

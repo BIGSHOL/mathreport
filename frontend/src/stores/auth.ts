@@ -1,23 +1,27 @@
 /**
- * Authentication store using Zustand.
+ * Authentication store using Zustand with Supabase Auth (Google OAuth only).
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, LoginRequest, RegisterRequest } from '../types/auth';
+import type { User } from '../types/auth';
 import authService from '../services/auth';
+import { supabase } from '../lib/supabase';
 
 interface AuthStore {
   user: User | null;
   token: string | null;
   isLoading: boolean;
   error: string | null;
+  isInitialized: boolean;
 
   // Actions
-  login: (data: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   fetchUser: () => Promise<void>;
+  restoreSession: () => Promise<void>;
+  handleAuthCallback: () => Promise<void>;
   clearError: () => void;
+  setToken: (token: string | null) => void;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -27,56 +31,17 @@ export const useAuthStore = create<AuthStore>()(
       token: authService.getToken(),
       isLoading: false,
       error: null,
+      isInitialized: false,
 
-      login: async (data: LoginRequest) => {
+      loginWithGoogle: async () => {
         set({ isLoading: true, error: null });
         try {
-          const response = await authService.login(data);
-          // 로그인 응답에서 바로 user 정보 사용 (추가 API 호출 없이)
-          set({
-            token: response.access_token,
-            user: {
-              ...response.user,
-              data_consent: false,  // 기본값 (필요시 fetchUser로 업데이트)
-              subscription_tier: 'free',
-              credits: 0,
-              created_at: new Date().toISOString(),
-            },
-          });
-          // 전체 사용자 정보 가져오기 (백그라운드)
-          get().fetchUser();
+          await authService.loginWithGoogle();
+          // OAuth 리다이렉트가 발생하므로 여기서 끝남
         } catch (error: unknown) {
-          const err = error as { response?: { data?: { error?: { message?: string; details?: { reason?: string }[] }; detail?: string } } };
-          // 새로운 에러 형식: { error: { message, details } }
-          const errorData = err?.response?.data?.error;
-          const message = errorData?.message
-            || err?.response?.data?.detail
-            || '로그인에 실패했습니다.';
-          const detail = errorData?.details?.[0]?.reason;
-          set({ error: detail ? `${message} ${detail}` : message });
+          const err = error as Error;
+          set({ error: err.message || 'Google 로그인에 실패했습니다.', isLoading: false });
           throw error;
-        } finally {
-          set({ isLoading: false });
-        }
-      },
-
-      register: async (data: RegisterRequest) => {
-        set({ isLoading: true, error: null });
-        try {
-          await authService.register(data);
-          // Auto-login after registration
-          await get().login({ email: data.email, password: data.password });
-        } catch (error: unknown) {
-          const err = error as { response?: { data?: { error?: { message?: string; details?: { reason?: string }[] }; detail?: string } } };
-          const errorData = err?.response?.data?.error;
-          const message = errorData?.message
-            || err?.response?.data?.detail
-            || '회원가입에 실패했습니다.';
-          const detail = errorData?.details?.[0]?.reason;
-          set({ error: detail ? `${message} ${detail}` : message });
-          throw error;
-        } finally {
-          set({ isLoading: false });
         }
       },
 
@@ -92,28 +57,82 @@ export const useAuthStore = create<AuthStore>()(
       fetchUser: async () => {
         const token = get().token || authService.getToken();
         if (!token) {
-          set({ user: null });
+          set({ user: null, isInitialized: true });
           return;
         }
 
         set({ isLoading: true });
         try {
           const user = await authService.getCurrentUser();
-          set({ user });
+          set({ user, isInitialized: true });
         } catch (error: unknown) {
-          // 401 에러는 토큰 만료 - 로그아웃 처리
           const err = error as { response?: { status?: number } };
           if (err?.response?.status === 401) {
             set({ user: null, token: null });
             authService.removeToken();
           }
-          // 다른 에러(네트워크 등)는 기존 user 유지 (이미 로그인 응답에서 설정됨)
+          set({ isInitialized: true });
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      restoreSession: async () => {
+        set({ isLoading: true });
+        try {
+          const token = await authService.restoreSession();
+          if (token) {
+            set({ token });
+            await get().fetchUser();
+          } else {
+            set({ isInitialized: true });
+          }
+        } catch {
+          set({ isInitialized: true });
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      handleAuthCallback: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          // Supabase가 URL에서 세션을 자동으로 파싱함
+          const { data: { session }, error } = await supabase.auth.getSession();
+
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          if (session?.access_token) {
+            authService.setToken(session.access_token);
+            set({ token: session.access_token });
+
+            // 백엔드에서 사용자 정보 가져오기
+            const user = await authService.getCurrentUser();
+            set({ user, isInitialized: true });
+          } else {
+            throw new Error('세션을 가져올 수 없습니다.');
+          }
+        } catch (error: unknown) {
+          const err = error as Error;
+          set({ error: err.message || '인증 콜백 처리에 실패했습니다.', isInitialized: true });
+          throw error;
         } finally {
           set({ isLoading: false });
         }
       },
 
       clearError: () => set({ error: null }),
+
+      setToken: (token: string | null) => {
+        if (token) {
+          authService.setToken(token);
+        } else {
+          authService.removeToken();
+        }
+        set({ token });
+      },
     }),
     {
       name: 'auth-storage',

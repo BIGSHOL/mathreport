@@ -15,12 +15,13 @@ from app.schemas.analysis import (
     AnalysisExtension as AnalysisExtensionSchema,
     ExtendedAnalysisResponse,
 )
-from app.schemas.feedback import FeedbackCreate, FeedbackResponse
+from app.schemas.feedback import FeedbackCreate, FeedbackResponse, BadgeEarned
 from app.services.analysis import get_analysis_service
 from app.services.agents import AnalysisOrchestrator
 from app.services.subscription import get_subscription_service
 from app.services.exam import get_exam_service
 from app.services.ai_learning import get_ai_learning_service
+from app.services.badge import get_badge_service
 
 router = APIRouter(tags=["analysis"])
 
@@ -389,7 +390,26 @@ async def submit_feedback(
         # 학습 실패해도 피드백 저장은 성공으로 처리
         print(f"[Feedback] 자동 학습 실패 (무시됨): {e}")
 
-    return FeedbackResponse.model_validate(result.data)
+    # 배지 지급 체크
+    badge_earned = None
+    try:
+        badge_service = get_badge_service(db)
+        new_badge = await badge_service.increment_feedback_count(current_user["id"])
+        if new_badge:
+            badge_earned = BadgeEarned(
+                id=new_badge["id"],
+                name=new_badge["name"],
+                icon=new_badge["icon"],
+                description=new_badge["description"],
+                tier=new_badge["tier"],
+            )
+            print(f"[Badge] 사용자 {current_user['id']}에게 '{new_badge['name']}' 배지 지급")
+    except Exception as e:
+        print(f"[Badge] 배지 지급 실패 (무시됨): {e}")
+
+    response_data = result.data
+    response_data["badge_earned"] = badge_earned
+    return FeedbackResponse.model_validate(response_data)
 
 
 # ============================================

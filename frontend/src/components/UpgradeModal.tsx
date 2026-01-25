@@ -31,38 +31,14 @@ export function UpgradeModal({ isOpen, onClose, type }: UpgradeModalProps) {
         }
     };
 
-    const handlePurchase = async (packageId: string) => {
-        setIsLoading(true);
-        setMessage('');
-        try {
-            const result = await subscriptionService.purchaseCredits(packageId);
-            setMessage(result.message);
-            setTimeout(() => {
-                onClose();
-                window.location.reload();
-            }, 1500);
-        } catch (error) {
-            setMessage('구매 처리 중 오류가 발생했습니다.');
-        } finally {
-            setIsLoading(false);
-        }
+    const handlePurchase = async (_packageId: string) => {
+        // 결제 시스템 준비 중
+        setMessage('결제 시스템 준비 중입니다. 조금만 기다려주세요!');
     };
 
-    const handleSubscribe = async (tier: SubscriptionTier) => {
-        setIsLoading(true);
-        setMessage('');
-        try {
-            const result = await subscriptionService.subscribe(tier);
-            setMessage(result.message);
-            setTimeout(() => {
-                onClose();
-                window.location.reload();
-            }, 1500);
-        } catch (error) {
-            setMessage('구독 처리 중 오류가 발생했습니다.');
-        } finally {
-            setIsLoading(false);
-        }
+    const handleSubscribe = async (_tier: SubscriptionTier) => {
+        // 결제 시스템 준비 중
+        setMessage('결제 시스템 준비 중입니다. 조금만 기다려주세요!');
     };
 
     if (!isOpen) return null;
@@ -115,7 +91,7 @@ export function UpgradeModal({ isOpen, onClose, type }: UpgradeModalProps) {
                             className="w-full py-4 px-6 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                         >
                             <div className="text-lg">베이직 구독하기</div>
-                            <div className="text-sm text-indigo-200">월 3,900원 · 매달 20회 분석</div>
+                            <div className="text-sm text-indigo-200">월 9,900원 · 주 10회 분석</div>
                         </button>
                     </div>
 

@@ -93,7 +93,7 @@ app.include_router(users.router, prefix="/api/v1")
 app.include_router(exam.router, prefix="/api/v1")
 app.include_router(analysis.router, prefix="/api/v1")
 app.include_router(subscription.router, prefix="/api/v1/subscription")
-app.include_router(ai_learning.router, prefix="/api/v1/admin")
+app.include_router(ai_learning.router, prefix="/api/v1")
 app.include_router(pattern.router, prefix="/api/v1")
 app.include_router(reference.router, prefix="/api/v1")
 

@@ -16,6 +16,8 @@ import { ExamListItem } from '../components/exam/ExamListItem';
 import { UpgradeModal } from '../components/UpgradeModal';
 import { analysisService } from '../services/analysis';
 import { examService } from '../services/exam';
+import { useAuthStore } from '../stores/auth';
+import authService from '../services/auth';
 
 // Hoisted static element (rendering-hoist-jsx)
 const emptyState = (
@@ -27,14 +29,34 @@ const loadingState = <div className="p-8">로딩 중...</div>;
 export function ExamDashboardPage() {
   const navigate = useNavigate();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [isConsenting, setIsConsenting] = useState(false);
 
   // 선택 모드 상태
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedExamIds, setSelectedExamIds] = useState<Set<string>>(new Set());
   const [isMerging, setIsMerging] = useState(false);
 
+  // Auth store for user info
+  const { user, fetchUser } = useAuthStore();
+
   // SWR hooks for data fetching (client-swr-dedup)
   const { exams, isLoading, mutate } = useExams();
+
+  // 무료 티어 & 데이터 동의 안함 체크
+  const needsConsent = user && user.subscription_tier === 'free' && !user.data_consent;
+
+  // 데이터 동의 처리
+  const handleConsent = async () => {
+    setIsConsenting(true);
+    try {
+      await authService.updateProfile({ data_consent: true });
+      await fetchUser();
+    } catch {
+      alert('동의 처리에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsConsenting(false);
+    }
+  };
   const { upload, isUploading } = useUploadExam();
   const { deleteExam } = useDeleteExam();
   const { requestAnalysis } = useRequestAnalysis();
@@ -93,13 +115,27 @@ export function ExamDashboardPage() {
         const result = await requestAnalysis({ examId });
         navigate(`/analysis/${result.analysis_id}`);
       } catch (error: unknown) {
-        const status = (error as { response?: { status?: number } })?.response?.status;
+        const axiosError = error as { response?: { status?: number }; code?: string };
+        const status = axiosError?.response?.status;
+        const errorCode = axiosError?.code;
+
+        // 타임아웃 또는 네트워크 오류는 백엔드가 계속 처리 중일 수 있음
+        const isPossiblyStillProcessing =
+          errorCode === 'ECONNABORTED' || // 타임아웃
+          errorCode === 'ERR_NETWORK' ||  // 네트워크 오류
+          !axiosError?.response;          // 응답 없음
+
         if (status === 402) {
           setShowUpgradeModal(true);
+          revalidate();
+        } else if (isPossiblyStillProcessing) {
+          // 분석은 계속 진행 중일 수 있음
+          alert('분석이 진행 중입니다. 잠시 후 목록을 새로고침해주세요.');
+          // analyzing 상태 유지 - 자동 폴링으로 업데이트됨
         } else {
           alert('분석 요청 실패');
+          revalidate();
         }
-        revalidate();
       }
     },
     [exams, requestAnalysis, navigate, updateExamStatus, revalidate]
@@ -148,7 +184,7 @@ export function ExamDashboardPage() {
     });
   }, []);
 
-  // 분석 병합
+  // 분석 병합 (async-parallel: Promise.all로 병렬 처리)
   const handleMergeAnalyses = useCallback(async () => {
     if (selectedExamIds.size < 2) {
       alert('2개 이상의 분석을 선택해주세요.');
@@ -157,12 +193,13 @@ export function ExamDashboardPage() {
 
     setIsMerging(true);
     try {
-      // 선택된 시험지들의 분석 ID 조회
-      const analysisIds: string[] = [];
-      for (const examId of selectedExamIds) {
-        const { analysis_id } = await analysisService.getAnalysisIdByExam(examId);
-        analysisIds.push(analysis_id);
-      }
+      // 선택된 시험지들의 분석 ID 병렬 조회 (async-parallel)
+      const analysisResults = await Promise.all(
+        Array.from(selectedExamIds).map((examId) =>
+          analysisService.getAnalysisIdByExam(examId)
+        )
+      );
+      const analysisIds = analysisResults.map((result) => result.analysis_id);
 
       // 병합 요청
       const mergedResult = await analysisService.mergeAnalyses(analysisIds);
@@ -182,8 +219,70 @@ export function ExamDashboardPage() {
   // Early return for loading state (js-early-exit)
   if (isLoading) return loadingState;
 
+  // 무료 티어 강제 동의 모달
+  if (needsConsent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">
+            데이터 활용 동의
+          </h2>
+          <div className="text-sm text-gray-600 space-y-3 mb-6">
+            <p>
+              무료 서비스를 이용하시려면 <strong>AI 개선을 위한 데이터 활용</strong>에 동의해주세요.
+            </p>
+            <p>
+              수집되는 데이터:
+            </p>
+            <ul className="list-disc list-inside ml-2 space-y-1">
+              <li>업로드한 시험지 이미지</li>
+              <li>AI 분석 결과</li>
+              <li>오류 피드백</li>
+            </ul>
+            <p className="text-gray-500">
+              * 개인 식별 정보는 익명화되어 처리됩니다.
+            </p>
+          </div>
+          <button
+            onClick={handleConsent}
+            disabled={isConsenting}
+            className="w-full py-3 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            {isConsenting ? '처리 중...' : '동의하고 시작하기'}
+          </button>
+          <p className="mt-4 text-xs text-gray-500 text-center">
+            동의하지 않으시면 유료 플랜을 이용해주세요.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 무료 티어 + 동의 완료 상태
+  const showDataUsageNotice = user && user.subscription_tier === 'free' && user.data_consent;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* 무료 티어 데이터 사용 알림 */}
+      {showDataUsageNotice && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <svg className="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-sm text-blue-700">
+              무료 플랜 사용 중 - 분석 데이터가 AI 개선에 활용됩니다
+            </span>
+          </div>
+          <button
+            onClick={() => navigate('/pricing')}
+            className="text-sm font-medium text-blue-600 hover:text-blue-800"
+          >
+            업그레이드 →
+          </button>
+        </div>
+      )}
+
       <div className="md:flex md:items-center md:justify-between mb-8">
         <div className="flex-1 min-w-0">
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">

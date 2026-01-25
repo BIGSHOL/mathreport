@@ -37,8 +37,8 @@ async def get_plans():
             "tier": tier.value,
             "name": "무료" if tier == SubscriptionTier.FREE else SUBSCRIPTION_PRICES.get(tier, {}).get("name", tier.value),
             "price": 0 if tier == SubscriptionTier.FREE else SUBSCRIPTION_PRICES.get(tier, {}).get("price", 0),
-            "monthly_analysis": limits["monthly_analysis"],
-            "monthly_extended": limits["monthly_extended"],
+            "weekly_analysis": limits["weekly_analysis"],
+            "weekly_extended": limits["weekly_extended"],
             "features": _get_tier_features(tier),
         }
         plans.append(plan)
@@ -96,19 +96,17 @@ def _get_tier_features(tier: SubscriptionTier) -> list[str]:
     """티어별 기능 목록"""
     if tier == SubscriptionTier.FREE:
         return [
-            "월 5회 기본 분석",
+            "주 3회 기본 분석",
             "출제현황 분석",
             "확장 분석 미리보기",
             "전체 이력 보관",
         ]
     elif tier == SubscriptionTier.BASIC:
         return [
-            "월 20회 기본 분석",
+            "주 10회 기본 분석",
             "출제현황 분석",
-            "월 5회 확장 분석",
+            "주 2회 확장 분석",
             "기본형 학습 계획",
-            "PDF 리포트 다운로드",
-            "전체 이력 보관",
         ]
     else:  # PRO
         return [
@@ -116,8 +114,4 @@ def _get_tier_features(tier: SubscriptionTier) -> list[str]:
             "출제현황 분석",
             "무제한 확장 분석",
             "맞춤형 학습 계획",
-            "성과 예측",
-            "PDF 리포트 다운로드",
-            "전체 이력 보관",
-            "우선 지원",
         ]

@@ -9,11 +9,12 @@ class UsageStatus(BaseModel):
     tier: SubscriptionTier
     subscription_expires_at: datetime | None
 
-    # 월별 사용량
-    monthly_analysis_used: int
-    monthly_analysis_limit: int  # -1 = 무제한
-    monthly_extended_used: int
-    monthly_extended_limit: int  # -1 = 무제한
+    # 주간 사용량 (매주 월요일 오전 9시 KST 초기화)
+    weekly_analysis_used: int
+    weekly_analysis_limit: int  # -1 = 무제한
+    weekly_extended_used: int
+    weekly_extended_limit: int  # -1 = 무제한
+    next_reset_at: datetime  # 다음 초기화 시간
 
     # 크레딧
     credits: int
@@ -65,6 +66,6 @@ CREDIT_PACKAGES = {
 
 # 구독 가격 정의
 SUBSCRIPTION_PRICES = {
-    SubscriptionTier.BASIC: {"price": 5900, "name": "베이직"},
-    SubscriptionTier.PRO: {"price": 9900, "name": "프로"},
+    SubscriptionTier.BASIC: {"price": 9900, "name": "베이직"},
+    SubscriptionTier.PRO: {"price": 19900, "name": "프로"},
 }

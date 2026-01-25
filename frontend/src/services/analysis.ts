@@ -7,6 +7,29 @@ export type ErrorType = 'calculation_error' | 'concept_error' | 'careless_mistak
 
 export type QuestionFormat = 'objective' | 'short_answer' | 'essay';
 
+// ============================================
+// Badge Types (배지 시스템)
+// ============================================
+
+export interface BadgeEarned {
+    id: string;
+    name: string;
+    icon: string;
+    description: string;
+    tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+}
+
+export interface FeedbackResponse {
+    id: string;
+    user_id: string;
+    analysis_id: string;
+    question_id: string;
+    feedback_type: string;
+    comment: string | null;
+    created_at: string;
+    badge_earned: BadgeEarned | null;
+}
+
 export interface QuestionAnalysis {
     id: string;
     question_number: number | string;  // 숫자 또는 "서술형 1" 형식
@@ -252,19 +275,21 @@ export const analysisService = {
 
     /**
      * Submit feedback for a question analysis.
+     * @returns Badge earned (if any)
      */
     async submitFeedback(
         analysisId: string,
         questionId: string,
         feedbackType: 'wrong_recognition' | 'wrong_topic' | 'wrong_difficulty' | 'wrong_grading' | 'other',
         comment?: string
-    ): Promise<void> {
-        await api.post(`/api/v1/analysis/${analysisId}/feedback`, {
+    ): Promise<BadgeEarned | null> {
+        const response = await api.post<FeedbackResponse>(`/api/v1/analysis/${analysisId}/feedback`, {
             analysis_id: analysisId,
             question_id: questionId,
             feedback_type: feedbackType,
             comment,
         });
+        return response.data.badge_earned || null;
     },
 
     /**

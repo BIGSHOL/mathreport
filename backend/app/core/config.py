@@ -35,10 +35,11 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str | None = None
     GEMINI_MODEL_NAME: str = "gemini-2.5-flash"
 
-    # Supabase (for Storage)
+    # Supabase (for Storage & Auth)
     SUPABASE_URL: str | None = None
     SUPABASE_ANON_KEY: str | None = None
     SUPABASE_SERVICE_ROLE_KEY: str | None = None
+    SUPABASE_JWT_SECRET: str | None = None  # Supabase Auth JWT 검증용
 
     # CORS - 쉼표로 구분된 허용 도메인 목록
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174"

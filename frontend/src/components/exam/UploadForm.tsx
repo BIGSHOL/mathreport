@@ -6,7 +6,99 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 // 업로드 단계 타입
-type UploadStage = 'idle' | 'uploading' | 'classifying' | 'saving';
+type UploadStage = 'idle' | 'compressing' | 'uploading' | 'classifying' | 'saving';
+
+// 이미지 압축 설정
+const COMPRESS_CONFIG = {
+  maxWidth: 1600,      // 최대 너비
+  maxHeight: 2400,     // 최대 높이
+  quality: 0.85,       // JPEG 품질 (0-1)
+  maxSizeKB: 500,      // 목표 최대 크기 (KB)
+};
+
+/**
+ * 이미지 파일 압축 (리사이즈 + JPEG 변환)
+ */
+async function compressImage(file: File): Promise<File> {
+  // PDF는 압축하지 않음
+  if (file.type === 'application/pdf') {
+    return file;
+  }
+
+  // 이미지가 아니면 그대로 반환
+  if (!file.type.startsWith('image/')) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      // 리사이즈 비율 계산
+      let { width, height } = img;
+      const widthRatio = COMPRESS_CONFIG.maxWidth / width;
+      const heightRatio = COMPRESS_CONFIG.maxHeight / height;
+      const ratio = Math.min(widthRatio, heightRatio, 1); // 1보다 작을 때만 축소
+
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+
+      // Canvas에 그리기
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // JPEG로 변환
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+
+          // 새 파일 생성 (원본 이름 유지, 확장자만 변경)
+          const newName = file.name.replace(/\.[^.]+$/, '.jpg');
+          const compressedFile = new File([blob], newName, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+
+          // 압축 결과 로깅 (개발용)
+          const reduction = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
+          console.log(`[압축] ${file.name}: ${(file.size/1024).toFixed(0)}KB → ${(compressedFile.size/1024).toFixed(0)}KB (${reduction}% 감소)`);
+
+          resolve(compressedFile);
+        },
+        'image/jpeg',
+        COMPRESS_CONFIG.quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file); // 에러 시 원본 반환
+    };
+
+    img.src = url;
+  });
+}
+
+/**
+ * 여러 파일 압축 (병렬 처리)
+ */
+async function compressFiles(files: File[]): Promise<File[]> {
+  return Promise.all(files.map(compressImage));
+}
 
 // 단계별 예상 시간 (ms)
 const STAGE_DURATIONS = {
@@ -26,19 +118,28 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
   const [uploadStage, setUploadStage] = useState<UploadStage>('idle');
   const [isDragOver, setIsDragOver] = useState(false);
 
+  // 파일 크기 합계 (안정적인 의존성을 위해)
+  const totalFileSize = files.reduce((sum, f) => sum + f.size, 0);
+
   // 업로드 상태에 따라 단계 시뮬레이션
   useEffect(() => {
     if (!isUploading) {
-      setUploadStage('idle');
+      // 압축 중이 아닐 때만 idle로
+      if (uploadStage !== 'compressing') {
+        setUploadStage('idle');
+      }
       return;
     }
 
-    // 업로드 시작 시 단계 진행
-    setUploadStage('uploading');
+    // 압축 완료 후 업로드 시작 시 단계 진행
+    if (uploadStage === 'compressing') {
+      setUploadStage('uploading');
+    } else if (uploadStage === 'idle') {
+      setUploadStage('uploading');
+    }
 
-    // 파일 크기에 따른 업로드 시간 조정 (MB당 1초 추가)
-    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-    const uploadTime = Math.min(STAGE_DURATIONS.uploading + (totalSize / 1024 / 1024) * 1000, 8000);
+    // 파일 크기에 따른 업로드 시간 조정 (압축 후 크기 기준)
+    const uploadTime = Math.min(STAGE_DURATIONS.uploading + (totalFileSize / 1024 / 1024) * 500, 5000);
 
     const classifyTimer = setTimeout(() => {
       setUploadStage('classifying');
@@ -52,7 +153,7 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
       clearTimeout(classifyTimer);
       clearTimeout(saveTimer);
     };
-  }, [isUploading, files]);
+  }, [isUploading, totalFileSize, uploadStage]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -60,8 +161,18 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
       if (files.length === 0 || !title) return;
 
       try {
-        // 과목은 서버에서 AI가 자동 감지 (수학/영어)
-        await onUpload({ files, title });
+        // 1. 이미지 압축 단계
+        setUploadStage('compressing');
+        const compressedFiles = await compressFiles(files);
+
+        // 압축 결과 요약 로깅
+        const originalSize = files.reduce((sum, f) => sum + f.size, 0);
+        const compressedSize = compressedFiles.reduce((sum, f) => sum + f.size, 0);
+        console.log(`[압축 완료] 총 ${(originalSize/1024/1024).toFixed(2)}MB → ${(compressedSize/1024/1024).toFixed(2)}MB`);
+
+        // 2. 업로드 (압축된 파일 사용)
+        await onUpload({ files: compressedFiles, title });
+
         // Reset form on success
         setTitle('');
         setFiles([]);
@@ -299,7 +410,7 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {uploadStage === 'uploading' ? '업로드' : uploadStage === 'classifying' ? 'AI분류' : '저장'}
+                {uploadStage === 'compressing' ? '압축중' : uploadStage === 'uploading' ? '업로드' : uploadStage === 'classifying' ? 'AI분류' : '저장'}
               </span>
             ) : (
               '업로드'

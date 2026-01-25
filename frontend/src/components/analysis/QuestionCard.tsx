@@ -6,7 +6,8 @@
  * - 6.3 Hoist Static Data: 색상 상수를 tokens.ts에서 임포트
  */
 import { memo, useState, useRef, useEffect } from 'react';
-import type { QuestionAnalysis } from '../../services/analysis';
+import { createPortal } from 'react-dom';
+import type { QuestionAnalysis, BadgeEarned } from '../../services/analysis';
 import { analysisService } from '../../services/analysis';
 import {
   DIFFICULTY_COLORS,
@@ -33,10 +34,11 @@ export const QuestionCard = memo(function QuestionCard({
   analysisId,
 }: QuestionCardProps) {
   const [showFeedback, setShowFeedback] = useState(false);
-  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [badgeEarned, setBadgeEarned] = useState<BadgeEarned | null>(null);
   const feedbackRef = useRef<HTMLDivElement>(null);
 
   // 외부 클릭 시 드롭다운 닫기
@@ -44,7 +46,7 @@ export const QuestionCard = memo(function QuestionCard({
     const handleClickOutside = (event: MouseEvent) => {
       if (feedbackRef.current && !feedbackRef.current.contains(event.target as Node)) {
         setShowFeedback(false);
-        setShowCommentInput(false);
+        setSelectedType(null);
         setComment('');
       }
     };
@@ -59,7 +61,7 @@ export const QuestionCard = memo(function QuestionCard({
     if (!analysisId) return;
     setIsSubmitting(true);
     try {
-      await analysisService.submitFeedback(
+      const badge = await analysisService.submitFeedback(
         analysisId,
         q.id,
         feedbackType as 'wrong_recognition' | 'wrong_topic' | 'wrong_difficulty' | 'other',
@@ -67,8 +69,13 @@ export const QuestionCard = memo(function QuestionCard({
       );
       setFeedbackSent(true);
       setShowFeedback(false);
-      setShowCommentInput(false);
+      setSelectedType(null);
       setComment('');
+      if (badge) {
+        setBadgeEarned(badge);
+        // 3초 후 배지 알림 숨김
+        setTimeout(() => setBadgeEarned(null), 3000);
+      }
     } catch (error) {
       console.error('피드백 전송 실패:', error);
     } finally {
@@ -76,20 +83,29 @@ export const QuestionCard = memo(function QuestionCard({
     }
   };
 
-  const handleOtherClick = () => {
-    setShowCommentInput(true);
+  const handleTypeSelect = (type: string) => {
+    setSelectedType(type);
   };
 
   const handleCommentSubmit = () => {
-    if (comment.trim()) {
-      handleFeedback('other', comment.trim());
+    if (selectedType) {
+      handleFeedback(selectedType, comment.trim() || undefined);
     }
+  };
+
+  const handleBack = () => {
+    setSelectedType(null);
+    setComment('');
   };
 
   const handleCancel = () => {
     setShowFeedback(false);
-    setShowCommentInput(false);
+    setSelectedType(null);
     setComment('');
+  };
+
+  const getSelectedTypeLabel = () => {
+    return FEEDBACK_TYPES.find(t => t.value === selectedType)?.label || '';
   };
 
   const diffConfig = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || DIFFICULTY_COLORS.medium;
@@ -175,12 +191,12 @@ export const QuestionCard = memo(function QuestionCard({
       </td>
 
       {/* 피드백 */}
-      <td className="px-3 py-2 text-center">
+      <td className="px-3 py-2 text-center whitespace-nowrap">
         {analysisId && (
           <div className="relative inline-block" ref={feedbackRef}>
             {feedbackSent ? (
-              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium whitespace-nowrap">
+                <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 완료
@@ -188,14 +204,14 @@ export const QuestionCard = memo(function QuestionCard({
             ) : (
               <button
                 onClick={() => setShowFeedback(!showFeedback)}
-                className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors ${
+                className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors whitespace-nowrap ${
                   showFeedback
                     ? 'bg-gray-100 text-gray-700'
                     : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
                 }`}
                 title="오류 신고"
               >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 신고
@@ -204,78 +220,101 @@ export const QuestionCard = memo(function QuestionCard({
 
             {/* 드롭다운 메뉴 */}
             {showFeedback && !feedbackSent && (
-              <div className="absolute right-0 top-full mt-1 z-20 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
-                <div className="px-3 py-1.5 border-b border-gray-100">
-                  <p className="text-xs font-medium text-gray-600">오류 유형</p>
-                </div>
-
-                {showCommentInput ? (
+              <div className="absolute right-0 top-full mt-1 z-20 w-52 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                {selectedType ? (
+                  /* 코멘트 입력 단계 */
                   <div className="p-2">
-                    <input
-                      type="text"
+                    <div className="flex items-center gap-2 mb-2">
+                      <button
+                        onClick={handleBack}
+                        className="text-gray-400 hover:text-gray-600"
+                        title="뒤로"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <span className="text-xs font-medium text-gray-700">{getSelectedTypeLabel()}</span>
+                    </div>
+                    <textarea
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
-                      placeholder="오류 내용 입력"
-                      className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="상세 내용 입력 (선택사항)&#10;예: 3번 문제가 정답인데 오답으로 표시됨"
+                      className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                      rows={3}
                       disabled={isSubmitting}
                       autoFocus
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleCommentSubmit();
                         if (e.key === 'Escape') handleCancel();
                       }}
                     />
                     <div className="flex gap-1.5 mt-2">
                       <button
                         onClick={handleCommentSubmit}
-                        disabled={isSubmitting || !comment.trim()}
-                        className="flex-1 text-xs px-2 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white rounded-md transition-colors"
-                      >
-                        제출
-                      </button>
-                      <button
-                        onClick={handleCancel}
                         disabled={isSubmitting}
-                        className="text-xs px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                        className="flex-1 text-xs px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white rounded-md transition-colors"
                       >
-                        취소
+                        {isSubmitting ? '전송중...' : comment.trim() ? '코멘트와 함께 제출' : '제출'}
                       </button>
                     </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5 text-center">
+                      코멘트 없이 제출해도 됩니다
+                    </p>
                   </div>
                 ) : (
-                  <div className="py-0.5">
-                    {FEEDBACK_TYPES.map((type) => (
+                  /* 유형 선택 단계 */
+                  <>
+                    <div className="px-3 py-1.5 border-b border-gray-100">
+                      <p className="text-xs font-medium text-gray-600">오류 유형 선택</p>
+                      <p className="text-[10px] text-indigo-500 mt-0.5">더 정확한 분석에 도움이 됩니다</p>
+                    </div>
+                    <div className="py-0.5">
+                      {FEEDBACK_TYPES.map((type) => (
+                        <button
+                          key={type.value}
+                          onClick={() => handleTypeSelect(type.value)}
+                          disabled={isSubmitting}
+                          className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            type.value === 'wrong_recognition' ? 'bg-red-400' :
+                            type.value === 'wrong_topic' ? 'bg-amber-400' :
+                            type.value === 'wrong_difficulty' ? 'bg-blue-400' : 'bg-gray-400'
+                          }`} />
+                          {type.label}
+                          <svg className="w-3 h-3 ml-auto text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="border-t border-gray-100 px-2 py-1.5">
                       <button
-                        key={type.value}
-                        onClick={() =>
-                          type.value === 'other'
-                            ? handleOtherClick()
-                            : handleFeedback(type.value)
-                        }
-                        disabled={isSubmitting}
-                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        onClick={handleCancel}
+                        className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors"
                       >
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          type.value === 'wrong_recognition' ? 'bg-red-400' :
-                          type.value === 'wrong_topic' ? 'bg-amber-400' :
-                          type.value === 'wrong_difficulty' ? 'bg-blue-400' : 'bg-gray-400'
-                        }`} />
-                        {type.label}
+                        닫기
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  </>
                 )}
-
-                <div className="border-t border-gray-100 px-2 py-1.5">
-                  <button
-                    onClick={handleCancel}
-                    className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    닫기
-                  </button>
-                </div>
               </div>
             )}
           </div>
+        )}
+
+        {/* 배지 획득 토스트 */}
+        {badgeEarned && createPortal(
+          <div className="fixed bottom-4 right-4 z-[9999] animate-bounce">
+            <div className="bg-gradient-to-r from-amber-400 to-yellow-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3">
+              <span className="text-2xl">{badgeEarned.icon}</span>
+              <div>
+                <p className="font-bold text-sm">배지 획득!</p>
+                <p className="text-xs opacity-90">{badgeEarned.name}</p>
+              </div>
+            </div>
+          </div>,
+          document.body
         )}
       </td>
     </tr>
