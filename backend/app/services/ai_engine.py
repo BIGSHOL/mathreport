@@ -14,9 +14,9 @@ from typing import Any
 from google import genai
 from google.genai import types
 from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.supabase_client import SupabaseClient
 from app.schemas.pattern import (
     ExamContext,
     BuildPromptRequest,
@@ -60,12 +60,13 @@ class AIEngine:
         file_parts = []
 
         for fp in file_paths:
-            path = Path(fp)
-            if not path.exists():
+            try:
+                file_content, mime_type = await self._load_file_content(fp)
+                if file_content:
+                    file_parts.append(types.Part.from_bytes(data=file_content, mime_type=mime_type))
+            except Exception as e:
+                print(f"[Classification] Error loading file {fp}: {e}")
                 continue
-            file_content = path.read_bytes()
-            mime_type = self._get_mime_type(path)
-            file_parts.append(types.Part.from_bytes(data=file_content, mime_type=mime_type))
 
         if not file_parts:
             return ExamPaperClassification(
@@ -143,7 +144,7 @@ class AIEngine:
             if not response.text:
                 raise ValueError("Empty response")
 
-            result = json.loads(response.text)
+            result = self._parse_json_response(response.text)
 
             # ExamPaperClassification 객체로 변환
             question_details = []
@@ -166,20 +167,20 @@ class AIEngine:
                     confidence=q.get("confidence", 0.5),
                 ))
 
-            summary = result.get("summary", {})
+            summary = result.get("summary") or {}
 
             return ExamPaperClassification(
                 paper_type=result.get("paper_type", "unknown"),
-                confidence=result.get("paper_type_confidence", 0.5),
-                indicators=result.get("paper_type_indicators", []),
+                confidence=result.get("paper_type_confidence") or 0.5,
+                indicators=result.get("paper_type_indicators") or [],
                 grading_status=result.get("grading_status", "unknown"),
-                grading_indicators=result.get("grading_indicators", []),
+                grading_indicators=result.get("grading_indicators") or [],
                 question_details=question_details,
-                total_questions=result.get("total_questions", 0),
-                answered_count=summary.get("answered_count", 0),
-                correct_count=summary.get("correct_count", 0),
-                incorrect_count=summary.get("incorrect_count", 0),
-                blank_count=summary.get("blank_count", 0),
+                total_questions=result.get("total_questions") or 0,
+                answered_count=summary.get("answered_count") or 0,
+                correct_count=summary.get("correct_count") or 0,
+                incorrect_count=summary.get("incorrect_count") or 0,
+                blank_count=summary.get("blank_count") or 0,
             )
 
         except Exception as e:
@@ -196,7 +197,7 @@ class AIEngine:
     # ============================================
     async def build_dynamic_prompt(
         self,
-        db: AsyncSession,
+        db: SupabaseClient,
         exam_context: ExamContext,
         include_error_patterns: bool = True,
         include_examples: bool = True,
@@ -227,7 +228,7 @@ class AIEngine:
     # ============================================
     async def analyze_exam_with_patterns(
         self,
-        db: AsyncSession,
+        db: SupabaseClient,
         file_path: str,
         grade_level: str | None = None,
         unit: str | None = None,
@@ -283,7 +284,7 @@ class AIEngine:
 
         # 4. AI 분석 실행
         print(f"[Step 3] AI 분석 실행 중... (exam_type={exam_type})")
-        result = self.analyze_exam_file(
+        result = await self.analyze_exam_file(
             file_path=file_path,
             dynamic_prompt_additions="",  # 동적 프롬프트가 이미 포함됨
             exam_type=exam_type,
@@ -308,7 +309,7 @@ class AIEngine:
     # ============================================
     # 4. 기본 분석 (기존 호환)
     # ============================================
-    def analyze_exam_file(
+    async def analyze_exam_file(
         self,
         file_path: str,
         dynamic_prompt_additions: str = "",
@@ -334,12 +335,9 @@ class AIEngine:
         file_parts = []
 
         for fp in file_paths:
-            path = Path(fp)
-            if not path.exists():
-                raise FileNotFoundError(f"File not found: {fp}")
-
-            file_content = path.read_bytes()
-            mime_type = self._get_mime_type(path)
+            file_content, mime_type = await self._load_file_content(fp)
+            if file_content is None:
+                raise FileNotFoundError(f"파일을 찾을 수 없습니다: {fp}")
             file_parts.append(types.Part.from_bytes(data=file_content, mime_type=mime_type))
 
         # 여러 이미지인 경우 안내 메시지 추가
@@ -381,7 +379,7 @@ class AIEngine:
                         config=types.GenerateContentConfig(
                             response_mime_type="application/json",
                             temperature=0.1,
-                            max_output_tokens=16384,
+                            max_output_tokens=65536,  # Gemini 2.5 Flash max
                         ),
                     )
 
@@ -392,14 +390,17 @@ class AIEngine:
                         print(f"[Attempt {attempt + 1}] Finish reason: {finish_reason}")
 
                         if finish_reason and "MAX_TOKENS" in str(finish_reason):
-                            print(f"Response truncated due to max tokens, retrying...")
-                            continue
+                            # 65536 토큰에서도 잘리면 더 이상 재시도 불가
+                            raise ValueError(
+                                "응답이 최대 토큰 한도(65536)를 초과했습니다. "
+                                "시험지 이미지가 너무 복잡하거나 문제 수가 많습니다."
+                            )
 
                     # Parse JSON
                     if not response.text:
                         raise ValueError("Empty response from AI")
 
-                    result = json.loads(response.text)
+                    result = self._parse_json_response(response.text)
 
                     # 검증 및 신뢰도 계산
                     validated_result, confidence = self._validate_result(result, exam_type)
@@ -501,7 +502,27 @@ class AIEngine:
 
             q["confidence"] = round(max(0.0, min(1.0, q_confidence)), 2)
 
-        # 3. 분포 일치 검증
+        # 3. 문항 번호 연속성 검증 (누락 감지)
+        if result.get("questions"):
+            question_numbers = []
+            for q in result["questions"]:
+                qnum = q.get("question_number")
+                if isinstance(qnum, int):
+                    question_numbers.append(qnum)
+                elif isinstance(qnum, str) and qnum.isdigit():
+                    question_numbers.append(int(qnum))
+
+            if question_numbers:
+                question_numbers.sort()
+                expected_nums = list(range(1, max(question_numbers) + 1))
+                missing_nums = set(expected_nums) - set(question_numbers)
+
+                if missing_nums:
+                    confidence -= 0.1 * len(missing_nums)
+                    issues.append(f"누락된 문항: {sorted(missing_nums)}")
+                    print(f"[Validation] ⚠️ 누락된 문항 번호: {sorted(missing_nums)}")
+
+        # 4. 분포 일치 검증
         if result.get("questions"):
             actual_diff = {"high": 0, "medium": 0, "low": 0}
             actual_type: dict[str, int] = {}
@@ -523,7 +544,7 @@ class AIEngine:
                 "statistics": actual_type.get("statistics", 0),
             }
 
-        # 4. 신뢰도 점수 반환
+        # 5. 신뢰도 점수 반환
         confidence = max(0.0, min(1.0, confidence))
 
         if issues:
@@ -547,6 +568,26 @@ class AIEngine:
             "dominant_type": "calculation"
         }
 
+    def _parse_json_response(self, text: str) -> dict:
+        """Gemini 응답에서 JSON 파싱 (후행 쉼표 등 정리)."""
+        import re
+
+        json_text = text.strip()
+
+        # 코드 블록 마커 제거
+        if json_text.startswith("```"):
+            json_text = json_text.split("\n", 1)[1] if "\n" in json_text else json_text[3:]
+        if json_text.endswith("```"):
+            json_text = json_text[:-3]
+        json_text = json_text.strip()
+
+        try:
+            return json.loads(json_text)
+        except json.JSONDecodeError:
+            # 후행 쉼표 제거 시도
+            cleaned = re.sub(r',(\s*[}\]])', r'\1', json_text)
+            return json.loads(cleaned)
+
     def _get_mime_type(self, file_path: Path) -> str:
         """파일 확장자로 MIME 타입 결정."""
         suffix = file_path.suffix.lower()
@@ -559,6 +600,52 @@ class AIEngine:
         else:
             return "image/jpeg"
 
+    def _get_mime_type_from_path(self, file_path: str) -> str:
+        """파일 경로 문자열에서 MIME 타입 결정."""
+        path_lower = file_path.lower()
+        if path_lower.endswith(".png"):
+            return "image/png"
+        elif path_lower.endswith(".pdf"):
+            return "application/pdf"
+        elif path_lower.endswith(".jpg") or path_lower.endswith(".jpeg"):
+            return "image/jpeg"
+        else:
+            return "image/jpeg"
+
+    async def _load_file_content(self, file_path: str) -> tuple[bytes | None, str]:
+        """파일 경로에서 콘텐츠를 로드합니다.
+
+        로컬 파일 또는 Supabase Storage에서 다운로드합니다.
+
+        Args:
+            file_path: 파일 경로 (로컬 또는 supabase://...)
+
+        Returns:
+            (file_content, mime_type) 튜플
+        """
+        from app.services.file_storage import file_storage
+
+        if file_path.startswith("supabase://"):
+            # Supabase Storage에서 다운로드
+            try:
+                content = await file_storage.download_file(file_path)
+                mime_type = self._get_mime_type_from_path(file_path)
+                print(f"[FileLoad] Downloaded from Supabase: {file_path[:50]}... ({len(content)} bytes)")
+                return content, mime_type
+            except Exception as e:
+                print(f"[FileLoad] Supabase download failed: {e}")
+                return None, ""
+        else:
+            # 로컬 파일
+            path = Path(file_path)
+            if not path.exists():
+                print(f"[FileLoad] Local file not found: {file_path}")
+                return None, ""
+            content = path.read_bytes()
+            mime_type = self._get_mime_type(path)
+            print(f"[FileLoad] Read local file: {file_path} ({len(content)} bytes)")
+            return content, mime_type
+
     def _get_blank_prompt(self) -> str:
         """빈 시험지용 기본 프롬프트"""
         return """
@@ -566,11 +653,16 @@ class AIEngine:
 
 ## 분석 단계 (Chain of Thought)
 
-### STEP 1: 문제 추출
+### STEP 1: 문제 추출 (⚠️ 누락 금지)
 시험지를 주의 깊게 살펴보고 다음을 파악하세요:
 - 총 문항 수 (객관식 + 서답형)
 - 각 문항의 번호와 배점
 - 서답형 문제의 소문제 구조
+
+⚠️ **필수**: 1번부터 마지막 문항까지 **빠짐없이** 모두 분석하세요.
+- 문항 번호가 연속적인지 확인 (1, 2, 3, ... 순서)
+- 채점 표시(X, O, ✓)가 있어도 해당 문항을 반드시 포함
+- 손글씨나 표시가 많아도 문항 번호를 정확히 인식
 
 ### STEP 2: 문항별 분류
 각 문항에 대해:
@@ -673,13 +765,19 @@ class AIEngine:
 
 ## 분석 단계 (Chain of Thought)
 
-### STEP 1: 문제 및 채점 추출
+### STEP 1: 문제 및 채점 추출 (⚠️ 누락 금지)
 시험지를 주의 깊게 살펴보고 다음을 파악하세요:
 - 총 문항 수 (객관식 + 서답형)
 - 각 문항의 번호와 배점
 - **정답/오답 표시 인식** (O, X, ✓, ✗, 빨간펜, 동그라미 등)
 - **학생이 작성한 답안** (선택지 번호, 서술 내용 등)
 - **획득 점수** (부분 점수 포함)
+
+⚠️ **필수**: 1번부터 마지막 문항까지 **빠짐없이** 모두 분석하세요.
+- 문항 번호가 연속적인지 확인 (1, 2, 3, ... 순서)
+- 채점 표시(X, O, ✓)가 크게 표시되어 있어도 해당 문항을 반드시 포함
+- 손글씨, 빨간펜 표시가 많아도 문항 번호를 정확히 인식
+- 틀린 문제도 건너뛰지 말고 반드시 분석에 포함
 
 ### STEP 2: 문항별 분류 + 정오답 분석
 각 문항에 대해:
