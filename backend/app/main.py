@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api.v1 import auth, exam, users, analysis, subscription, ai_learning, pattern
+from app.api.v1 import auth, exam, users, analysis, subscription, ai_learning, pattern, reference
 
 # CORS origins
 CORS_ORIGINS = [
@@ -99,6 +99,7 @@ app.include_router(analysis.router, prefix="/api/v1")
 app.include_router(subscription.router, prefix="/api/v1/subscription")
 app.include_router(ai_learning.router, prefix="/api/v1/admin")
 app.include_router(pattern.router, prefix="/api/v1")
+app.include_router(reference.router, prefix="/api/v1")
 
 
 @app.get("/health")

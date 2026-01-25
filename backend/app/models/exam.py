@@ -45,23 +45,25 @@ class Exam(Base):
     subject: Mapped[str] = mapped_column(String(50), nullable=False, default="수학")
     unit: Mapped[str | None] = mapped_column(String(100), nullable=True)
     exam_type: Mapped[str] = mapped_column(
-        SQLEnum(ExamTypeEnum, native_enum=False, length=20),
+        String(20),
         nullable=False,
-        default=ExamTypeEnum.BLANK
+        default="blank"
     )
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    file_type: Mapped[str] = mapped_column(
-        SQLEnum(FileTypeEnum, native_enum=False, length=10),
-        nullable=False
-    )
-    status: Mapped[str] = mapped_column(
-        SQLEnum(ExamStatusEnum, native_enum=False, length=20),
-        nullable=False,
-        default=ExamStatusEnum.PENDING
-    )
+    file_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
+    # AI 자동 감지 결과
+    detected_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    detection_confidence: Mapped[float | None] = mapped_column(nullable=True)
+    # 채점 상태 (not_graded, partially_graded, fully_graded)
+    grading_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # AI가 추출한 시험지 메타데이터 기반 제목 제안
+    suggested_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # 추출된 학년 정보 (AI 분석)
+    extracted_grade: Mapped[str | None] = mapped_column(String(20), nullable=True)

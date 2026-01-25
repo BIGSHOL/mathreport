@@ -1,19 +1,18 @@
 /**
  * Exam upload form component.
+ * AI가 업로드 시 자동으로 유형을 감지하고, 분석 전 모달에서 확인/변경 가능
  * Implements: rerender-functional-setstate, rendering-hoist-jsx
  */
 import { useState, useCallback, useRef } from 'react';
-import type { ExamType } from '../../services/exam';
 
 interface UploadFormProps {
-  onUpload: (data: { files: File[]; title: string; examType: ExamType }) => Promise<void>;
+  onUpload: (data: { files: File[]; title: string }) => Promise<void>;
   isUploading: boolean;
 }
 
 export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
   const [title, setTitle] = useState('');
   const [files, setFiles] = useState<File[]>([]);
-  const [examType, setExamType] = useState<ExamType>('blank');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = useCallback(
@@ -22,11 +21,10 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
       if (files.length === 0 || !title) return;
 
       try {
-        await onUpload({ files, title, examType });
+        await onUpload({ files, title });
         // Reset form on success
         setTitle('');
         setFiles([]);
-        setExamType('blank');
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -34,7 +32,7 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
         // Error handled by parent
       }
     },
-    [files, title, examType, onUpload]
+    [files, title, onUpload]
   );
 
   /**
@@ -131,64 +129,11 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
         새 시험지 업로드
       </h3>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* 시험지 유형 선택 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            시험지 유형
-          </label>
-          <div className="flex gap-4">
-            <label className={`flex-1 flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
-              examType === 'blank' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
-            }`}>
-              <input
-                type="radio"
-                name="examType"
-                value="blank"
-                checked={examType === 'blank'}
-                onChange={() => setExamType('blank')}
-                className="sr-only"
-              />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    examType === 'blank' ? 'border-indigo-500' : 'border-gray-300'
-                  }`}>
-                    {examType === 'blank' && <span className="w-2 h-2 rounded-full bg-indigo-500" />}
-                  </span>
-                  <span className="font-medium text-gray-900">빈 시험지</span>
-                  <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">1크레딧</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1 ml-6">문제만 있는 시험지 (출제 분석용)</p>
-              </div>
-            </label>
-            <label className={`flex-1 flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
-              examType === 'student' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
-            }`}>
-              <input
-                type="radio"
-                name="examType"
-                value="student"
-                checked={examType === 'student'}
-                onChange={() => setExamType('student')}
-                className="sr-only"
-              />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    examType === 'student' ? 'border-indigo-500' : 'border-gray-300'
-                  }`}>
-                    {examType === 'student' && <span className="w-2 h-2 rounded-full bg-indigo-500" />}
-                  </span>
-                  <span className="font-medium text-gray-900">학생 답안지</span>
-                  <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">2크레딧</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1 ml-6">정오답 표시된 시험지 (취약점 분석 가능)</p>
-              </div>
-            </label>
-          </div>
-        </div>
+        {/* 안내 메시지 */}
+        <p className="text-sm text-gray-500">
+          AI가 자동으로 시험지 유형을 감지합니다. 분석 전에 확인/변경할 수 있습니다.
+        </p>
 
-        {/* 기존 입력 필드 */}
         <div className="md:flex md:space-x-4 md:items-end">
           <div className="flex-1">
             <label
@@ -213,6 +158,7 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
             className="block text-sm font-medium text-gray-700"
           >
             파일 (PDF 또는 이미지 여러 장)
+            <span className="ml-2 text-xs font-normal text-gray-400">최대 20MB</span>
           </label>
           <input
             ref={fileInputRef}

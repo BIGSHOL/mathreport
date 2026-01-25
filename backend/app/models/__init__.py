@@ -14,6 +14,11 @@ from app.models.pattern import (
     GradeLevel,
     DifficultyLevel,
 )
+from app.models.reference import (
+    QuestionReference,
+    CollectionReason,
+    ReviewStatus,
+)
 
 __all__ = [
     # User
@@ -42,4 +47,8 @@ __all__ = [
     "PatternMatchHistory",
     "GradeLevel",
     "DifficultyLevel",
+    # Question Reference
+    "QuestionReference",
+    "CollectionReason",
+    "ReviewStatus",
 ]

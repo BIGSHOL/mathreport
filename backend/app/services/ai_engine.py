@@ -75,38 +75,142 @@ class AIEngine:
                 grading_status="unknown",
             )
 
-        # 분류 프롬프트
+        # 분류 프롬프트 - 인쇄물 vs 손글씨 구분 강화
         classification_prompt = """이 시험지 이미지를 분석하여 유형을 분류해주세요.
+
+## ⚠️ 매우 중요: 인쇄된 내용 vs 손글씨 구분
+
+### 인쇄된 내용 (printed content) - 이것은 "답안"이 아닙니다!
+빈 시험지에도 다음과 같은 **인쇄된 내용**은 존재합니다:
+- 문제 번호 (1, 2, 3... 또는 ①, ②, ③...)
+- 문제 텍스트, 수식, 방정식
+- 객관식 보기 (① ② ③ ④ ⑤)
+- 표, 그래프, 그림, 도형
+- 시험지 제목, 학교명, 학년, 날짜
+- 답안 작성란의 빈 네모칸, 빈 줄
+- 배점 표시 (3점, 4점 등)
+- 페이지 번호
+- 인쇄된 안내문, 주의사항
+
+### 손글씨 답안 (handwritten answers) - 이것만 "답안"입니다!
+학생이 직접 손으로 쓴 내용:
+- 연필, 검정펜, 파란펜으로 쓴 글씨나 숫자
+- 객관식 문제에서 학생이 직접 동그라미 친 것 (손으로 그린 원)
+- 풀이 과정으로 쓴 수식, 계산 과정
+- 문제 옆에 메모한 내용
+- 답안란에 작성한 답
+
+### 인쇄물 vs 손글씨 구분법:
+1. 깔끔하고 균일한 글자체 = 인쇄 (폰트)
+2. 불규칙하고 개인적인 필체 = 손글씨
+3. 완벽하게 정렬된 텍스트 = 인쇄
+4. 약간 삐뚤빼뚤한 글씨 = 손글씨
+5. 흐릿하거나 스캔 노이즈 = 인쇄 결과물 (손글씨 아님!)
+6. 답안란이 비어있음 = 빈 시험지
 
 ## 분류 항목
 
 1. paper_type (시험지 유형):
-   - "blank": 빈 시험지 (답안 없음)
-   - "answered": 학생 답안 작성됨
-   - "mixed": 일부만 답안 있음
+   - "blank": 빈 시험지 (손글씨 답안이 전혀 없음, 인쇄 내용만 있음)
+   - "answered": 학생 답안 작성됨 (손글씨 답안이 있음)
+   - "mixed": 일부 문항만 답안 있음
 
 2. grading_status (채점 상태):
-   - "not_graded": 채점 안됨
-   - "partially_graded": 일부만 채점
+   - "not_graded": 채점 안됨 (빨간펜 채점 표시 없음)
+   - "partially_graded": 일부만 채점됨
    - "fully_graded": 전체 채점됨
+   - "not_applicable": 빈 시험지라 채점 불가
 
 3. 문항별 정보 (가능한 경우)
 
-## 판단 기준
-- 손글씨 답안 유무
-- 채점 표시 (O, X, ○, ✗, 동그라미, 체크)
-- 점수 기재 여부
-- 빨간펜/파란펜 표시
+## ⚠️ 채점 표시 구분
+
+### 채점 표시 (grading marks) - 이것이 있어야 채점됨:
+- 빨간색/빨간펜 O, X 표시 (선생님이 표시)
+- 빨간색 동그라미, 체크 표시 (✓, ✗)
+- 빨간색 밑줄, 빗금
+- 점수 기재 (예: "-3점", "8/10", "4점 감점")
+- 빨간색 수정/코멘트
+
+### 채점이 아닌 것:
+- 인쇄된 O, X (문제의 일부)
+- 검정/파랑 펜으로 쓴 학생의 답안
+- 학생이 직접 동그라미 친 객관식 선택
+
+### 판단 규칙:
+1. 손글씨 답안이 전혀 없으면 → paper_type: "blank"
+2. paper_type이 "blank"면 → grading_status: "not_applicable"
+3. 빨간색 채점 표시가 없으면 → grading_status: "not_graded"
+
+## 📋 시험지 메타데이터 추출 (매우 중요!)
+
+시험지 이미지에서 다음 정보를 찾아 추출해주세요.
+주로 시험지 상단(헤더), 하단(푸터), 첫 페이지, 마지막 페이지에 있습니다.
+
+### 추출할 정보:
+1. **school_name**: 학교명 (예: "서울중학교", "한국고등학교")
+2. **exam_title**: 시험 제목 (예: "1학기 중간고사", "2학기 기말고사", "3월 모의고사")
+3. **grade**: 학년 (예: "1학년", "2학년", "중1", "고2")
+4. **class_info**: 반 정보 (예: "3반", "1-3", 없으면 null)
+5. **date**: 시험 날짜 (예: "2025.04.15", "2025년 4월", 없으면 null)
+6. **subject**: 과목 (예: "수학", "수학Ⅰ", "확률과 통계")
+7. **semester**: 학기 (예: "1학기", "2학기", 없으면 null)
+8. **year**: 학년도 (예: "2025", "2024학년도")
+
+### 주의사항:
+- 정보가 없으면 null로 설정
+- 여러 페이지인 경우 모든 페이지에서 정보 수집
+- 페이지 하단의 작은 글씨도 확인 (학교명, 페이지 번호 등)
+- "제1학년" → "1학년"으로 정규화
+- "○○중학교 제1학년 수학" 형태 주의
+
+### suggested_title 생성 규칙:
+추출한 정보로 제목 생성: "[학교명] [학년] [학기] [시험제목]"
+예시:
+- "서울중학교 1학년 1학기 중간고사"
+- "한국고 고2 2학기 기말고사"
+- "중3 3월 모의고사" (학교명 없을 때)
 
 ## 응답 형식 (JSON)
+
+### 빈 시험지 예시 (메타데이터 포함):
+{
+    "paper_type": "blank",
+    "paper_type_confidence": 0.95,
+    "paper_type_indicators": ["답안란 비어있음", "손글씨 없음", "인쇄물만 존재"],
+    "grading_status": "not_applicable",
+    "grading_confidence": 1.0,
+    "grading_indicators": ["채점 대상 없음"],
+    "total_questions": 20,
+    "question_details": [],
+    "summary": {
+        "answered_count": 0,
+        "correct_count": 0,
+        "incorrect_count": 0,
+        "blank_count": 20
+    },
+    "extracted_metadata": {
+        "school_name": "서울중학교",
+        "exam_title": "1학기 중간고사",
+        "grade": "1학년",
+        "class_info": null,
+        "date": "2025.04.15",
+        "subject": "수학",
+        "semester": "1학기",
+        "year": "2025",
+        "suggested_title": "서울중학교 1학년 1학기 중간고사"
+    }
+}
+
+### 학생 답안지 예시:
 {
     "paper_type": "answered",
     "paper_type_confidence": 0.95,
     "paper_type_indicators": ["손글씨 답안 감지", "여러 문항에 답안 작성"],
     "grading_status": "fully_graded",
     "grading_confidence": 0.90,
-    "grading_indicators": ["O/X 표시 발견", "점수 기재 확인"],
-    "total_questions": 10,
+    "grading_indicators": ["빨간펜 O/X 표시 발견", "점수 기재 확인"],
+    "total_questions": 20,
     "question_details": [
         {
             "question_number": 1,
@@ -117,10 +221,21 @@ class AIEngine:
         }
     ],
     "summary": {
-        "answered_count": 10,
-        "correct_count": 7,
-        "incorrect_count": 3,
+        "answered_count": 20,
+        "correct_count": 15,
+        "incorrect_count": 5,
         "blank_count": 0
+    },
+    "extracted_metadata": {
+        "school_name": "한국고등학교",
+        "exam_title": "2학기 기말고사",
+        "grade": "고2",
+        "class_info": "3반",
+        "date": "2024.12.10",
+        "subject": "수학Ⅱ",
+        "semester": "2학기",
+        "year": "2024",
+        "suggested_title": "한국고 고2 2학기 기말고사"
     }
 }
 """
@@ -167,6 +282,7 @@ class AIEngine:
                 ))
 
             summary = result.get("summary", {})
+            extracted_metadata = result.get("extracted_metadata")
 
             return ExamPaperClassification(
                 paper_type=result.get("paper_type", "unknown"),
@@ -180,6 +296,7 @@ class AIEngine:
                 correct_count=summary.get("correct_count", 0),
                 incorrect_count=summary.get("incorrect_count", 0),
                 blank_count=summary.get("blank_count", 0),
+                extracted_metadata=extracted_metadata,
             )
 
         except Exception as e:
@@ -364,61 +481,49 @@ class AIEngine:
             # 파일 파트 + 프롬프트 파트 결합
             all_parts = file_parts + [types.Part.from_text(text=prompt)]
 
-            # Call Gemini with retry logic
-            max_retries = 3
-            last_error = None
+            # Gemini API 호출 (재시도 없음 - 토큰은 한도가 아닌 실제 사용량만 과금)
+            max_output_tokens = 65536  # Gemini 1.5 Pro 최대치
 
-            for attempt in range(max_retries):
-                try:
-                    response = self.client.models.generate_content(
-                        model=self.model_name,
-                        contents=[
-                            types.Content(
-                                role="user",
-                                parts=all_parts,
-                            ),
-                        ],
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            temperature=0.1,
-                            max_output_tokens=16384,
-                        ),
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=all_parts,
+                    ),
+                ],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.1,
+                    max_output_tokens=max_output_tokens,
+                ),
+            )
+
+            # 응답 상태 확인
+            if response.candidates:
+                candidate = response.candidates[0]
+                finish_reason = getattr(candidate, 'finish_reason', None)
+                print(f"[AI] Finish reason: {finish_reason}")
+
+                if finish_reason and "MAX_TOKENS" in str(finish_reason):
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="시험지가 너무 복잡하여 분석할 수 없습니다. 페이지 수를 줄여주세요."
                     )
 
-                    # Check finish reason
-                    if response.candidates:
-                        candidate = response.candidates[0]
-                        finish_reason = getattr(candidate, 'finish_reason', None)
-                        print(f"[Attempt {attempt + 1}] Finish reason: {finish_reason}")
+            # 응답 파싱
+            if not response.text:
+                raise ValueError("Empty response from AI")
 
-                        if finish_reason and "MAX_TOKENS" in str(finish_reason):
-                            print(f"Response truncated due to max tokens, retrying...")
-                            continue
+            print(f"[AI Response Preview] {response.text[:500]}...")
 
-                    # Parse JSON
-                    if not response.text:
-                        raise ValueError("Empty response from AI")
+            result = json.loads(response.text)
 
-                    result = json.loads(response.text)
+            # 검증 및 신뢰도 계산
+            validated_result, confidence = self._validate_result(result, exam_type)
+            print(f"[Analysis] Confidence: {confidence:.2f}, Questions: {len(validated_result.get('questions', []))}")
 
-                    # 검증 및 신뢰도 계산
-                    validated_result, confidence = self._validate_result(result, exam_type)
-                    print(f"[Analysis] Confidence: {confidence:.2f}, Questions: {len(validated_result.get('questions', []))}")
-
-                    return validated_result
-
-                except json.JSONDecodeError as e:
-                    last_error = e
-                    print(f"[Attempt {attempt + 1}] JSON parse error: {e}")
-                    print(f"Response text (first 500 chars): {response.text[:500] if response.text else 'None'}")
-                    continue
-                except Exception as e:
-                    last_error = e
-                    print(f"[Attempt {attempt + 1}] Error: {e}")
-                    continue
-
-            # All retries failed
-            raise ValueError(f"Failed after {max_retries} attempts. Last error: {last_error}")
+            return validated_result
 
         except Exception as e:
             print(f"AI Analysis Error: {e}")
@@ -448,12 +553,14 @@ class AIEngine:
 
         for i, q in enumerate(result.get("questions", [])):
             q_confidence = q.get("confidence", 0.9)
+            q_issues = []  # 문항별 이슈 추적
 
             # 난이도 검증
             if q.get("difficulty") not in valid_difficulties:
                 q["difficulty"] = "medium"
                 confidence -= 0.05
                 q_confidence -= 0.15
+                q_issues.append("난이도 추정")
                 issues.append(f"Q{i+1}: 잘못된 난이도")
 
             # 유형 검증
@@ -461,6 +568,7 @@ class AIEngine:
                 q["question_type"] = "calculation"
                 confidence -= 0.05
                 q_confidence -= 0.15
+                q_issues.append("유형 추정")
                 issues.append(f"Q{i+1}: 잘못된 유형")
 
             # 토픽 형식 검증
@@ -468,6 +576,7 @@ class AIEngine:
             if topic and " > " not in topic:
                 confidence -= 0.03
                 q_confidence -= 0.1
+                q_issues.append("단원 형식 불명확")
                 issues.append(f"Q{i+1}: 토픽 형식 오류")
 
             # 배점 검증
@@ -476,6 +585,12 @@ class AIEngine:
                 q["points"] = 4
                 confidence -= 0.02
                 q_confidence -= 0.05
+                q_issues.append("배점 추정")
+
+            # AI 원본 신뢰도가 낮은 경우
+            original_conf = q.get("confidence", 0.9)
+            if original_conf < 0.7:
+                q_issues.append("AI 인식 불확실")
 
             # 학생 답안지용 필드 검증
             if exam_type == "student":
@@ -487,6 +602,7 @@ class AIEngine:
                 if error_type and error_type not in valid_error_types:
                     q["error_type"] = "concept_error"
                     q_confidence -= 0.05
+                    q_issues.append("오류유형 추정")
 
                 if "is_correct" not in q:
                     q["is_correct"] = None
@@ -500,6 +616,10 @@ class AIEngine:
                         q["earned_points"] = None
 
             q["confidence"] = round(max(0.0, min(1.0, q_confidence)), 2)
+
+            # 신뢰도 낮은 이유 저장 (70% 미만일 때만)
+            if q["confidence"] < 0.7 and q_issues:
+                q["confidence_reason"] = ", ".join(q_issues)
 
         # 3. 분포 일치 검증
         if result.get("questions"):
@@ -562,31 +682,36 @@ class AIEngine:
     def _get_blank_prompt(self) -> str:
         """빈 시험지용 기본 프롬프트"""
         return """
-당신은 한국 고등학교 수학 시험지 분석 전문가입니다.
+당신은 한국 중·고등학교 수학 시험지 분석 전문가입니다.
 
 ## 분석 단계 (Chain of Thought)
 
 ### STEP 1: 문제 추출
 시험지를 주의 깊게 살펴보고 다음을 파악하세요:
-- 총 문항 수 (객관식 + 서답형)
+- 총 문항 수 (객관식 + 단답형 + 서술형)
 - 각 문항의 번호와 배점
-- 서답형 문제의 소문제 구조
+- 문항 형식 구분 (객관식/단답형/서술형)
+- 서술형 문제의 소문제 구조
 
 ### STEP 2: 문항별 분류
 각 문항에 대해:
-1. 어떤 개념을 묻는가? → 토픽 분류
-2. 얼마나 어려운가? → 난이도 판정
-3. 어떤 유형인가? → 문제 유형
+1. 문항 형식은? → objective(객관식), short_answer(단답형), essay(서술형)
+2. 어떤 개념을 묻는가? → 토픽 분류
+3. 얼마나 어려운가? → 난이도 판정
+4. 어떤 유형인가? → 문제 유형
 
 ### STEP 3: JSON 출력
 아래 형식으로 정확하게 출력하세요:
 
 {
     "exam_info": {
-        "total_questions": 16,
+        "total_questions": 21,
         "total_points": 100,
-        "objective_count": 12,
-        "subjective_count": 4
+        "format_distribution": {
+            "objective": 16,
+            "short_answer": 0,
+            "essay": 5
+        }
     },
     "summary": {
         "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
@@ -600,17 +725,72 @@ class AIEngine:
     "questions": [
         {
             "question_number": 1,
+            "question_format": "objective",
             "difficulty": "low",
+            "difficulty_reason": "단순 공식 대입",
             "question_type": "calculation",
             "points": 3,
             "topic": "공통수학1 > 다항식 > 다항식의 연산",
             "ai_comment": "핵심 개념. 주의사항.",
             "confidence": 0.95
+        },
+        {
+            "question_number": "서술형 1",
+            "question_format": "essay",
+            "difficulty": "high",
+            "difficulty_reason": "복합 개념 필요, 다단계 추론",
+            "question_type": "proof",
+            "points": 8,
+            "topic": "중3 수학 > 다항식의 곱셈과 인수분해 > 인수분해",
+            "ai_comment": "풀이 과정 필수. 논리적 전개 중요.",
+            "confidence": 0.65,
+            "confidence_reason": "배점 불명확, 문제 일부 가림"
         }
     ]
 }
 
+## 문항 형식 (question_format)
+- objective: 객관식 (선택지 번호로 답하는 문제)
+- short_answer: 단답형 (간단한 수, 식으로 답하는 문제)
+- essay: 서술형/서답형 (풀이 과정을 쓰는 문제)
+
+⚠️ 시험지에 "서답형", "서술형", "주관식" 표기가 있으면 해당 형식으로 분류
+
 ## 토픽 분류표 (정확히 사용)
+
+⚠️ 시험지 상단의 학년 정보를 먼저 확인하세요!
+- "제3학년", "중3", "중학교 3학년" → 중3 수학 분류표 사용
+- "고1", "고등학교 1학년" → 공통수학 분류표 사용
+
+### 【중학교】
+
+[중1 수학]
+- 수와 연산: 소인수분해, 정수와 유리수, 정수와 유리수의 계산
+- 문자와 식: 문자의 사용과 식, 일차방정식
+- 좌표평면과 그래프: 좌표평면, 정비례와 반비례
+- 기본 도형: 점, 선, 면, 각, 위치 관계, 작도와 합동
+- 평면도형: 다각형, 원과 부채꼴
+- 입체도형: 다면체, 회전체, 입체도형의 겉넓이와 부피
+- 통계: 자료의 정리, 자료의 해석
+
+[중2 수학]
+- 수와 식: 유리수와 순환소수, 단항식의 계산, 다항식의 계산
+- 부등식과 연립방정식: 일차부등식, 연립일차방정식
+- 일차함수: 일차함수와 그래프, 일차함수와 일차방정식
+- 도형의 성질: 삼각형의 성질, 사각형의 성질
+- 도형의 닮음: 도형의 닮음, 평행선과 선분의 비, 닮음의 활용
+- 확률: 경우의 수, 확률
+
+[중3 수학]
+- 실수와 그 계산: 제곱근과 실수, 근호를 포함한 식의 계산
+- 다항식의 곱셈과 인수분해: 다항식의 곱셈, 인수분해
+- 이차방정식: 이차방정식의 풀이, 이차방정식의 활용
+- 이차함수: 이차함수와 그래프, 이차함수의 활용
+- 삼각비: 삼각비, 삼각비의 활용
+- 원의 성질: 원과 직선, 원주각
+- 통계: 대푯값과 산포도, 상관관계
+
+### 【고등학교】
 
 [공통수학1]
 - 다항식: 다항식의 연산, 항등식과 나머지정리, 인수분해
@@ -663,40 +843,50 @@ class AIEngine:
 6. topic 형식: "과목명 > 대단원 > 소단원"
 7. ai_comment: 정확히 2문장, 총 50자 이내
 8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
+9. difficulty_reason: 난이도 판단 근거 (15자 이내, 필수)
+   - high: "복합 개념 필요", "다단계 추론", "고난도 계산", "개념 응용력 필요"
+   - medium: "기본 개념 적용", "2단계 풀이"
+   - low: "단순 계산", "공식 대입", "기초 개념"
+10. confidence_reason: 신뢰도가 0.8 미만일 때 이유 설명 (선택)
+    - "배점 불명확", "문제 일부 가림", "글씨 인식 어려움", "단원 구분 모호"
 """
 
     def _get_student_prompt(self) -> str:
         """학생 답안지용 기본 프롬프트"""
         return """
-당신은 한국 고등학교 수학 시험지 분석 전문가입니다.
+당신은 한국 중·고등학교 수학 시험지 분석 전문가입니다.
 이것은 **학생이 푼 시험지**입니다. 정오답 분석이 필요합니다.
 
 ## 분석 단계 (Chain of Thought)
 
 ### STEP 1: 문제 및 채점 추출
 시험지를 주의 깊게 살펴보고 다음을 파악하세요:
-- 총 문항 수 (객관식 + 서답형)
-- 각 문항의 번호와 배점
+- 총 문항 수 (객관식 + 단답형 + 서술형)
+- 각 문항의 번호, 배점, 형식
 - **정답/오답 표시 인식** (O, X, ✓, ✗, 빨간펜, 동그라미 등)
 - **학생이 작성한 답안** (선택지 번호, 서술 내용 등)
 - **획득 점수** (부분 점수 포함)
 
 ### STEP 2: 문항별 분류 + 정오답 분석
 각 문항에 대해:
-1. 어떤 개념을 묻는가? → 토픽 분류
-2. 얼마나 어려운가? → 난이도 판정
-3. 어떤 유형인가? → 문제 유형
-4. **정답인가 오답인가?** → is_correct
-5. **오답일 경우 오류 유형** → error_type
+1. 문항 형식은? → objective(객관식), short_answer(단답형), essay(서술형)
+2. 어떤 개념을 묻는가? → 토픽 분류
+3. 얼마나 어려운가? → 난이도 판정
+4. 어떤 유형인가? → 문제 유형
+5. **정답인가 오답인가?** → is_correct
+6. **오답일 경우 오류 유형** → error_type
 
 ### STEP 3: JSON 출력
 
 {
     "exam_info": {
-        "total_questions": 16,
+        "total_questions": 21,
         "total_points": 100,
-        "objective_count": 12,
-        "subjective_count": 4,
+        "format_distribution": {
+            "objective": 16,
+            "short_answer": 0,
+            "essay": 5
+        },
         "earned_total_points": 72,
         "correct_count": 10,
         "wrong_count": 6
@@ -713,7 +903,9 @@ class AIEngine:
     "questions": [
         {
             "question_number": 1,
+            "question_format": "objective",
             "difficulty": "low",
+            "difficulty_reason": "단순 공식 대입",
             "question_type": "calculation",
             "points": 3,
             "topic": "공통수학1 > 다항식 > 다항식의 연산",
@@ -725,20 +917,56 @@ class AIEngine:
             "error_type": null
         },
         {
-            "question_number": 2,
-            "difficulty": "medium",
-            "question_type": "calculation",
-            "points": 4,
-            "topic": "공통수학1 > 방정식과 부등식 > 이차방정식",
-            "ai_comment": "근의 공식 활용. 판별식 주의.",
-            "confidence": 0.90,
+            "question_number": "서술형 1",
+            "question_format": "essay",
+            "difficulty": "high",
+            "difficulty_reason": "복합 개념 필요, 다단계 추론",
+            "question_type": "proof",
+            "points": 8,
+            "topic": "중3 수학 > 다항식의 곱셈과 인수분해 > 인수분해",
+            "ai_comment": "풀이 과정 필수. 인수분해 활용.",
+            "confidence": 0.65,
+            "confidence_reason": "풀이 일부 가림, 채점 표시 불명확",
             "is_correct": false,
-            "student_answer": "2",
-            "earned_points": 0,
-            "error_type": "calculation_error"
+            "student_answer": "(풀이과정)",
+            "earned_points": 4,
+            "error_type": "process_error"
         }
     ]
 }
+
+## 문항 형식 (question_format)
+- objective: 객관식 (선택지 번호로 답하는 문제)
+- short_answer: 단답형 (간단한 수, 식으로 답하는 문제)
+- essay: 서술형/서답형 (풀이 과정을 쓰는 문제)
+
+## 토픽 분류표 (정확히 사용)
+
+⚠️ 시험지 상단의 학년 정보를 먼저 확인하세요!
+
+### 【중학교】
+
+[중1 수학]
+- 수와 연산: 소인수분해, 정수와 유리수, 정수와 유리수의 계산
+- 문자와 식: 문자의 사용과 식, 일차방정식
+
+[중2 수학]
+- 수와 식: 유리수와 순환소수, 단항식의 계산, 다항식의 계산
+- 부등식과 연립방정식: 일차부등식, 연립일차방정식
+- 일차함수: 일차함수와 그래프, 일차함수와 일차방정식
+
+[중3 수학]
+- 실수와 그 계산: 제곱근과 실수, 근호를 포함한 식의 계산
+- 다항식의 곱셈과 인수분해: 다항식의 곱셈, 인수분해
+- 이차방정식: 이차방정식의 풀이, 이차방정식의 활용
+- 이차함수: 이차함수와 그래프, 이차함수의 활용
+
+### 【고등학교】
+
+[공통수학1] 다항식, 방정식과 부등식, 경우의 수
+[공통수학2] 도형의 방정식, 집합과 명제, 함수
+[수학1] 지수함수와 로그함수, 삼각함수, 수열
+[수학2] 함수의 극한과 연속, 미분, 적분
 
 ## 오류 유형 (error_type)
 
@@ -764,6 +992,12 @@ class AIEngine:
 5. topic 형식: "과목명 > 대단원 > 소단원"
 6. ai_comment: 정확히 2문장, 총 50자 이내
 7. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
+8. difficulty_reason: 난이도 판단 근거 (15자 이내, 필수)
+   - high: "복합 개념 필요", "다단계 추론", "고난도 계산"
+   - medium: "기본 개념 적용", "2단계 풀이"
+   - low: "단순 계산", "공식 대입", "기초 개념"
+9. confidence_reason: 신뢰도가 0.8 미만일 때 이유 설명 (선택)
+   - "배점 불명확", "문제 일부 가림", "글씨 인식 어려움", "채점 표시 불명확"
 """
 
 

@@ -49,20 +49,39 @@ export function useUploadExam() {
 }
 
 /**
- * Delete exam mutation hook.
+ * Delete exam mutation hook with optimistic update.
+ * Immediately removes item from list for instant UI feedback.
  */
 export function useDeleteExam() {
-  const { trigger, isMutating } = useSWRMutation(
-    EXAMS_KEY,
-    async (_key: string, { arg }: { arg: string }) => {
-      await examService.delete(arg);
-      return arg;
-    }
-  );
+  const { mutate } = useExams();
+
+  const deleteExam = async (examId: string) => {
+    // Optimistic update: immediately remove from list
+    await mutate(
+      (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          data: current.data.filter((exam) => exam.id !== examId),
+          meta: {
+            ...current.meta,
+            total: current.meta.total - 1,
+          },
+        };
+      },
+      { revalidate: false }
+    );
+
+    // Background delete - don't await for UI
+    examService.delete(examId).catch(() => {
+      // Rollback on error by revalidating
+      mutate();
+    });
+  };
 
   return {
-    deleteExam: trigger,
-    isDeleting: isMutating,
+    deleteExam,
+    isDeleting: false, // Always false since we don't wait
   };
 }
 

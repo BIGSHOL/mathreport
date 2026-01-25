@@ -152,7 +152,7 @@ export const ExamScopeView = memo(function ExamScopeView({
                   ) : null}
                   <td className="px-3 py-2 text-gray-700">{unit.name}</td>
                   <td className="px-3 py-2 text-right text-gray-600">{unit.count}</td>
-                  <td className="px-3 py-2 text-right text-gray-600">{unit.points}점</td>
+                  <td className="px-3 py-2 text-right text-gray-600">{Number(unit.points.toFixed(1))}점</td>
                 </tr>
               ))
             ))}
@@ -164,7 +164,7 @@ export const ExamScopeView = memo(function ExamScopeView({
                 {coveredSubjects.reduce((sum, s) => sum + s.count, 0)}
               </td>
               <td className="px-3 py-2 text-right">
-                {coveredSubjects.reduce((sum, s) => sum + s.points, 0)}점
+                {Number(coveredSubjects.reduce((sum, s) => sum + s.points, 0).toFixed(1))}점
               </td>
             </tr>
           </tfoot>

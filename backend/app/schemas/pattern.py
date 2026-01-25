@@ -25,10 +25,11 @@ ExamPaperType = Literal["blank", "answered", "mixed", "unknown"]
 # unknown: 판단 불가
 
 # 채점 상태
-GradingStatus = Literal["not_graded", "partially_graded", "fully_graded", "unknown"]
+GradingStatus = Literal["not_graded", "partially_graded", "fully_graded", "not_applicable", "unknown"]
 # not_graded: 채점 안됨 (답안만 있음)
 # partially_graded: 일부만 채점됨
 # fully_graded: 전체 채점됨
+# not_applicable: 빈 시험지라 채점 불가
 # unknown: 판단 불가
 
 # 답안 정오 상태
@@ -316,7 +317,7 @@ class BuildPromptResponse(BaseModel):
 # ============================================
 class QuestionAnswerInfo(BaseModel):
     """문항별 답안 정보"""
-    question_number: int = Field(..., description="문항 번호")
+    question_number: int | str = Field(..., description="문항 번호 (숫자 또는 '서답형 1' 등)")
     answer_status: AnswerStatus = Field(..., description="답안 상태")
     has_grading_mark: bool = Field(False, description="채점 표시 있음")
     grading_result: AnswerStatus | None = Field(None, description="채점 결과 (O/X)")
@@ -352,6 +353,19 @@ class ExamPaperClassification(BaseModel):
     correct_count: int = Field(0, description="정답 문항 수")
     incorrect_count: int = Field(0, description="오답 문항 수")
     blank_count: int = Field(0, description="미작성 문항 수")
+
+    # 시험지 메타데이터 (이미지에서 추출)
+    extracted_metadata: dict | None = Field(None, description="이미지에서 추출한 시험지 정보")
+    # {
+    #   "school_name": "서울중학교",
+    #   "exam_title": "1학기 중간고사",
+    #   "grade": "중1" or "1학년",
+    #   "class_info": "3반",
+    #   "date": "2025.04.15",
+    #   "subject": "수학",
+    #   "total_pages": 4,
+    #   "suggested_title": "서울중학교 중1 1학기 중간고사"
+    # }
 
 
 class ClassifyExamPaperRequest(BaseModel):

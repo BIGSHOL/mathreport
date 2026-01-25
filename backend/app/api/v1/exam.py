@@ -1,8 +1,10 @@
 """Exam API endpoints."""
+import asyncio
 import math
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,8 +26,36 @@ from app.schemas.exam import (
     PaginationMeta,
 )
 from app.services.exam import get_exam_service
+from app.services.ai_engine import ai_engine
 
 router = APIRouter(prefix="/exams", tags=["exams"])
+
+
+async def auto_classify_exam(exam_id: str, file_path: str, db: AsyncSession):
+    """Background task: AI auto-classification of exam type."""
+    try:
+        from app.services.exam import get_exam_service
+
+        classification = await ai_engine.classify_exam_paper(file_path)
+
+        # 분류 결과 해석
+        if classification.paper_type == "blank":
+            detected = "blank"
+        elif classification.paper_type in ["answered", "mixed"]:
+            detected = "student"
+        else:
+            detected = "blank"  # default
+
+        # DB 업데이트
+        exam_service = get_exam_service(db)
+        await exam_service.update_detection_result(
+            exam_id=exam_id,
+            detected_type=detected,
+            confidence=classification.confidence
+        )
+        print(f"[Auto-Classification] Exam {exam_id}: {detected} ({classification.confidence:.2f})")
+    except Exception as e:
+        print(f"[Auto-Classification Error] {e}")
 
 
 @router.post(
@@ -35,18 +65,19 @@ router = APIRouter(prefix="/exams", tags=["exams"])
     summary="시험지 업로드"
 )
 async def upload_exam(
+    files: Annotated[list[UploadFile], File(description="시험지 파일")],
     title: Annotated[str, Form()],
     subject: Annotated[str, Form()] = "수학",
     grade: Annotated[str | None, Form()] = None,
     unit: Annotated[str | None, Form()] = None,
     exam_type: Annotated[str, Form()] = "blank",
-    files: list[UploadFile] = File(...),
     current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
 ) -> ExamCreateResponse:
     """시험지 파일을 업로드합니다.
 
-    - **files**: 이미지(JPG, PNG) 여러 장 또는 PDF 파일 1개 (최대 10MB)
+    - **files**: 이미지(JPG, PNG) 여러 장 또는 PDF 파일 1개 (최대 20MB)
     - **title**: 시험명 (필수)
     - **subject**: 과목 (기본값: 수학)
     - **grade**: 학년 (선택)
@@ -54,7 +85,7 @@ async def upload_exam(
     - **exam_type**: 시험지 유형 (blank: 빈 시험지 1크레딧, student: 학생 답안지 2크레딧)
 
     Returns:
-        업로드된 시험지 정보
+        업로드된 시험지 정보 (AI 자동 분류 결과는 백그라운드에서 업데이트됨)
     """
     # Create request object from form data
     request = ExamCreateRequest(
@@ -72,6 +103,51 @@ async def upload_exam(
         request=request,
         files=files
     )
+
+    # 백그라운드에서 AI 자동 분류 실행 (동기식으로 변경 - 빠른 피드백)
+    try:
+        classification = await ai_engine.classify_exam_paper(exam.file_path)
+
+        # 분류 로직:
+        # 1. blank → blank (빈 시험지)
+        # 2. answered/mixed + 채점됨 → student (정오답 분석 가능)
+        # 3. answered/mixed + 미채점 → blank (정오답 분석 불가, 다운그레이드)
+        if classification.paper_type == "blank":
+            detected = "blank"
+            grading = "not_applicable"
+        elif classification.paper_type in ["answered", "mixed"]:
+            grading = classification.grading_status or "unknown"
+            # 미채점 답안지는 정오답 분석 불가 → blank로 다운그레이드
+            if grading == "not_graded":
+                detected = "blank"
+            else:
+                detected = "student"
+        else:
+            detected = "blank"
+            grading = "unknown"
+
+        # 메타데이터 추출
+        suggested_title = None
+        extracted_grade = None
+        if classification.extracted_metadata:
+            suggested_title = classification.extracted_metadata.get("suggested_title")
+            extracted_grade = classification.extracted_metadata.get("grade")
+            print(f"[Metadata Extracted] title={suggested_title}, grade={extracted_grade}")
+
+        await exam_service.update_detection_result(
+            exam_id=str(exam.id),
+            detected_type=detected,
+            confidence=classification.confidence,
+            grading_status=grading,
+            suggested_title=suggested_title,
+            extracted_grade=extracted_grade,
+        )
+
+        # Refresh to include detection result
+        await db.refresh(exam)
+        print(f"[Auto-Classification] Exam {exam.id}: {detected} (grading={grading}, conf={classification.confidence:.2f})")
+    except Exception as e:
+        print(f"[Auto-Classification Error] {e}")
 
     # Convert to response
     exam_base = ExamBase.model_validate(exam)
@@ -206,6 +282,61 @@ async def get_exam(
     exam_detail = ExamDetail.model_validate(exam)
 
     return ExamDetailResponse(data=exam_detail)
+
+
+class UpdateExamTypeRequest(BaseModel):
+    """PATCH /exams/{exam_id}/type 요청"""
+    exam_type: str
+
+
+class UpdateExamTypeResponse(BaseModel):
+    """PATCH /exams/{exam_id}/type 응답"""
+    success: bool
+    exam_type: str
+
+
+@router.patch(
+    "/{exam_id}/type",
+    response_model=UpdateExamTypeResponse,
+    summary="시험지 유형 변경"
+)
+async def update_exam_type(
+    exam_id: str,
+    request: UpdateExamTypeRequest,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+) -> UpdateExamTypeResponse:
+    """시험지 유형을 변경합니다 (분석 전에 사용).
+
+    - **exam_id**: 시험지 ID
+    - **exam_type**: 새 유형 (blank 또는 student)
+
+    Returns:
+        변경된 유형 정보
+    """
+    if request.exam_type not in ["blank", "student"]:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "INVALID_EXAM_TYPE",
+                "message": "유효하지 않은 시험지 유형입니다.",
+                "details": [{"field": "exam_type", "reason": "blank 또는 student만 허용됩니다."}]
+            }
+        )
+
+    exam_service = get_exam_service(db)
+    exam = await exam_service.update_exam_type(exam_id, current_user.id, request.exam_type)
+
+    if not exam:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "EXAM_NOT_FOUND",
+                "message": "시험지를 찾을 수 없습니다.",
+            }
+        )
+
+    return UpdateExamTypeResponse(success=True, exam_type=exam.exam_type)
 
 
 @router.delete(

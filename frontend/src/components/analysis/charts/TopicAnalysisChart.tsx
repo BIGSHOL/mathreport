@@ -157,8 +157,8 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                   </div>
                 )}
               </div>
-              <div className="w-20 text-right text-xs text-gray-500 flex-shrink-0">
-                {s.count}문항 · {s.points}점
+              <div className="w-24 text-right text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
+                {s.count}문항 · {Number(s.points.toFixed(1))}점
               </div>
             </div>
           ))}
@@ -208,8 +208,8 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                   {u.count}
                 </div>
               </div>
-              <div className="w-12 text-right text-xs text-gray-500 flex-shrink-0">
-                {u.points}점
+              <div className="w-16 text-right text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
+                {Number(u.points.toFixed(1))}점
               </div>
             </div>
           ))}

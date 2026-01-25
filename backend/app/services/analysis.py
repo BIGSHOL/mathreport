@@ -109,6 +109,13 @@ class AnalysisService:
             # 6. Update status to COMPLETED
             exam.status = ExamStatusEnum.COMPLETED
 
+            # 7. 자동 레퍼런스 수집 (신뢰도 낮은 문제 + 상 난이도 문제)
+            await self._collect_question_references(
+                analysis_result=analysis_result,
+                exam=exam,
+                processed_questions=processed_questions,
+            )
+
             await self.db.commit()
             await self.db.refresh(analysis_result)
 
@@ -137,6 +144,59 @@ class AnalysisService:
                 detail=f"Analysis failed: {str(e)}"
             )
 
+    async def _collect_question_references(
+        self,
+        analysis_result: AnalysisResult,
+        exam: Exam,
+        processed_questions: list[dict],
+    ):
+        """신뢰도 낮은 문제 + 상 난이도 문제 자동 수집
+
+        수집 조건:
+        - confidence < 0.7 (신뢰도 낮음)
+        - difficulty = "high" (상 난이도)
+
+        수집된 레퍼런스는 pending 상태로 저장되며,
+        관리자 검토 후 승인되면 해당 학년 분석 시 프롬프트에 포함됨
+        """
+        from app.models.reference import QuestionReference, CollectionReason
+
+        # 학년 정보: extracted_grade > grade > "unknown"
+        grade_level = exam.extracted_grade or exam.grade or "unknown"
+
+        for q in processed_questions:
+            confidence = q.get("confidence", 1.0)
+            difficulty = q.get("difficulty", "medium")
+
+            # 수집 조건 확인
+            reasons = []
+            if confidence is not None and confidence < 0.7:
+                reasons.append(CollectionReason.LOW_CONFIDENCE)
+            if difficulty == "high":
+                reasons.append(CollectionReason.HIGH_DIFFICULTY)
+
+            if not reasons:
+                continue
+
+            # 레퍼런스 생성 (첫 번째 사유 사용)
+            reference = QuestionReference(
+                id=str(uuid.uuid4()),
+                source_analysis_id=analysis_result.id,
+                source_exam_id=exam.id,
+                question_number=str(q.get("question_number", "")),
+                topic=q.get("topic"),
+                difficulty=difficulty,
+                question_type=q.get("question_type"),
+                ai_comment=q.get("ai_comment"),
+                points=q.get("points"),
+                confidence=confidence if confidence is not None else 1.0,
+                grade_level=grade_level,
+                collection_reason=reasons[0].value,
+                review_status="pending",
+                original_analysis_snapshot=q,
+            )
+            self.db.add(reference)
+
     async def get_analysis(self, analysis_id: str) -> AnalysisResult | None:
         """Get analysis result by ID."""
         result = await self.db.execute(
@@ -151,7 +211,95 @@ class AnalysisService:
         )
         return result.scalar_one_or_none()
 
+    async def merge_analyses(
+        self,
+        analyses: list[AnalysisResult],
+        user_id: str,
+        title: str = "병합된 분석"
+    ) -> AnalysisResult:
+        """여러 분석 결과를 병합합니다.
 
+        Args:
+            analyses: 병합할 분석 결과 목록
+            user_id: 사용자 ID
+            title: 병합 결과 제목
+
+        Returns:
+            병합된 분석 결과
+        """
+        # 문항들을 모두 수집하고 번호 재배정
+        merged_questions = []
+        question_num = 1
+
+        for analysis in analyses:
+            for q in (analysis.questions or []):
+                q_copy = q.copy() if isinstance(q, dict) else dict(q)
+                q_copy["id"] = str(uuid.uuid4())
+                q_copy["question_number"] = question_num
+                q_copy["created_at"] = datetime.utcnow().isoformat()
+                merged_questions.append(q_copy)
+                question_num += 1
+
+        # 요약 통계 재계산
+        difficulty_dist = {"high": 0, "medium": 0, "low": 0}
+        type_dist = {
+            "calculation": 0, "geometry": 0, "application": 0,
+            "proof": 0, "graph": 0, "statistics": 0
+        }
+
+        for q in merged_questions:
+            diff = q.get("difficulty", "medium")
+            if diff in difficulty_dist:
+                difficulty_dist[diff] += 1
+
+            q_type = q.get("question_type", "calculation")
+            if q_type in type_dist:
+                type_dist[q_type] += 1
+
+        # 평균 난이도 및 지배적 유형 계산
+        total = len(merged_questions)
+        if total > 0:
+            high_ratio = difficulty_dist["high"] / total
+            if high_ratio >= 0.4:
+                avg_difficulty = "high"
+            elif high_ratio >= 0.2 or difficulty_dist["medium"] / total >= 0.5:
+                avg_difficulty = "medium"
+            else:
+                avg_difficulty = "low"
+
+            dominant_type = max(type_dist, key=type_dist.get)
+        else:
+            avg_difficulty = "medium"
+            dominant_type = "calculation"
+
+        summary = {
+            "difficulty_distribution": difficulty_dist,
+            "type_distribution": type_dist,
+            "average_difficulty": avg_difficulty,
+            "dominant_type": dominant_type
+        }
+
+        # 첫 번째 분석의 exam_id 사용 (병합 표시용)
+        first_exam_id = str(analyses[0].exam_id) if analyses else None
+
+        # 병합 결과 저장
+        merged_result = AnalysisResult(
+            exam_id=first_exam_id,
+            user_id=user_id,
+            file_hash=f"merged_{uuid.uuid4().hex[:8]}",
+            total_questions=len(merged_questions),
+            model_version=f"merged_from_{len(analyses)}_analyses",
+            summary=summary,
+            questions=merged_questions,
+            analyzed_at=datetime.utcnow(),
+            created_at=datetime.utcnow()
+        )
+
+        self.db.add(merged_result)
+        await self.db.commit()
+        await self.db.refresh(merged_result)
+
+        return merged_result
 
 
 def get_analysis_service(db: AsyncSession) -> AnalysisService:

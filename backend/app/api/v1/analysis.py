@@ -10,6 +10,7 @@ from app.schemas.analysis import (
     AnalysisCreateResponse,
     AnalysisDetailResponse,
     AnalysisMetadata,
+    AnalysisMergeRequest,
     AnalysisRequest,
     AnalysisResult as AnalysisResultSchema,
     AnalysisExtension as AnalysisExtensionSchema,
@@ -371,3 +372,65 @@ async def submit_feedback(
     await db.refresh(new_feedback)
 
     return FeedbackResponse.model_validate(new_feedback)
+
+
+# ============================================
+# Analysis Merge Endpoints (분석 병합)
+# ============================================
+
+
+@router.post(
+    "/analyses/merge",
+    response_model=AnalysisDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="여러 분석 결과 병합"
+)
+async def merge_analyses(
+    request: AnalysisMergeRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> AnalysisDetailResponse:
+    """여러 분석 결과를 하나로 병합합니다.
+
+    - 최소 2개 이상의 분석 ID 필요
+    - 모든 분석이 completed 상태여야 함
+    - 문항 번호는 순서대로 재배정됨
+    - 크레딧 소모 없음 (이미 분석된 결과 병합)
+    """
+    analysis_service = get_analysis_service(db)
+
+    # 모든 분석 조회 및 권한 확인
+    analyses = []
+    for analysis_id in request.analysis_ids:
+        analysis = await analysis_service.get_analysis(analysis_id)
+
+        if not analysis:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "ANALYSIS_NOT_FOUND",
+                    "message": f"분석 결과를 찾을 수 없습니다: {analysis_id}"
+                }
+            )
+
+        if analysis.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
+            )
+
+        analyses.append(analysis)
+
+    # 병합 실행
+    merged = await analysis_service.merge_analyses(
+        analyses=analyses,
+        user_id=current_user.id,
+        title=request.title
+    )
+
+    result_data = AnalysisResultSchema.model_validate(merged)
+
+    return AnalysisDetailResponse(
+        data=result_data,
+        meta=AnalysisMetadata(cache_hit=False, analysis_duration=0)
+    )

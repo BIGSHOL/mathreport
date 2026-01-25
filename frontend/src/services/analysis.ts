@@ -5,15 +5,20 @@ import api from './api';
 
 export type ErrorType = 'calculation_error' | 'concept_error' | 'careless_mistake' | 'process_error' | 'incomplete';
 
+export type QuestionFormat = 'objective' | 'short_answer' | 'essay';
+
 export interface QuestionAnalysis {
     id: string;
-    question_number: number;
+    question_number: number | string;  // 숫자 또는 "서술형 1" 형식
+    question_format?: QuestionFormat;  // 객관식/단답형/서술형
     difficulty: 'high' | 'medium' | 'low';
+    difficulty_reason?: string;  // 난이도 판단 사유 (특히 '상'일 때)
     question_type: string;
     points?: number;
     topic?: string;
     ai_comment?: string;
     confidence?: number;  // 0.0 ~ 1.0 분석 신뢰도
+    confidence_reason?: string;  // 신뢰도가 낮은 이유 (70% 미만일 때)
     // 학생 답안지 전용 필드
     is_correct?: boolean | null;  // 정답 여부
     student_answer?: string;       // 학생 답안
@@ -258,6 +263,17 @@ export const analysisService = {
             feedback_type: feedbackType,
             comment,
         });
+    },
+
+    /**
+     * Merge multiple analysis results into one.
+     */
+    async mergeAnalyses(analysisIds: string[], title?: string): Promise<AnalysisResult> {
+        const response = await api.post<{ data: AnalysisResult }>('/api/v1/analyses/merge', {
+            analysis_ids: analysisIds,
+            title: title || '병합된 분석',
+        });
+        return response.data.data;
     },
 };
 

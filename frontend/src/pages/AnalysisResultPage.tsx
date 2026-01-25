@@ -19,7 +19,7 @@ import { QuestionCard } from '../components/analysis/QuestionCard';
 import { ExtendedReport } from '../components/analysis/ExtendedReport';
 import { AnswerAnalysis } from '../components/analysis/AnswerAnalysis';
 // Direct imports avoid barrel file overhead (bundle-barrel-imports)
-import { DifficultyPieChart, TypePieChart, TopicDistributionChart, PointsDistributionChart } from '../components/analysis/charts/DifficultyPieChart';
+import { DifficultyPieChart, TypePieChart, TopicDistributionChart, PointsDistributionChart, FormatDistributionChart } from '../components/analysis/charts/DifficultyPieChart';
 import { TopicAnalysisChart } from '../components/analysis/charts/TopicAnalysisChart';
 import { ExamScopeView } from '../components/analysis/charts/ExamScopeView';
 import { ConfidenceExplanation } from '../components/analysis/ConfidenceBadge';
@@ -77,7 +77,7 @@ export function AnalysisResultPage() {
   const avgConfidence =
     questionsWithConfidence.length > 0
       ? questionsWithConfidence.reduce((sum, q) => sum + (q.confidence || 0), 0) /
-        questionsWithConfidence.length
+      questionsWithConfidence.length
       : null;
 
   return (
@@ -96,13 +96,12 @@ export function AnalysisResultPage() {
               총 {total_questions}문항 · {totalPoints}점 만점
               {avgConfidence != null && (
                 <span
-                  className={`ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    avgConfidence >= 0.9
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : avgConfidence >= 0.7
+                  className={`ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${avgConfidence >= 0.9
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : avgConfidence >= 0.7
                       ? 'bg-yellow-100 text-yellow-800'
                       : 'bg-red-100 text-red-800'
-                  }`}
+                    }`}
                   title="AI 분석 신뢰도"
                 >
                   신뢰도 {Math.round(avgConfidence * 100)}%
@@ -114,21 +113,19 @@ export function AnalysisResultPage() {
           <div className="flex rounded-lg border border-gray-300 overflow-hidden">
             <button
               onClick={() => setViewMode('basic')}
-              className={`px-4 py-2 text-sm font-medium ${
-                viewMode === 'basic'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
+              className={`px-4 py-2 text-sm font-medium ${viewMode === 'basic'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
             >
               기본 분석
             </button>
             <button
               onClick={() => setViewMode('scope')}
-              className={`px-4 py-2 text-sm font-medium ${
-                viewMode === 'scope'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
+              className={`px-4 py-2 text-sm font-medium ${viewMode === 'scope'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
             >
               출제현황
             </button>
@@ -136,11 +133,10 @@ export function AnalysisResultPage() {
             {isStudentExam && (
               <button
                 onClick={() => setViewMode('answers')}
-                className={`px-4 py-2 text-sm font-medium ${
-                  viewMode === 'answers'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
+                className={`px-4 py-2 text-sm font-medium ${viewMode === 'answers'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
               >
                 정오답 분석
               </button>
@@ -149,11 +145,10 @@ export function AnalysisResultPage() {
             {isStudentExam && (
               <button
                 onClick={() => setViewMode('extended')}
-                className={`px-4 py-2 text-sm font-medium ${
-                  viewMode === 'extended'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
+                className={`px-4 py-2 text-sm font-medium ${viewMode === 'extended'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
               >
                 확장 분석
               </button>
@@ -170,15 +165,20 @@ export function AnalysisResultPage() {
           )}
 
           {/* 분포 차트 - 1행: 난이도, 유형 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             <DifficultyPieChart distribution={summary.difficulty_distribution} />
             <TypePieChart distribution={summary.type_distribution} />
           </div>
 
-          {/* 분포 차트 - 2행: 단원, 배점 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {/* 분포 차트 - 2행: 문항 형식, 단원 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <FormatDistributionChart formats={questions.map((q) => q.question_format)} />
             <TopicDistributionChart topics={questions.map((q) => q.topic || '')} />
-            <PointsDistributionChart points={questions.map((q) => q.points || 0)} />
+          </div>
+
+          {/* 분포 차트 - 3행: 배점 (전체 너비) */}
+          <div className="mb-4">
+            <PointsDistributionChart questions={questions} />
           </div>
 
           {/* Question List - 테이블 형식 */}

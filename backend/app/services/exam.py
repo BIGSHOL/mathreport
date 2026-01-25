@@ -5,7 +5,8 @@ from sqlalchemy import func, select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exam import Exam, FileTypeEnum
-from app.models.analysis import AnalysisResult
+from app.models.analysis import AnalysisResult, AnalysisExtension
+from app.models.feedback import Feedback
 from app.schemas.exam import ExamCreateRequest, ExamStatus
 from app.services.file_storage import file_storage
 
@@ -205,6 +206,70 @@ class ExamService:
 
         return exams, total
 
+    async def update_exam_type(self, exam_id: str, user_id: str, exam_type: str) -> Exam | None:
+        """Update exam type (blank/student).
+
+        Args:
+            exam_id: Exam ID
+            user_id: User ID (for authorization)
+            exam_type: New exam type ('blank' or 'student')
+
+        Returns:
+            Updated exam or None if not found
+        """
+        exam = await self.get_exam(exam_id, user_id)
+
+        if not exam:
+            return None
+
+        exam.exam_type = exam_type
+        await self.db.commit()
+        await self.db.refresh(exam)
+
+        return exam
+
+    async def update_detection_result(
+        self,
+        exam_id: str,
+        detected_type: str,
+        confidence: float,
+        grading_status: str | None = None,
+        suggested_title: str | None = None,
+        extracted_grade: str | None = None,
+    ) -> Exam | None:
+        """Update AI detection result for exam.
+
+        Args:
+            exam_id: Exam ID
+            detected_type: Detected exam type
+            confidence: Detection confidence (0-1)
+            grading_status: Grading status (not_graded, partially_graded, fully_graded)
+            suggested_title: AI-suggested title from image metadata
+            extracted_grade: AI-extracted grade from image
+
+        Returns:
+            Updated exam
+        """
+        result = await self.db.execute(
+            select(Exam).where(Exam.id == exam_id)
+        )
+        exam = result.scalar_one_or_none()
+
+        if not exam:
+            return None
+
+        exam.detected_type = detected_type
+        exam.detection_confidence = confidence
+        exam.grading_status = grading_status
+        if suggested_title:
+            exam.suggested_title = suggested_title
+        if extracted_grade:
+            exam.extracted_grade = extracted_grade
+        await self.db.commit()
+        await self.db.refresh(exam)
+
+        return exam
+
     async def delete_exam(self, exam_id: str, user_id: str) -> bool:
         """Delete exam by ID.
 
@@ -230,9 +295,25 @@ class ExamService:
             # Continue even if file deletion fails
             pass
 
-        # Delete associated analysis results first (Cascade delete manually)
-        # Note: In a real cascade setup, DB handles this. 
-        # But if ON DELETE CASCADE is missing, we must delete child records.
+        # Delete associated records (Cascade delete manually)
+        # 1. Get analysis_result IDs for this exam
+        result = await self.db.execute(
+            select(AnalysisResult.id).where(AnalysisResult.exam_id == exam_id)
+        )
+        analysis_ids = result.scalars().all()  # async에서는 scalars().all() 사용
+
+        if analysis_ids:
+            # 2. Delete feedbacks first (child of analysis_results)
+            await self.db.execute(
+                delete(Feedback).where(Feedback.analysis_id.in_(analysis_ids))
+            )
+
+            # 3. Delete analysis_extensions (child of analysis_results)
+            await self.db.execute(
+                delete(AnalysisExtension).where(AnalysisExtension.analysis_id.in_(analysis_ids))
+            )
+
+        # 4. Delete analysis_results
         await self.db.execute(
             delete(AnalysisResult).where(AnalysisResult.exam_id == exam_id)
         )

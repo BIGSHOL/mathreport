@@ -10,4 +10,5 @@ export {
   TypePieChart,
   TopicDistributionChart,
   PointsDistributionChart,
+  FormatDistributionChart,
 } from './DifficultyPieChart';

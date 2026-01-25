@@ -26,6 +26,13 @@ const TYPE_MAP: Record<string, string> = {
   statistics: '통계',
 };
 
+// 문항 형식 배지 설정
+const FORMAT_CONFIG: Record<string, { label: string; full: string; bg: string }> = {
+  objective: { label: '객', full: '객관식', bg: 'bg-blue-100 text-blue-700 ring-1 ring-blue-200' },
+  short_answer: { label: '단', full: '단답형', bg: 'bg-amber-100 text-amber-700 ring-1 ring-amber-200' },
+  essay: { label: '서', full: '서술형', bg: 'bg-purple-100 text-purple-700 ring-1 ring-purple-200' },
+};
+
 const FEEDBACK_TYPES = [
   { value: 'wrong_recognition', label: '인식오류' },
   { value: 'wrong_topic', label: '단원오류' },
@@ -84,18 +91,33 @@ export const QuestionCard = memo(function QuestionCard({
 
   return (
     <tr className="hover:bg-gray-50">
-      {/* 번호 */}
+      {/* 번호 + 형식 */}
       <td className="px-3 py-2 text-center whitespace-nowrap">
-        <span className="text-sm font-semibold text-gray-700">
-          {q.question_number}
-        </span>
+        <div className="flex items-center justify-center gap-1.5">
+          <span className="text-sm font-semibold text-gray-700">
+            {q.question_number}
+          </span>
+          {q.question_format && FORMAT_CONFIG[q.question_format] && (
+            <span
+              className={`inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold ${FORMAT_CONFIG[q.question_format].bg}`}
+              title={FORMAT_CONFIG[q.question_format].full}
+            >
+              {FORMAT_CONFIG[q.question_format].label}
+            </span>
+          )}
+        </div>
       </td>
 
       {/* 난이도 */}
       <td className="px-3 py-2 text-center">
         <span
-          className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white"
+          className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white cursor-help"
           style={{ backgroundColor: diffConfig.color }}
+          title={
+            q.difficulty_reason
+              ? `난이도 ${diffConfig.label}: ${q.difficulty_reason}`
+              : `난이도: ${diffConfig.label}`
+          }
         >
           {diffConfig.label}
         </span>
@@ -116,7 +138,7 @@ export const QuestionCard = memo(function QuestionCard({
       </td>
 
       {/* 배점 */}
-      <td className="px-3 py-2 text-right">
+      <td className="px-3 py-2 text-right whitespace-nowrap">
         <span className="text-sm font-medium text-gray-700">
           {q.points != null ? `${q.points}점` : '-'}
         </span>
@@ -126,14 +148,18 @@ export const QuestionCard = memo(function QuestionCard({
       <td className="px-3 py-2 text-center">
         {q.confidence != null ? (
           <span
-            className={`inline-flex items-center justify-center w-12 text-xs font-medium rounded px-1 py-0.5 ${
+            className={`inline-flex items-center justify-center w-12 text-xs font-medium rounded px-1 py-0.5 cursor-help ${
               q.confidence >= 0.9
                 ? 'bg-emerald-100 text-emerald-700'
                 : q.confidence >= 0.7
                 ? 'bg-yellow-100 text-yellow-700'
                 : 'bg-red-100 text-red-700'
             }`}
-            title={`분석 신뢰도: ${Math.round(q.confidence * 100)}%`}
+            title={
+              q.confidence < 0.7 && q.confidence_reason
+                ? `신뢰도 ${Math.round(q.confidence * 100)}%: ${q.confidence_reason}`
+                : `분석 신뢰도: ${Math.round(q.confidence * 100)}%`
+            }
           >
             {Math.round(q.confidence * 100)}%
           </span>

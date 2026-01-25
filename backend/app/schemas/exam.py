@@ -102,6 +102,13 @@ class ExamBase(BaseModel):
     status: ExamStatus
     created_at: datetime
     updated_at: datetime
+    # AI 자동 감지 결과
+    detected_type: str | None = None
+    detection_confidence: float | None = None
+    grading_status: str | None = None  # not_graded, partially_graded, fully_graded
+    # AI가 이미지에서 추출한 정보
+    suggested_title: str | None = None  # 추출된 메타데이터 기반 제목 제안
+    extracted_grade: str | None = None  # 추출된 학년 정보
 
     model_config = ConfigDict(from_attributes=True)
 

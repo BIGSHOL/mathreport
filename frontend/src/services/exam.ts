@@ -28,6 +28,13 @@ export interface Exam {
     created_at: string;
     updated_at: string;
     analysis_brief?: AnalysisBrief | null;
+    // AI 자동 감지 결과
+    detected_type?: ExamType | null;
+    detection_confidence?: number | null;
+    grading_status?: 'not_graded' | 'partially_graded' | 'fully_graded' | 'not_applicable' | null;
+    // AI가 이미지에서 추출한 정보
+    suggested_title?: string | null;  // 추출된 메타데이터 기반 제목 제안
+    extracted_grade?: string | null;  // 추출된 학년 정보
 }
 
 export interface ExamListResponse {
@@ -65,11 +72,8 @@ export const examService = {
         if (data.unit) formData.append('unit', data.unit);
         formData.append('exam_type', data.examType || 'blank');
 
-        const response = await api.post<{ data: Exam }>('/api/v1/exams', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
+        // axios가 FormData 감지 시 자동으로 multipart/form-data + boundary 설정
+        const response = await api.post<{ data: Exam }>('/api/v1/exams', formData);
         return response.data.data;
     },
 
@@ -96,6 +100,17 @@ export const examService = {
      */
     async delete(id: string): Promise<void> {
         await api.delete(`/api/v1/exams/${id}`);
+    },
+
+    /**
+     * Update exam type (before analysis).
+     */
+    async updateExamType(id: string, examType: ExamType): Promise<{ success: boolean; exam_type: ExamType }> {
+        const response = await api.patch<{ success: boolean; exam_type: ExamType }>(
+            `/api/v1/exams/${id}/type`,
+            { exam_type: examType }
+        );
+        return response.data;
     },
 };
 

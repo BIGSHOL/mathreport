@@ -43,10 +43,10 @@ class FileStorageService:
         # Read file content
         content = await file.read()
 
-        # Check file size (10MB limit)
-        max_size = 10 * 1024 * 1024  # 10MB
+        # Check file size (20MB limit)
+        max_size = 20 * 1024 * 1024  # 20MB
         if len(content) > max_size:
-            raise ValueError("파일 크기가 10MB를 초과합니다.")
+            raise ValueError("파일 크기가 20MB를 초과합니다.")
 
         # Generate unique filename using hash
         file_hash = self._get_file_hash(content)

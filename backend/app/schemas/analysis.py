@@ -37,6 +37,14 @@ class QuestionType(str, Enum):
     STATISTICS = "statistics"  # 통계/확률
 
 
+class QuestionFormat(str, Enum):
+    """문항 형식"""
+
+    OBJECTIVE = "objective"  # 객관식
+    SHORT_ANSWER = "short_answer"  # 단답형
+    ESSAY = "essay"  # 서술형
+
+
 # ============================================
 # Request Schemas
 # ============================================
@@ -55,6 +63,19 @@ class AnalysisRequest(BaseModel):
     )
 
 
+class AnalysisMergeRequest(BaseModel):
+    """POST /api/v1/analyses/merge - 분석 병합 요청"""
+
+    analysis_ids: list[str] = Field(
+        min_length=2,
+        description="병합할 분석 ID 목록 (최소 2개)"
+    )
+    title: str = Field(
+        default="병합된 분석",
+        description="병합 결과 제목"
+    )
+
+
 # ============================================
 # Response Schemas
 # ============================================
@@ -65,12 +86,15 @@ class QuestionAnalysis(BaseModel):
 
     id: str | UUID
     question_number: int | str = Field(description="문항 번호 (숫자 또는 '서답형 1' 등)")
+    question_format: str | None = Field(None, description="문항 형식 (objective, short_answer, essay)")
     difficulty: str  # Gemini 응답 호환 (high, medium, low)
+    difficulty_reason: str | None = Field(None, description="난이도 판단 근거")
     question_type: str  # Gemini 응답 호환
     points: float | int | None = Field(None, description="배점")
     topic: str | None = Field(None, max_length=500, description="관련 단원/토픽")
     ai_comment: str | None = Field(None, description="AI 분석 코멘트")
     confidence: float | None = Field(None, ge=0, le=1, description="분석 신뢰도 (0.0~1.0)")
+    confidence_reason: str | None = Field(None, description="신뢰도가 낮은 이유 (0.8 미만일 때)")
     # 학생 답안지 전용 필드
     is_correct: bool | None = Field(None, description="정답 여부 (학생 답안지만)")
     student_answer: str | None = Field(None, description="학생이 작성한 답안")
@@ -84,12 +108,15 @@ class QuestionAnalysis(BaseModel):
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "question_number": 1,
+                "question_format": "objective",
                 "difficulty": "medium",
+                "difficulty_reason": "기본 개념 적용",
                 "question_type": "calculation",
                 "points": 5,
                 "topic": "이차방정식",
                 "ai_comment": "기본 개념을 묻는 계산 문제입니다.",
                 "confidence": 0.95,
+                "confidence_reason": None,
                 "created_at": "2024-01-01T00:00:00Z"
             }
         }

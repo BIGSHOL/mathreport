@@ -63,6 +63,7 @@ class PromptBuilder:
             error_patterns=error_patterns_prompt,
             examples=examples_prompt,
             paper_type_instructions=paper_type_instructions,
+            exam_paper_type=context.exam_paper_type,
         )
 
         return BuildPromptResponse(
@@ -234,31 +235,77 @@ class PromptBuilder:
         return "\n".join(prompt_parts), list(set(matched_types))
 
     async def _get_examples_prompt(self, context: ExamContext, max_per_pattern: int = 2) -> str:
-        """검증된 예시 기반 프롬프트 생성"""
-        # 검증된 예시 조회
+        """검증된 예시 + 승인된 레퍼런스 기반 프롬프트 생성"""
+        prompt_parts = []
+
+        # 1. 기존: 검증된 PatternExample 조회
         result = await self.db.execute(
             select(PatternExample)
             .options(selectinload(PatternExample.error_pattern))
             .where(PatternExample.is_verified == True)
             .order_by(PatternExample.created_at.desc())
-            .limit(max_per_pattern * 5)  # 패턴당 최대 개수 * 5
+            .limit(max_per_pattern * 5)
         )
         examples = result.scalars().all()
 
-        if not examples:
+        if examples:
+            prompt_parts.append("## 분석 예시\n다음은 검증된 분석 예시입니다:\n")
+            for ex in examples:
+                prompt_parts.append(f"\n### 예시: {ex.error_pattern.name if ex.error_pattern else '일반'}")
+                prompt_parts.append(f"- 문제: {ex.problem_text}")
+                prompt_parts.append(f"- 학생 답안: {ex.student_answer}")
+                prompt_parts.append(f"- 정답: {ex.correct_answer}")
+                if ex.ai_analysis:
+                    prompt_parts.append(f"- 분석 결과: {ex.ai_analysis}")
+
+        # 2. 신규: 승인된 QuestionReference 조회 (학년별 필터링!)
+        references = await self._get_approved_references(
+            grade_level=context.grade_level,
+            limit=5
+        )
+
+        if references:
+            prompt_parts.append("\n## 참고 문제 분석 (학년별 레퍼런스)\n이전 분석에서 검토된 문제들입니다:\n")
+            for ref in references:
+                prompt_parts.append(f"\n### 참고 (학년: {ref.grade_level})")
+                if ref.topic:
+                    prompt_parts.append(f"- 단원: {ref.topic}")
+                prompt_parts.append(f"- 난이도: {ref.difficulty}")
+                if ref.ai_comment:
+                    prompt_parts.append(f"- 분석: {ref.ai_comment}")
+                if ref.confidence < 0.7:
+                    prompt_parts.append(f"- 주의: 이 유형의 문제는 분석 시 주의가 필요합니다 (기존 신뢰도: {ref.confidence:.2f})")
+
+        if not prompt_parts:
             return None
 
-        prompt_parts = ["## 분석 예시\n다음은 검증된 분석 예시입니다:\n"]
-
-        for ex in examples:
-            prompt_parts.append(f"\n### 예시: {ex.error_pattern.name if ex.error_pattern else '일반'}")
-            prompt_parts.append(f"- 문제: {ex.problem_text}")
-            prompt_parts.append(f"- 학생 답안: {ex.student_answer}")
-            prompt_parts.append(f"- 정답: {ex.correct_answer}")
-            if ex.ai_analysis:
-                prompt_parts.append(f"- 분석 결과: {ex.ai_analysis}")
-
         return "\n".join(prompt_parts)
+
+    async def _get_approved_references(self, grade_level: str | None, limit: int = 5):
+        """승인된 레퍼런스 조회 (학년별 필터링)
+
+        Args:
+            grade_level: 학년 (예: "중1", "고1")
+            limit: 최대 조회 개수
+
+        Returns:
+            승인된 QuestionReference 목록
+        """
+        from app.models.reference import QuestionReference
+
+        query = (
+            select(QuestionReference)
+            .where(QuestionReference.review_status == "approved")
+        )
+
+        # 학년별 필터링 (핵심!)
+        if grade_level and grade_level not in ("전체", "unknown", None):
+            query = query.where(QuestionReference.grade_level == grade_level)
+
+        query = query.order_by(QuestionReference.created_at.desc()).limit(limit)
+
+        result = await self.db.execute(query)
+        return result.scalars().all()
 
     def _get_paper_type_instructions(self, context: ExamContext) -> str:
         """시험지 유형별 추가 지시사항"""
@@ -318,6 +365,7 @@ class PromptBuilder:
         error_patterns: str | None,
         examples: str | None,
         paper_type_instructions: str,
+        exam_paper_type: str = "blank",
     ) -> str:
         """모든 프롬프트 요소 조합"""
         parts = [base_prompt]
@@ -336,16 +384,161 @@ class PromptBuilder:
         if examples:
             parts.append(examples)
 
-        # 최종 응답 형식 지시
-        parts.append("""
-## 응답 요구사항
-1. 반드시 유효한 JSON 형식으로 응답하세요
-2. 모든 문항을 빠짐없이 분석하세요
-3. 오류 발견 시 구체적인 피드백을 제공하세요
-4. 확실하지 않은 경우 confidence 값을 낮추세요
-""")
+        # JSON 출력 스키마 추가 (필수!)
+        json_schema = self._get_json_schema(exam_paper_type)
+        parts.append(json_schema)
 
         return "\n".join(parts)
+
+    def _get_json_schema(self, exam_paper_type: str) -> str:
+        """분석 결과 JSON 스키마 반환"""
+        base_schema = """
+## 필수 응답 형식 (JSON)
+
+반드시 아래 형식으로 정확하게 출력하세요:
+
+{
+    "exam_info": {
+        "total_questions": 21,
+        "total_points": 100,
+        "format_distribution": {
+            "objective": 16,
+            "short_answer": 0,
+            "essay": 5
+        }
+    },
+    "summary": {
+        "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+        "type_distribution": {
+            "calculation": 0, "geometry": 0, "application": 0,
+            "proof": 0, "graph": 0, "statistics": 0
+        },
+        "average_difficulty": "medium",
+        "dominant_type": "calculation"
+    },
+    "questions": [
+        {
+            "question_number": 1,
+            "question_format": "objective",
+            "difficulty": "low",
+            "question_type": "calculation",
+            "points": 3,
+            "topic": "공통수학1 > 다항식 > 다항식의 연산",
+            "ai_comment": "핵심 개념. 주의사항.",
+            "confidence": 0.95,
+            "difficulty_reason": "단순 공식 대입"
+"""
+
+        # 학생 답안이 있는 경우 추가 필드
+        if exam_paper_type in ["answered", "mixed", "student"]:
+            base_schema += """,
+            "is_correct": true,
+            "student_answer": "3",
+            "earned_points": 3,
+            "error_type": null"""
+
+        # JSON 구조 닫기
+        base_schema += """
+        }
+    ]
+}
+
+## 토픽 분류표 (정확히 사용)
+
+⚠️ 시험지 상단의 학년 정보를 확인하고 해당 학교급의 분류표를 사용하세요!
+- "중1", "중2", "중3", "중학교" → 중학교 분류표 사용
+- "고1", "고2", "고3", "고등학교" → 고등학교 분류표 사용
+
+### 【중학교】
+
+[중1 수학]
+- 수와 연산: 소인수분해, 정수와 유리수, 정수와 유리수의 계산
+- 문자와 식: 문자의 사용과 식, 일차방정식
+- 좌표평면과 그래프: 좌표평면, 정비례와 반비례
+- 기본 도형: 점, 선, 면, 각, 위치 관계, 작도와 합동
+- 평면도형: 다각형, 원과 부채꼴
+- 입체도형: 다면체, 회전체, 입체도형의 겉넓이와 부피
+- 통계: 자료의 정리, 자료의 해석
+
+[중2 수학]
+- 수와 식: 유리수와 순환소수, 단항식의 계산, 다항식의 계산
+- 부등식과 연립방정식: 일차부등식, 연립일차방정식
+- 일차함수: 일차함수와 그래프, 일차함수와 일차방정식
+- 도형의 성질: 삼각형의 성질, 사각형의 성질
+- 도형의 닮음: 도형의 닮음, 평행선과 선분의 비, 닮음의 활용
+- 확률: 경우의 수, 확률
+
+[중3 수학]
+- 실수와 그 계산: 제곱근과 실수, 근호를 포함한 식의 계산
+- 다항식의 곱셈과 인수분해: 다항식의 곱셈, 인수분해
+- 이차방정식: 이차방정식의 풀이, 이차방정식의 활용
+- 이차함수: 이차함수와 그래프, 이차함수의 활용
+- 삼각비: 삼각비, 삼각비의 활용
+- 원의 성질: 원과 직선, 원주각
+- 통계: 대푯값과 산포도, 상관관계
+
+### 【고등학교】
+
+[공통수학1]
+- 다항식: 다항식의 연산, 항등식과 나머지정리, 인수분해
+- 방정식과 부등식: 복소수, 이차방정식, 이차방정식과 이차함수, 여러 가지 방정식, 여러 가지 부등식
+- 경우의 수: 경우의 수와 순열, 조합
+
+[공통수학2]
+- 도형의 방정식: 평면좌표, 직선의 방정식, 원의 방정식, 도형의 이동
+- 집합과 명제: 집합의 뜻, 집합의 연산, 명제
+- 함수: 합성함수와 역함수, 유리함수, 무리함수
+
+[수학1]
+- 지수함수와 로그함수: 지수, 로그, 지수함수, 로그함수
+- 삼각함수: 삼각함수의 정의, 삼각함수의 그래프, 삼각함수의 활용
+- 수열: 등차수열과 등비수열, 수열의 합, 수학적 귀납법
+
+[수학2]
+- 함수의 극한과 연속: 함수의 극한, 함수의 연속
+- 미분: 미분계수와 도함수, 도함수의 활용
+- 적분: 부정적분, 정적분, 정적분의 활용
+
+## 규칙 (엄격 준수)
+
+1. 모든 텍스트(topic, ai_comment)는 한국어로 작성
+2. question_format: objective(객관식), short_answer(단답형), essay(서술형/서답형) 중 하나
+3. difficulty: high(상), medium(중), low(하) 중 하나
+4. question_type: calculation(계산), geometry(도형), application(응용), proof(증명), graph(그래프), statistics(통계) 중 하나
+5. points: 숫자 (소수점 허용)
+6. topic 형식: "과목명 > 대단원 > 소단원"
+7. ai_comment: 정확히 2문장, 총 50자 이내
+8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
+9. question_number: 숫자 또는 "서술형 1", "서답형 2" 형식
+10. difficulty_reason: 난이도 판단 근거 (특히 high일 때 필수, 15자 이내)
+    - high: "복합 개념 필요", "다단계 추론", "고난도 계산", "개념 응용력 필요" 등
+    - medium: "기본 개념 적용", "2단계 풀이" 등
+    - low: "단순 계산", "공식 대입", "기초 개념" 등
+
+⚠️ 중요 - 소문제 처리:
+- (1), (2), (3) 또는 (가), (나), (다)가 있으면 하나의 문제로 취급
+- 배점은 합산
+- 난이도는 가장 어려운 소문제 기준
+"""
+
+        if exam_paper_type in ["answered", "mixed", "student"]:
+            base_schema += """
+## 오류 유형 (error_type)
+
+- calculation_error: 계산 실수 (부호, 사칙연산 등)
+- concept_error: 개념 오해 (공식, 정의 등)
+- careless_mistake: 단순 실수 (문제 잘못 읽음, 답안 잘못 기재)
+- process_error: 풀이 과정 오류 (논리적 비약)
+- incomplete: 미완성 (시간 부족, 포기)
+
+⚠️ 중요 - 정오답 인식:
+- O, ○, ✓, 동그라미 = 정답 (is_correct: true)
+- X, ✗, 빗금, 빨간 줄 = 오답 (is_correct: false)
+- 부분 점수가 있으면 earned_points에 반영
+- 채점 표시가 없으면 is_correct: null
+"""
+
+        return base_schema
 
 
 # 시험지 유형 분류 서비스
