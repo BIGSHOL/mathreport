@@ -39,7 +39,15 @@ if settings.use_supabase_db:
     }
 else:
     database_url = settings.DATABASE_URL
-    connect_args = {}
+    # Supabase Pooler 사용 시에도 prepared statements 비활성화 필요
+    if "pooler.supabase.com" in database_url:
+        connect_args = {
+            "ssl": "require",
+            "prepared_statement_cache_size": 0,
+            "statement_cache_size": 0,
+        }
+    else:
+        connect_args = {}
 
 engine = create_async_engine(
     database_url,
