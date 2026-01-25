@@ -233,6 +233,7 @@ class AIEngine:
         grade_level: str | None = None,
         unit: str | None = None,
         auto_classify: bool = True,
+        exam_id: str | None = None,
     ) -> dict:
         """
         패턴 시스템을 활용한 통합 분석
@@ -247,11 +248,20 @@ class AIEngine:
         Returns:
             분석 결과 딕셔너리
         """
+        # 헬퍼: 분석 단계 업데이트
+        async def update_step(step: int):
+            if exam_id and db:
+                try:
+                    await db.table("exams").eq("id", exam_id).update({"analysis_step": step}).execute()
+                except Exception as e:
+                    print(f"[Step Update Error] {e}")
+
         # 1. 시험지 유형 자동 분류
         classification = None
         exam_paper_type = "unknown"
 
         if auto_classify:
+            await update_step(1)
             print("[Step 1] 시험지 유형 분류 중...")
             classification = await self.classify_exam_paper(file_path)
             exam_paper_type = classification.paper_type
@@ -267,6 +277,7 @@ class AIEngine:
             exam_type = "blank"  # 기본값
 
         # 3. 동적 프롬프트 생성
+        await update_step(2)
         print("[Step 2] 동적 프롬프트 생성 중...")
         exam_context = ExamContext(
             grade_level=grade_level,
@@ -283,6 +294,7 @@ class AIEngine:
         )
 
         # 4. AI 분석 실행
+        await update_step(3)
         print(f"[Step 3] AI 분석 실행 중... (exam_type={exam_type})")
         result = await self.analyze_exam_file(
             file_path=file_path,
@@ -365,15 +377,19 @@ class AIEngine:
             # Call Gemini with retry logic
             max_retries = 3
             last_error = None
+            retry_prompt_addition = ""  # 누락 감지 시 추가할 프롬프트
 
             for attempt in range(max_retries):
                 try:
+                    # 재분석 시 추가 프롬프트 포함
+                    current_parts = file_parts + [types.Part.from_text(text=prompt + retry_prompt_addition)]
+
                     response = self.client.models.generate_content(
                         model=self.model_name,
                         contents=[
                             types.Content(
                                 role="user",
-                                parts=all_parts,
+                                parts=current_parts,
                             ),
                         ],
                         config=types.GenerateContentConfig(
@@ -405,6 +421,23 @@ class AIEngine:
                     # 검증 및 신뢰도 계산
                     validated_result, confidence = self._validate_result(result, exam_type)
                     print(f"[Analysis] Confidence: {confidence:.2f}, Questions: {len(validated_result.get('questions', []))}")
+
+                    # 누락 감지 시 1회 재분석 시도
+                    missing_nums = validated_result.get("_missing_questions", [])
+                    if missing_nums and attempt == 0:
+                        print(f"[Analysis] 누락 감지됨: {missing_nums}, 재분석 시도...")
+                        retry_prompt_addition = f"""
+
+⚠️ **재분석 요청** - 다음 문항이 누락되었습니다: {missing_nums}
+
+위치 기반으로 번호를 추론해서 **반드시** 이 번호들을 포함해주세요.
+- 1번 다음에 나오는 문제 → 2번
+- N번 다음에 나오는 문제 → N+1번
+- 번호가 가려져도 순서대로 번호 부여
+
+누락 없이 다시 분석해주세요.
+"""
+                        continue  # 다음 attempt로 재시도 (retry_prompt_addition 포함됨)
 
                     return validated_result
 
@@ -520,6 +553,7 @@ class AIEngine:
                 if missing_nums:
                     confidence -= 0.1 * len(missing_nums)
                     issues.append(f"누락된 문항: {sorted(missing_nums)}")
+                    result["_missing_questions"] = sorted(missing_nums)
                     print(f"[Validation] ⚠️ 누락된 문항 번호: {sorted(missing_nums)}")
 
         # 4. 분포 일치 검증
@@ -664,6 +698,12 @@ class AIEngine:
 - 채점 표시(X, O, ✓)가 있어도 해당 문항을 반드시 포함
 - 손글씨나 표시가 많아도 문항 번호를 정확히 인식
 
+🔢 **번호 추론 규칙**:
+- 번호가 가려지거나 안 보여도, **위치로 번호를 추론**하세요
+- 1번 다음에 나오는 문제 → 2번
+- N번 다음에 나오는 문제 → N+1번
+- 큰 X 표시나 채점 마크로 번호가 가려져도 순서대로 번호 부여
+
 ### STEP 2: 문항별 분류
 각 문항에 대해:
 1. 어떤 개념을 묻는가? → 토픽 분류
@@ -778,6 +818,12 @@ class AIEngine:
 - 채점 표시(X, O, ✓)가 크게 표시되어 있어도 해당 문항을 반드시 포함
 - 손글씨, 빨간펜 표시가 많아도 문항 번호를 정확히 인식
 - 틀린 문제도 건너뛰지 말고 반드시 분석에 포함
+
+🔢 **번호 추론 규칙**:
+- 번호가 가려지거나 안 보여도, **위치로 번호를 추론**하세요
+- 1번 다음에 나오는 문제 → 2번
+- N번 다음에 나오는 문제 → N+1번
+- 큰 X 표시나 채점 마크로 번호가 가려져도 순서대로 번호 부여
 
 ### STEP 2: 문항별 분류 + 정오답 분석
 각 문항에 대해:

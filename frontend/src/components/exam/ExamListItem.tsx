@@ -113,58 +113,18 @@ export const ExamListItem = memo(function ExamListItem({
     }
   }, [showFeedback, updateDropdownPosition]);
 
+  // 서버에서 받은 analysis_step을 기반으로 현재 단계 설정
   useEffect(() => {
     if (exam.status !== 'analyzing') {
       setCurrentStage(0);
-      // 분석 완료/실패 시 저장된 시작 시간 삭제
-      localStorage.removeItem(`analysis_start_${exam.id}`);
       return;
     }
 
-    // 저장된 시작 시간 확인, 없으면 현재 시간 저장
-    const storageKey = `analysis_start_${exam.id}`;
-    let startTime = localStorage.getItem(storageKey);
-    if (!startTime) {
-      startTime = Date.now().toString();
-      localStorage.setItem(storageKey, startTime);
-    }
-
-    // 경과 시간 계산
-    const elapsed = Date.now() - parseInt(startTime, 10);
-
-    // 경과 시간 기반으로 현재 단계 계산
-    const calculateStage = (elapsedMs: number) => {
-      let accTime = 0;
-      for (let i = 0; i < ANALYSIS_STAGES.length; i++) {
-        accTime += ANALYSIS_STAGES[i].duration;
-        if (elapsedMs < accTime) return i;
-      }
-      return ANALYSIS_STAGES.length - 1; // 마지막 단계에서 대기
-    };
-
-    // 초기 단계 설정
-    setCurrentStage(calculateStage(elapsed));
-
-    // 남은 단계들에 대해 타이머 설정
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    let accumulatedTime = 0;
-
-    ANALYSIS_STAGES.forEach((_stage, idx) => {
-      accumulatedTime += ANALYSIS_STAGES[idx].duration;
-      const remaining = accumulatedTime - elapsed;
-      if (remaining > 0 && idx < ANALYSIS_STAGES.length - 1) {
-        timers.push(
-          setTimeout(() => {
-            setCurrentStage(idx + 1);
-          }, remaining)
-        );
-      }
-    });
-
-    return () => {
-      timers.forEach((timer) => clearTimeout(timer));
-    };
-  }, [exam.status, exam.id]);
+    // 서버에서 받은 analysis_step 사용 (1-4), 없으면 0
+    const serverStep = exam.analysis_step ?? 0;
+    // 서버 step은 1-based, UI는 0-based
+    setCurrentStage(Math.max(0, serverStep - 1));
+  }, [exam.status, exam.analysis_step]);
 
   // 신뢰도 레벨 계산
   const getConfidenceStyle = (conf: number | null | undefined) => {

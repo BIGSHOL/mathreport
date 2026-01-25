@@ -10,6 +10,7 @@ const EXAMS_KEY = '/api/v1/exams';
 
 /**
  * Fetch exam list with SWR caching and deduplication.
+ * Automatically polls every 2s when any exam is analyzing.
  */
 export function useExams(page = 1, pageSize = 100) {
   const { data, error, isLoading, mutate } = useSWR(
@@ -17,7 +18,12 @@ export function useExams(page = 1, pageSize = 100) {
     () => examService.getList(page, pageSize),
     {
       revalidateOnFocus: false,
-      dedupingInterval: 5000,
+      dedupingInterval: 2000,
+      // 분석 중인 exam이 있으면 2초마다 폴링
+      refreshInterval: (latestData) => {
+        const hasAnalyzing = latestData?.data?.some((exam) => exam.status === 'analyzing');
+        return hasAnalyzing ? 2000 : 0;
+      },
     }
   );
 

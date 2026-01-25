@@ -39,6 +39,8 @@ export interface Exam {
     extracted_grade?: string | null;  // 추출된 학년 정보
     // 분석 실패 시 에러 메시지
     error_message?: string | null;
+    // 분석 진행 단계 (1: 유형분류, 2: 프롬프트생성, 3: AI분석, 4: 결과저장)
+    analysis_step?: number | null;
 }
 
 export interface ExamListResponse {

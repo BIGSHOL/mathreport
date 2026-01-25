@@ -89,9 +89,11 @@ class AnalysisService:
                 grade_level=exam.get("grade"),
                 unit=exam.get("unit"),
                 auto_classify=True,  # 시험지 유형 자동 분류
+                exam_id=exam_id,  # 진행 단계 업데이트용
             )
 
             # 5. Process & Save Result
+            await self.db.table("exams").eq("id", exam_id).update({"analysis_step": 4}).execute()
             print("[Step 4] 결과 저장 중...")
             processed_questions = []
             for q in ai_result.get("questions", []):
