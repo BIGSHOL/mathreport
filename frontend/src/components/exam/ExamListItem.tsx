@@ -116,22 +116,47 @@ export const ExamListItem = memo(function ExamListItem({
   useEffect(() => {
     if (exam.status !== 'analyzing') {
       setCurrentStage(0);
+      // 분석 완료/실패 시 저장된 시작 시간 삭제
+      localStorage.removeItem(`analysis_start_${exam.id}`);
       return;
     }
 
-    // 단계별 진행 시뮬레이션
-    setCurrentStage(0);
+    // 저장된 시작 시간 확인, 없으면 현재 시간 저장
+    const storageKey = `analysis_start_${exam.id}`;
+    let startTime = localStorage.getItem(storageKey);
+    if (!startTime) {
+      startTime = Date.now().toString();
+      localStorage.setItem(storageKey, startTime);
+    }
+
+    // 경과 시간 계산
+    const elapsed = Date.now() - parseInt(startTime, 10);
+
+    // 경과 시간 기반으로 현재 단계 계산
+    const calculateStage = (elapsedMs: number) => {
+      let accTime = 0;
+      for (let i = 0; i < ANALYSIS_STAGES.length; i++) {
+        accTime += ANALYSIS_STAGES[i].duration;
+        if (elapsedMs < accTime) return i;
+      }
+      return ANALYSIS_STAGES.length - 1; // 마지막 단계에서 대기
+    };
+
+    // 초기 단계 설정
+    setCurrentStage(calculateStage(elapsed));
+
+    // 남은 단계들에 대해 타이머 설정
     const timers: ReturnType<typeof setTimeout>[] = [];
     let accumulatedTime = 0;
 
-    // 각 단계 시작 시간에 맞춰 단계 전환
     ANALYSIS_STAGES.forEach((_stage, idx) => {
-      if (idx > 0) {
-        accumulatedTime += ANALYSIS_STAGES[idx - 1].duration;
+      accumulatedTime += ANALYSIS_STAGES[idx].duration;
+      const remaining = accumulatedTime - elapsed;
+      if (remaining > 0 && idx < ANALYSIS_STAGES.length - 1) {
         timers.push(
           setTimeout(() => {
-            setCurrentStage(idx);
-          }, accumulatedTime)
+            setCurrentStage(idx + 1);
+          }, remaining)
         );
       }
     });
@@ -139,7 +164,7 @@ export const ExamListItem = memo(function ExamListItem({
     return () => {
       timers.forEach((timer) => clearTimeout(timer));
     };
-  }, [exam.status]);
+  }, [exam.status, exam.id]);
 
   // 신뢰도 레벨 계산
   const getConfidenceStyle = (conf: number | null | undefined) => {
@@ -234,6 +259,18 @@ export const ExamListItem = memo(function ExamListItem({
                 추천명
               </span>
             )}
+            {/* 과목 배지 */}
+            {exam.subject && (
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  exam.subject.includes('영어')
+                    ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-200'
+                    : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
+                }`}
+              >
+                {exam.subject.includes('영어') ? '영어' : '수학'}
+              </span>
+            )}
             {/* 시험지 유형 배지 - AI 감지 결과 우선 표시 */}
             <span
               className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold cursor-help ${
@@ -263,8 +300,6 @@ export const ExamListItem = memo(function ExamListItem({
 
           {/* 메타 정보 */}
           <p className="flex items-center flex-wrap text-sm text-gray-500 mt-1 gap-x-1">
-            <span className="truncate">{exam.subject}</span>
-            <span>•</span>
             {exam.status === 'failed' ? (
               <span
                 className="text-red-600 cursor-help underline decoration-dotted"

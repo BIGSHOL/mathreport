@@ -48,6 +48,15 @@ class AnalysisService:
 
         exam = result.data
 
+        # 1.5. Check if already analyzing (prevent duplicate requests)
+        if exam.get("status") == "analyzing":
+            print(f"[Analysis] 이미 분석 중: {exam_id}")
+            return {
+                "analysis_id": None,
+                "status": "analyzing",
+                "message": "이미 분석이 진행 중입니다."
+            }
+
         # 2. Check if already exists (unless force_reanalyze)
         existing_result = await self.db.table("analysis_results").select("*").eq("exam_id", exam_id).maybe_single().execute()
         existing = existing_result.data
@@ -83,6 +92,7 @@ class AnalysisService:
             )
 
             # 5. Process & Save Result
+            print("[Step 4] 결과 저장 중...")
             processed_questions = []
             for q in ai_result.get("questions", []):
                 q["id"] = str(uuid.uuid4())
@@ -117,6 +127,8 @@ class AnalysisService:
 
             if insert_result.error:
                 raise Exception(f"Failed to save analysis: {insert_result.error}")
+
+            print(f"[Step 4] 분석 결과 저장 완료: {analysis_id}")
 
             # 6. Update status to COMPLETED + 분석 결과에서 분류 정보 추출
             exam_update = {
