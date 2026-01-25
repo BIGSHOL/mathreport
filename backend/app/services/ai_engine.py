@@ -46,6 +46,379 @@ class AIEngine:
         else:
             self.client = None
 
+        # 저신뢰도 임계값 (이 이하면 null 처리)
+        self.grading_confidence_threshold = 0.7
+
+    # ============================================
+    # 0. 2단계 분석: 채점 표시 탐지 (1단계)
+    # ============================================
+    async def detect_grading_marks(
+        self,
+        file_path: str,
+    ) -> dict:
+        """
+        [1단계] 채점 표시만 집중 탐지
+
+        Returns:
+            {
+                "marks": [
+                    {
+                        "question_number": 1,
+                        "mark_type": "circle_on_answer",  # 답안에 동그라미
+                        "mark_symbol": "O",
+                        "position": "on_student_answer",  # 학생 답안 위치
+                        "color": "red",  # red, blue, black, unknown
+                        "indicates": "correct",  # correct, incorrect, uncertain
+                        "confidence": 0.95
+                    },
+                    ...
+                ],
+                "overall_grading_status": "fully_graded",
+                "color_distinction_possible": true,  # 색상 구분 가능 여부
+                "detection_notes": ["빨간펜 표시 감지", ...]
+            }
+        """
+        if not self.client:
+            return {"marks": [], "overall_grading_status": "unknown", "color_distinction_possible": False}
+
+        # 파일 로드
+        file_paths = [p.strip() for p in file_path.split(",")]
+        file_parts = []
+
+        for fp in file_paths:
+            try:
+                file_content, mime_type = await self._load_file_content(fp)
+                if file_content:
+                    file_parts.append(types.Part.from_bytes(data=file_content, mime_type=mime_type))
+            except Exception as e:
+                print(f"[Mark Detection] Error loading file {fp}: {e}")
+                continue
+
+        if not file_parts:
+            return {"marks": [], "overall_grading_status": "unknown", "color_distinction_possible": False}
+
+        # 채점 표시 탐지 전용 프롬프트
+        detection_prompt = """당신은 시험지 채점 표시 탐지 전문가입니다.
+이 시험지에서 **채점 표시만** 집중적으로 찾아주세요.
+
+## 목표
+문항별로 채점 표시(O, X, ✓, 동그라미, 빗금, 점수 등)를 탐지하고,
+각 표시가 **정답/오답 중 무엇을 의미하는지** 판단합니다.
+
+## 탐지할 표시 유형
+
+### 정답을 의미하는 표시 (indicates: "correct")
+| 표시 | 위치 | 설명 |
+|------|------|------|
+| O, ○, ✓, 체크 | 학생 답안 바로 옆 | 정답 표시 |
+| 동그라미 | 학생이 쓴 답 위 | 정답 강조 |
+| 만점 점수 | 문항 근처 | "3", "4점" 등 배점 그대로 |
+
+### 오답을 의미하는 표시 (indicates: "incorrect")
+| 표시 | 위치 | 설명 |
+|------|------|------|
+| X, ✗, 빗금(/) | 학생 답안 위/옆 | 오답 표시 |
+| **문제번호에 동그라미** | 1, 2, 3 등 번호 위 | **틀린 문제 표시!** |
+| 빨간펜 정답 | 문항 근처 | 학생 답이 틀려서 정답 기재 |
+| 0점 | 문항 근처 | 오답 |
+| 감점 점수 | 문항 근처 | "2/4" 등 부분 점수 |
+
+### 불확실한 경우 (indicates: "uncertain")
+- 표시가 너무 흐릿하거나 불분명
+- 색상 구분이 안 되어 판단 어려움
+- 표시 위치가 애매함
+
+## ⚠️ 핵심 구분법
+
+```
+위치가 "문제번호" → 동그라미는 오답 표시!
+위치가 "학생답안" → 동그라미는 정답 표시!
+```
+
+예시:
+- ①② ← 문제번호 1, 2에 동그라미 = 1번, 2번 **틀림**
+- 답: ③ ○ ← 학생 답 옆에 동그라미 = **정답**
+
+## 색상 감지
+
+이미지에서 색상을 구분할 수 있으면:
+- "red": 빨간펜 (주로 채점자)
+- "blue": 파란펜
+- "black": 검정펜 (주로 학생)
+- "unknown": 흑백 이미지 또는 구분 불가
+
+## JSON 응답 형식
+
+```json
+{
+    "marks": [
+        {
+            "question_number": 1,
+            "mark_type": "circle_on_number",
+            "mark_symbol": "○",
+            "position": "on_question_number",
+            "color": "red",
+            "indicates": "incorrect",
+            "confidence": 0.90,
+            "note": "문제번호에 빨간 동그라미 = 틀린 문제"
+        },
+        {
+            "question_number": 2,
+            "mark_type": "circle_on_answer",
+            "mark_symbol": "O",
+            "position": "on_student_answer",
+            "color": "red",
+            "indicates": "correct",
+            "confidence": 0.95,
+            "note": "답안 옆 O 표시"
+        },
+        {
+            "question_number": 3,
+            "mark_type": "x_mark",
+            "mark_symbol": "X",
+            "position": "on_student_answer",
+            "color": "red",
+            "indicates": "incorrect",
+            "confidence": 0.92
+        },
+        {
+            "question_number": 4,
+            "mark_type": "none",
+            "mark_symbol": null,
+            "position": null,
+            "color": null,
+            "indicates": "not_graded",
+            "confidence": 0.85,
+            "note": "채점 표시 없음"
+        },
+        {
+            "question_number": 5,
+            "mark_type": "score",
+            "mark_symbol": "0",
+            "position": "near_question",
+            "color": "red",
+            "indicates": "incorrect",
+            "confidence": 0.88,
+            "note": "0점 기재"
+        }
+    ],
+    "overall_grading_status": "partially_graded",
+    "color_distinction_possible": true,
+    "total_questions_found": 10,
+    "graded_count": 5,
+    "detection_notes": [
+        "빨간펜 채점 표시 감지",
+        "문제번호 동그라미 방식 사용",
+        "일부 문항 미채점"
+    ]
+}
+```
+
+## mark_type 값
+- "circle_on_answer": 답안에 동그라미 (정답)
+- "circle_on_number": 문제번호에 동그라미 (오답)
+- "check_mark": 체크(✓) 표시
+- "x_mark": X 또는 빗금 표시
+- "score": 점수 기재
+- "correction": 정답 기재 (학생 답이 틀림)
+- "none": 표시 없음
+- "unclear": 불분명
+
+## position 값
+- "on_student_answer": 학생 답안 위/옆
+- "on_question_number": 문제 번호 위/옆
+- "near_question": 문항 근처
+- "margin": 여백
+
+모든 문항에 대해 채점 표시를 탐지하고 JSON으로 응답해주세요.
+"""
+
+        try:
+            all_parts = file_parts + [types.Part.from_text(text=detection_prompt)]
+
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[types.Content(role="user", parts=all_parts)],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.1,
+                    max_output_tokens=8192,
+                ),
+            )
+
+            if not response.text:
+                return {"marks": [], "overall_grading_status": "unknown", "color_distinction_possible": False}
+
+            result = self._parse_json_response(response.text)
+            print(f"[Mark Detection] Detected {len(result.get('marks', []))} marks")
+            return result
+
+        except Exception as e:
+            print(f"[Mark Detection Error] {e}")
+            return {"marks": [], "overall_grading_status": "unknown", "color_distinction_possible": False, "error": str(e)}
+
+    def _build_grading_context_from_marks(self, marks_result: dict) -> str:
+        """탐지된 채점 표시를 분석 프롬프트에 추가할 컨텍스트로 변환"""
+        marks = marks_result.get("marks", [])
+        if not marks:
+            return ""
+
+        lines = ["\n\n## 🔍 [1단계] 채점 표시 탐지 결과 (참고용)\n"]
+        lines.append("아래는 별도 분석에서 탐지된 채점 표시입니다. 이 정보를 **참고하여** 정오답을 판정하세요.\n")
+        lines.append("단, 탐지 결과가 불확실하면 직접 이미지를 보고 최종 판단하세요.\n\n")
+
+        lines.append("| 문항 | 표시 | 위치 | 색상 | 판정 | 신뢰도 |\n")
+        lines.append("|------|------|------|------|------|--------|\n")
+
+        for m in marks:
+            q_num = m.get("question_number", "?")
+            symbol = m.get("mark_symbol") or "-"
+            position = m.get("position") or "-"
+            color = m.get("color") or "-"
+            indicates = m.get("indicates", "uncertain")
+            conf = m.get("confidence", 0)
+
+            # 판정 한글화
+            indicates_kr = {
+                "correct": "✅정답",
+                "incorrect": "❌오답",
+                "not_graded": "⬜미채점",
+                "uncertain": "❓불확실"
+            }.get(indicates, indicates)
+
+            lines.append(f"| {q_num} | {symbol} | {position} | {color} | {indicates_kr} | {conf:.0%} |\n")
+
+        # 색상 구분 가능 여부
+        if marks_result.get("color_distinction_possible"):
+            lines.append("\n✅ 이 이미지에서 색상 구분이 가능합니다.\n")
+        else:
+            lines.append("\n⚠️ 이 이미지에서 색상 구분이 어렵습니다. 표시 위치와 모양으로 판단하세요.\n")
+
+        # 탐지 노트
+        notes = marks_result.get("detection_notes", [])
+        if notes:
+            lines.append("\n탐지 노트:\n")
+            for note in notes:
+                lines.append(f"- {note}\n")
+
+        lines.append("\n**위 탐지 결과를 참고하되, 이미지를 직접 보고 최종 판단하세요.**\n")
+        lines.append("**탐지 신뢰도가 70% 미만이면 직접 확인 후 판정하세요.**\n")
+
+        return "".join(lines)
+
+    def _cross_validate_grading(self, analysis_result: dict, marks_result: dict) -> dict:
+        """
+        [교차 검증] 1단계 탐지 결과와 2단계 분석 결과를 비교하여 불일치 해소
+
+        규칙:
+        1. 두 결과가 일치하면 신뢰도 상승
+        2. 불일치 + 탐지 신뢰도 높음 → 탐지 결과로 수정
+        3. 불일치 + 탐지 신뢰도 낮음 → 분석 결과 유지 (불확실 플래그)
+        4. 탐지 결과가 없거나 미채점이면 분석 결과 유지
+        5. 저신뢰도(< 0.7)면 null로 변경 (추측 방지)
+        """
+        marks = marks_result.get("marks", [])
+        if not marks:
+            return analysis_result
+
+        questions = analysis_result.get("questions", [])
+        if not questions:
+            return analysis_result
+
+        # 탐지 결과를 문항번호로 인덱싱
+        marks_by_num = {}
+        for m in marks:
+            q_num = m.get("question_number")
+            if q_num:
+                marks_by_num[q_num] = m
+
+        corrections_made = 0
+        confidence_boosts = 0
+        null_conversions = 0
+
+        for q in questions:
+            q_num = q.get("question_number")
+            if not q_num or q_num not in marks_by_num:
+                continue
+
+            mark = marks_by_num[q_num]
+            mark_indicates = mark.get("indicates")
+            mark_confidence = mark.get("confidence", 0)
+            analysis_is_correct = q.get("is_correct")
+
+            # 탐지 결과 변환
+            if mark_indicates == "correct":
+                mark_is_correct = True
+            elif mark_indicates == "incorrect":
+                mark_is_correct = False
+            elif mark_indicates == "not_graded":
+                mark_is_correct = None
+            else:  # uncertain
+                mark_is_correct = None
+
+            # 저신뢰도 탐지 → null로 변환 (추측 방지)
+            if mark_confidence < self.grading_confidence_threshold and mark_indicates not in ["not_graded"]:
+                # 분석 결과도 저신뢰도면 null로
+                q_confidence = q.get("confidence", 0.5)
+                if q_confidence < self.grading_confidence_threshold:
+                    if q.get("is_correct") is not None:
+                        q["is_correct"] = None
+                        q["earned_points"] = None
+                        q["_grading_note"] = f"저신뢰도로 미채점 처리 (탐지:{mark_confidence:.0%}, 분석:{q_confidence:.0%})"
+                        null_conversions += 1
+                continue
+
+            # 두 결과 비교
+            if analysis_is_correct == mark_is_correct:
+                # 일치 → 신뢰도 상승
+                current_conf = q.get("confidence", 0.5)
+                q["confidence"] = min(1.0, current_conf + 0.1)
+                q["_grading_validated"] = True
+                confidence_boosts += 1
+
+            elif mark_confidence >= 0.85 and mark_is_correct is not None:
+                # 불일치 + 탐지 고신뢰도 → 탐지 결과로 수정
+                old_value = q.get("is_correct")
+                q["is_correct"] = mark_is_correct
+                q["_grading_corrected"] = True
+                q["_grading_note"] = f"탐지 결과로 수정 (기존: {old_value}, 탐지 신뢰도: {mark_confidence:.0%})"
+
+                # 획득 점수 재계산
+                if mark_is_correct is True:
+                    q["earned_points"] = q.get("points", 0)
+                elif mark_is_correct is False:
+                    q["earned_points"] = 0
+                else:
+                    q["earned_points"] = None
+
+                corrections_made += 1
+                print(f"[Cross-Validate] Q{q_num}: {old_value} → {mark_is_correct} (탐지 신뢰도: {mark_confidence:.0%})")
+
+            elif mark_is_correct is None and analysis_is_correct is not None:
+                # 탐지=미채점, 분석=채점됨 → 분석이 추측했을 가능성
+                # 분석 신뢰도가 낮으면 null로 변경
+                q_confidence = q.get("confidence", 0.5)
+                if q_confidence < 0.8:
+                    old_value = q.get("is_correct")
+                    q["is_correct"] = None
+                    q["earned_points"] = None
+                    q["_grading_note"] = f"탐지에서 미채점으로 감지됨, 분석 추측 제거 (기존: {old_value})"
+                    null_conversions += 1
+                    print(f"[Cross-Validate] Q{q_num}: {old_value} → null (미채점 감지)")
+
+        # 교차 검증 결과 기록
+        analysis_result["_cross_validation"] = {
+            "marks_detected": len(marks),
+            "corrections_made": corrections_made,
+            "confidence_boosts": confidence_boosts,
+            "null_conversions": null_conversions,
+        }
+
+        if corrections_made > 0 or null_conversions > 0:
+            print(f"[Cross-Validate] 완료: {corrections_made}개 수정, {confidence_boosts}개 신뢰도 상승, {null_conversions}개 null 변환")
+
+        return analysis_result
+
     # ============================================
     # 1. 시험지 유형 자동 분류
     # ============================================
@@ -507,15 +880,31 @@ class AIEngine:
         combined_additions = "\n\n".join(all_additions) if all_additions else ""
         print(f"[Pattern] 총 프롬프트 추가 길이: {len(combined_additions)}자")
 
-        # 2. AI 분석 실행 (분류 + 분석 통합)
+        # ============ 2단계 분석 시스템 ============
+        # [1단계] 채점 표시 탐지 (정오답 인식 정확도 향상)
         await update_step(2)
-        print("[Step 2] AI 통합 분석 실행 중...")
+        print("[Step 2-1] 채점 표시 탐지 중 (1단계 분석)...")
+        marks_result = await self.detect_grading_marks(file_path)
+
+        grading_context = ""
+        if marks_result.get("marks"):
+            print(f"[Step 2-1] {len(marks_result['marks'])}개 채점 표시 탐지됨")
+            grading_context = self._build_grading_context_from_marks(marks_result)
+            combined_additions += grading_context
+        else:
+            print("[Step 2-1] 채점 표시 없음 또는 탐지 실패")
+
+        # [2단계] AI 분석 실행 (분류 + 분석 통합 + 채점 표시 컨텍스트)
+        print("[Step 2-2] AI 통합 분석 실행 중 (2단계 분석)...")
         result = await self.analyze_exam_file(
             file_path=file_path,
-            dynamic_prompt_additions=combined_additions,  # 모든 패턴 시스템 통합
+            dynamic_prompt_additions=combined_additions,  # 모든 패턴 시스템 + 채점 표시 탐지 결과
             exam_type="unified",  # 통합 분석 모드
             custom_prompt=dynamic_prompt,
         )
+
+        # [후처리] 탐지 결과와 분석 결과 교차 검증
+        result = self._cross_validate_grading(result, marks_result)
 
         # 3. 분류 결과 추출 및 조건부 템플릿 적용
         await update_step(3)
@@ -1099,6 +1488,7 @@ class AIEngine:
 - O/X 표시가 **전혀 없는** 문항
 - 학생이 답을 썼지만 채점 표시가 없음 → **절대 정답 처리 금지!**
 - 확신이 없으면 null 처리
+- **서술형**: 풀이가 있어도 점수 기재 없으면 → **null** (미채점!)
 
 ### 핵심 구분법
 | 위치 | 표시 | 의미 |
@@ -1336,6 +1726,19 @@ class AIEngine:
 - 채점 표시 없이 **정답으로 추측 금지**
 - 문제번호 동그라미를 정답 표시로 오해 금지
 - 학생이 답을 썼다고 정답 처리 금지 (표시 확인 필수!)
+
+### ⚠️ 서술형/주관식 문제 채점 (특별 주의!)
+| 상황 | is_correct | 판단 근거 |
+|------|------------|-----------|
+| 점수 기재 (9/9, 10점 등) | true | 만점 획득 |
+| 부분 점수 (5/9 등) | false | 감점됨 |
+| 0점 또는 X표시 | false | 오답 |
+| **풀이만 있고 점수 없음** | **null** | **미채점!** |
+| 빈칸/미작성 | null | 미답 |
+
+**핵심**: 서술형은 반드시 **점수 기재 확인 후** 판정!
+- 학생이 풀이를 길게 작성했어도 점수가 없으면 → is_correct: null
+- 풀이가 맞아 보여도 채점 점수 없으면 → is_correct: null
 
 ## 규칙 (엄격 준수)
 
