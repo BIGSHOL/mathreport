@@ -1,5 +1,6 @@
 import asyncio
 from logging.config import fileConfig
+from urllib.parse import quote_plus
 
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -9,7 +10,19 @@ from app.core.config import settings
 from app.db.base import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+
+# DATABASE_URL 동적 생성 (Supabase 개별 파라미터 사용)
+if settings.use_supabase_db:
+    password = quote_plus(settings.SUPABASE_DB_PASSWORD or "")
+    db_url = (
+        f"postgresql+asyncpg://{settings.SUPABASE_DB_USER}:{password}"
+        f"@{settings.SUPABASE_DB_HOST}:{settings.SUPABASE_DB_PORT}"
+        f"/{settings.SUPABASE_DB_NAME}"
+    )
+else:
+    db_url = settings.DATABASE_URL
+
+config.set_main_option("sqlalchemy.url", db_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

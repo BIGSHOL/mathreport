@@ -24,6 +24,8 @@ export interface QuestionAnalysis {
     student_answer?: string;       // 학생 답안
     earned_points?: number;        // 획득 점수
     error_type?: ErrorType | null; // 오류 유형
+    // 누락 문항 표시
+    _is_placeholder?: boolean;     // AI가 인식하지 못해 자동 보완된 문항
 }
 
 export interface AnalysisSummary {
@@ -254,7 +256,7 @@ export const analysisService = {
     async submitFeedback(
         analysisId: string,
         questionId: string,
-        feedbackType: 'wrong_recognition' | 'wrong_topic' | 'wrong_difficulty' | 'other',
+        feedbackType: 'wrong_recognition' | 'wrong_topic' | 'wrong_difficulty' | 'wrong_grading' | 'other',
         comment?: string
     ): Promise<void> {
         await api.post(`/api/v1/analysis/${analysisId}/feedback`, {

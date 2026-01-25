@@ -1,12 +1,257 @@
 /**
  * Answer Analysis Component - 정오답 분석 (학생 답안지 전용)
  */
-import { memo } from 'react';
+import { memo, useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { QuestionAnalysis } from '../../services/analysis';
+import { analysisService } from '../../services/analysis';
 
 interface AnswerAnalysisProps {
   questions: QuestionAnalysis[];
+  analysisId?: string;
 }
+
+// 피드백 유형
+const FEEDBACK_TYPES = [
+  { value: 'wrong_grading', label: '채점오류' },
+  { value: 'wrong_recognition', label: '인식오류' },
+  { value: 'wrong_topic', label: '단원오류' },
+  { value: 'other', label: '기타' },
+] as const;
+
+// 개별 오답 문항 행 컴포넌트
+const WrongQuestionRow = memo(function WrongQuestionRow({
+  q,
+  analysisId,
+}: {
+  q: QuestionAnalysis;
+  analysisId?: string;
+}) {
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [comment, setComment] = useState('');
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 드롭다운 위치 계산
+  const updateDropdownPosition = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const dropdownHeight = 200; // 예상 높이
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+
+      // 아래 공간이 충분하면 아래로, 아니면 위로
+      if (spaceBelow >= dropdownHeight || spaceBelow > spaceAbove) {
+        setDropdownPos({
+          top: rect.bottom + 4,
+          left: rect.right - 176, // w-44 = 176px
+        });
+      } else {
+        setDropdownPos({
+          top: rect.top - dropdownHeight - 4,
+          left: rect.right - 176,
+        });
+      }
+    }
+  }, []);
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        buttonRef.current && !buttonRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
+        setShowFeedback(false);
+        setShowCommentInput(false);
+        setComment('');
+      }
+    };
+
+    if (showFeedback) {
+      updateDropdownPosition();
+      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', updateDropdownPosition, true);
+      window.addEventListener('resize', updateDropdownPosition);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        window.removeEventListener('scroll', updateDropdownPosition, true);
+        window.removeEventListener('resize', updateDropdownPosition);
+      };
+    }
+  }, [showFeedback, updateDropdownPosition]);
+
+  const handleFeedback = async (feedbackType: string, feedbackComment?: string) => {
+    if (!analysisId) return;
+    setIsSubmitting(true);
+    try {
+      await analysisService.submitFeedback(
+        analysisId,
+        q.id,
+        feedbackType as 'wrong_recognition' | 'wrong_topic' | 'wrong_difficulty' | 'other',
+        feedbackComment
+      );
+      setFeedbackSent(true);
+      setShowFeedback(false);
+      setShowCommentInput(false);
+    } catch (error) {
+      console.error('피드백 전송 실패:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setShowFeedback(false);
+    setShowCommentInput(false);
+    setComment('');
+  };
+
+  return (
+    <tr key={q.id} className="hover:bg-red-50/50">
+      <td className="px-3 py-2 text-center font-medium text-red-600">
+        {q.question_number}
+      </td>
+      <td className="px-3 py-2 text-gray-700 truncate max-w-xs">
+        {q.topic || '-'}
+      </td>
+      <td className="px-3 py-2 text-center">
+        <span className={`px-1.5 py-0.5 rounded text-xs ${
+          q.difficulty === 'high' ? 'bg-red-100 text-red-700' :
+          q.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+          'bg-green-100 text-green-700'
+        }`}>
+          {q.difficulty === 'high' ? '상' : q.difficulty === 'medium' ? '중' : '하'}
+        </span>
+      </td>
+      <td className="px-3 py-2 text-center text-gray-600">
+        {q.earned_points ?? 0}/{q.points ?? 0}
+      </td>
+      <td className="px-3 py-2 text-center">
+        {q.error_type && (
+          <span className={`px-1.5 py-0.5 rounded text-xs ${
+            ERROR_TYPE_COLORS[q.error_type] || 'bg-gray-100 text-gray-700'
+          }`}>
+            {ERROR_TYPE_LABELS[q.error_type] || q.error_type}
+          </span>
+        )}
+      </td>
+      <td className="px-3 py-2 text-gray-600 text-xs">
+        {q.ai_comment || '-'}
+      </td>
+      <td className="px-3 py-2 text-center">
+        {analysisId && (
+          <div className="relative inline-block">
+            {feedbackSent ? (
+              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                완료
+              </span>
+            ) : (
+              <button
+                ref={buttonRef}
+                onClick={() => setShowFeedback(!showFeedback)}
+                className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors whitespace-nowrap ${
+                  showFeedback
+                    ? 'bg-gray-100 text-gray-700'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                }`}
+                title="오류 신고"
+              >
+                <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                신고
+              </button>
+            )}
+
+            {/* 드롭다운 메뉴 - Portal로 body에 렌더링 */}
+            {showFeedback && !feedbackSent && createPortal(
+              <div
+                ref={dropdownRef}
+                className="fixed z-[9999] w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
+                style={{ top: dropdownPos.top, left: Math.max(8, dropdownPos.left) }}
+              >
+                <div className="px-3 py-1.5 border-b border-gray-100">
+                  <p className="text-xs font-medium text-gray-600">오류 유형</p>
+                </div>
+
+                {showCommentInput ? (
+                  <div className="p-2">
+                    <input
+                      type="text"
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="오류 내용 입력"
+                      className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      disabled={isSubmitting}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && comment.trim()) handleFeedback('other', comment.trim());
+                        if (e.key === 'Escape') handleCancel();
+                      }}
+                    />
+                    <div className="flex gap-1.5 mt-2">
+                      <button
+                        onClick={() => handleFeedback('other', comment.trim())}
+                        disabled={isSubmitting || !comment.trim()}
+                        className="flex-1 text-xs px-2 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white rounded-md transition-colors"
+                      >
+                        제출
+                      </button>
+                      <button
+                        onClick={handleCancel}
+                        disabled={isSubmitting}
+                        className="text-xs px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-0.5">
+                    {FEEDBACK_TYPES.map((type) => (
+                      <button
+                        key={type.value}
+                        onClick={() => type.value === 'other' ? setShowCommentInput(true) : handleFeedback(type.value)}
+                        disabled={isSubmitting}
+                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          type.value === 'wrong_grading' ? 'bg-red-400' :
+                          type.value === 'wrong_recognition' ? 'bg-orange-400' :
+                          type.value === 'wrong_topic' ? 'bg-amber-400' : 'bg-gray-400'
+                        }`} />
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="border-t border-gray-100 px-2 py-1.5">
+                  <button
+                    onClick={handleCancel}
+                    className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>,
+              document.body
+            )}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+});
 
 const ERROR_TYPE_LABELS: Record<string, string> = {
   calculation_error: '계산 실수',
@@ -26,6 +271,7 @@ const ERROR_TYPE_COLORS: Record<string, string> = {
 
 export const AnswerAnalysis = memo(function AnswerAnalysis({
   questions,
+  analysisId,
 }: AnswerAnalysisProps) {
   // 정오답 데이터가 있는 문항만 필터링
   const questionsWithAnswers = questions.filter(q => q.is_correct !== undefined && q.is_correct !== null);
@@ -102,12 +348,12 @@ export const AnswerAnalysis = memo(function AnswerAnalysis({
 
       {/* 오답 문항 상세 */}
       {wrongQuestions.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-lg shadow p-4 overflow-visible">
           <h3 className="text-base font-semibold text-gray-900 mb-3">
             오답 문항 상세 ({wrongQuestions.length}문항)
           </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto overflow-y-visible">
+            <table className="w-full text-sm overflow-visible">
               <thead className="bg-gray-50 text-xs text-gray-500">
                 <tr>
                   <th className="px-3 py-2 text-center w-16">번호</th>
@@ -116,42 +362,12 @@ export const AnswerAnalysis = memo(function AnswerAnalysis({
                   <th className="px-3 py-2 text-center w-20">배점</th>
                   <th className="px-3 py-2 text-center w-24">오류 유형</th>
                   <th className="px-3 py-2 text-left">AI 코멘트</th>
+                  {analysisId && <th className="px-3 py-2 text-center w-20">피드백</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {wrongQuestions.map(q => (
-                  <tr key={q.id} className="hover:bg-red-50/50">
-                    <td className="px-3 py-2 text-center font-medium text-red-600">
-                      {q.question_number}
-                    </td>
-                    <td className="px-3 py-2 text-gray-700 truncate max-w-xs">
-                      {q.topic || '-'}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`px-1.5 py-0.5 rounded text-xs ${
-                        q.difficulty === 'high' ? 'bg-red-100 text-red-700' :
-                        q.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-green-100 text-green-700'
-                      }`}>
-                        {q.difficulty === 'high' ? '상' : q.difficulty === 'medium' ? '중' : '하'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-center text-gray-600">
-                      {q.earned_points ?? 0}/{q.points ?? 0}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      {q.error_type && (
-                        <span className={`px-1.5 py-0.5 rounded text-xs ${
-                          ERROR_TYPE_COLORS[q.error_type] || 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {ERROR_TYPE_LABELS[q.error_type] || q.error_type}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-gray-600 text-xs">
-                      {q.ai_comment || '-'}
-                    </td>
-                  </tr>
+                  <WrongQuestionRow key={q.id} q={q} analysisId={analysisId} />
                 ))}
               </tbody>
             </table>

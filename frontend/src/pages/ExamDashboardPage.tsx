@@ -41,12 +41,12 @@ export function ExamDashboardPage() {
   const { updateExamStatus, revalidate } = useOptimisticExamUpdate();
 
   // Stable callback using useCallback (rerender-functional-setstate)
+  // 과목은 서버에서 AI가 자동 감지 (수학/영어만 지원)
   const handleUpload = useCallback(
     async (data: { files: File[]; title: string }) => {
       await upload({
         files: data.files,
         title: data.title,
-        subject: '수학',
       });
       // Revalidate the exam list
       mutate();
@@ -112,6 +112,16 @@ export function ExamDashboardPage() {
       deleteExam(examId); // Optimistic update, no await needed
     },
     [deleteExam]
+  );
+
+  // 시험지 피드백 (유형 오분류, 업로드 오류 등)
+  const handleFeedback = useCallback(
+    (examId: string, feedbackType: string, comment?: string) => {
+      // TODO: 백엔드 API 구현 후 연동
+      console.log('[Exam Feedback]', { examId, feedbackType, comment });
+      // 향후 examService.submitFeedback(examId, feedbackType, comment) 호출
+    },
+    []
   );
 
   // 선택 모드 토글
@@ -219,6 +229,7 @@ export function ExamDashboardPage() {
                 onViewResult={handleViewResult}
                 onRequestAnalysis={handleRequestAnalysis}
                 onDelete={handleDelete}
+                onFeedback={handleFeedback}
                 selectionMode={selectionMode}
                 isSelected={selectedExamIds.has(exam.id)}
                 onSelectionChange={handleSelectionChange}

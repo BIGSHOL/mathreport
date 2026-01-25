@@ -1,6 +1,6 @@
 ---
 name: ai-engine-specialist
-description: AI 엔진 전문가. Gemini API 연동, 프롬프트 엔지니어링, 신뢰도 계산, AI 학습 시스템을 담당합니다. AI 분석 정확도 향상 작업에 사용합니다.
+description: AI 엔진 전문가. Gemini API 연동, 프롬프트 엔지니어링, 신뢰도 계산, AI 학습 시스템, 시험지 분류(blank/answered/graded)를 담당합니다. AI 분석 정확도 향상 작업에 사용합니다.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
 ---
@@ -108,18 +108,96 @@ git commit -m "test: T0.5.x AI 엔진 테스트 작성 (RED)"
 - 정확도 개선 추적
 - A/B 테스트 지원
 
+### 5. 시험지 분류 시스템 (classify_exam_paper)
+
+시험지 이미지를 분석하여 유형을 자동 분류합니다.
+
+#### 분류 체계
+
+| paper_type | 설명 | 조건 |
+|------------|------|------|
+| `blank` | 빈 시험지 | 학생 표시 없음, 인쇄물만 존재 |
+| `answered` | 학생 답안지 | 손글씨/표시 있음 (채점 여부 무관) |
+| `mixed` | 일부만 작성 | 일부 문항만 답안 있음 |
+| `unknown` | 분류 불가 | 파일 오류, 이미지 품질 문제 |
+
+| grading_status | 설명 | 조건 |
+|----------------|------|------|
+| `not_applicable` | 채점 대상 없음 | paper_type이 blank일 때 |
+| `not_graded` | 채점 안 됨 | 답안 있지만 채점 표시 없음 |
+| `partially_graded` | 일부 채점됨 | 일부 문항만 O/X 표시 |
+| `fully_graded` | 전체 채점됨 | 모든 문항에 채점 표시 |
+| `uncertain` | 판단 불가 | 흑백 이미지, 모호한 표시 |
+
+#### 학생 답안 감지 규칙 (paper_type 판단)
+
+**다음 중 하나라도 발견 → `answered`:**
+
+1. **객관식 보기 표시** (가장 중요!)
+   - 선택지에 동그라미, 체크(✓), 밑줄
+   - ①②③④⑤ 중 하나를 연필/펜으로 선택
+
+2. **손풀이/계산**
+   - 문제 옆/여백에 쓴 수식, 계산 과정
+   - 답안란에 쓴 숫자, 문자, 수식
+
+3. **답안란 작성**
+   - 단답형/서술형 답안란에 쓴 내용
+
+4. **문제에 메모/표시**
+   - 밑줄, 동그라미, 계산용 메모
+
+#### 학생 표시 vs 인쇄물 구분
+
+| 구분 | 학생 표시 (answered) | 인쇄물 (무시) |
+|------|---------------------|--------------|
+| 선명도 | 연필 흐릿, 펜 불균일 | 선명하고 균일 |
+| 정렬 | 약간 비뚤어짐 | 완벽하게 정렬 |
+| 굵기 | 불규칙 | 일정함 |
+| 위치 | 답안란, 여백, 보기 위 | 문제 텍스트 영역 |
+
+#### 채점 표시 감지 규칙 (grading_status 판단)
+
+**컬러 이미지:**
+- 빨간색 O, X, 체크, 동그라미 → 채점됨
+- 빨간색 점수 표기 (-3, 8/10 등) → 채점됨
+
+**흑백 이미지:**
+- 학생 필체와 다른 O/X 표시 → 채점
+- 답안 옆 점수 표기 → 채점
+- 판단 어려우면 → `uncertain`
+
+#### ⚠️ 흔한 분류 오류와 해결책
+
+| 오류 상황 | 잘못된 분류 | 올바른 분류 | 원인 |
+|----------|------------|------------|------|
+| 학생이 보기에 체크했지만 채점 안 됨 | `blank` | `answered` + `not_graded` | 채점 표시 없다고 blank로 판단 |
+| 손풀이 있지만 채점 안 됨 | `blank` | `answered` + `not_graded` | 손글씨 감지 실패 |
+| 연필 표시가 흐림 | `blank` | `answered` | 흐린 연필 표시 미감지 |
+
+**핵심 원칙:**
+- `blank` = 학생 표시가 **전혀** 없을 때만
+- 학생 표시 있고 채점 없음 = `answered` + `not_graded`
+- 채점 여부와 paper_type은 **독립적**으로 판단
+
 ## 파일 구조
 
 ```
 app/services/
 ├── ai_engine.py        # 핵심 AI 분석 엔진
+│   ├── classify_exam_paper()     # 시험지 유형 분류
+│   ├── classification_prompt     # 분류 프롬프트 (86-360줄)
+│   ├── analyze_exam_with_patterns()  # 통합 분석
+│   ├── _get_blank_prompt()       # 빈 시험지 프롬프트
+│   └── _get_student_prompt()     # 학생 답안지 프롬프트
 ├── ai_learning.py      # 피드백 기반 학습
-└── analysis.py         # 분석 워크플로우
+│   └── get_dynamic_prompt_additions()  # 학습된 패턴 프롬프트 추가
+├── analysis.py         # 분석 워크플로우
+│   └── request_analysis()        # 분석 요청 처리
+└── prompt_builder.py   # 동적 프롬프트 생성기
 
-app/prompts/            # 프롬프트 템플릿 (생성 시)
-├── extract_prompt.py
-├── analyze_prompt.py
-└── examples/
+app/schemas/
+└── pattern.py          # ExamPaperClassification 스키마
 
 tests/services/
 ├── test_ai_engine.py
@@ -153,7 +231,7 @@ tests/services/
 
 ## 프롬프트 개선 체크리스트
 
-AI 분석 정확도 개선 시:
+### AI 분석 정확도 개선 시:
 
 ```markdown
 [ ] 현재 프롬프트 분석 (어떤 오류가 발생하는지)
@@ -163,6 +241,30 @@ AI 분석 정확도 개선 시:
 [ ] 출력 JSON 스키마 검증 강화
 [ ] 테스트 케이스로 개선 효과 측정
 ```
+
+### 시험지 분류 정확도 개선 시:
+
+```markdown
+[ ] 분류 오류 케이스 수집 (blank로 잘못 분류된 answered 등)
+[ ] classification_prompt 점검 (ai_engine.py 86~360줄)
+[ ] 학생 표시 감지 규칙 강화
+  [ ] 객관식 보기 표시 감지
+  [ ] 손풀이/계산 감지
+  [ ] 연필 흐린 표시 감지
+[ ] 채점 표시 감지 규칙 강화
+  [ ] 빨간펜 O/X 감지
+  [ ] 흑백 이미지 대응
+[ ] JSON 예시 케이스 추가 (특히 "answered + not_graded")
+[ ] paper_type vs grading_status 독립 판단 강조
+```
+
+### 주요 프롬프트 위치
+
+| 프롬프트 | 파일 위치 | 용도 |
+|---------|----------|------|
+| classification_prompt | ai_engine.py:86-360 | 시험지 유형 분류 |
+| _get_blank_prompt() | ai_engine.py:850-1016 | 빈 시험지 분석 |
+| _get_student_prompt() | ai_engine.py:1018-1258 | 학생 답안지 분석 |
 
 ---
 

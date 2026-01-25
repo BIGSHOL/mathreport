@@ -1,8 +1,12 @@
 /**
  * Exam Scope View - 시험범위 분석 (컴팩트 버전)
+ *
+ * Vercel React Best Practices:
+ * - 6.3 Hoist Static Data: 색상 상수를 tokens.ts에서 임포트
  */
 import { memo, useMemo } from 'react';
 import type { QuestionAnalysis } from '../../../services/analysis';
+import { SUBJECT_COLORS } from '../../../styles/tokens';
 
 interface ExamScopeViewProps {
   questions: QuestionAnalysis[];
@@ -17,16 +21,6 @@ const CURRICULUM: Record<string, string[]> = {
   '확률과통계': ['경우의 수', '확률', '통계'],
   '미적분': ['수열의 극한', '미분법', '적분법'],
   '기하': ['이차곡선', '평면벡터', '공간도형과 공간좌표'],
-};
-
-const SUBJECT_COLORS: Record<string, string> = {
-  '공통수학1': '#6366f1',
-  '공통수학2': '#8b5cf6',
-  '수학1': '#ec4899',
-  '수학2': '#14b8a6',
-  '확률과통계': '#f97316',
-  '미적분': '#06b6d4',
-  '기하': '#84cc16',
 };
 
 export const ExamScopeView = memo(function ExamScopeView({

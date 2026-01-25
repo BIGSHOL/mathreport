@@ -31,10 +31,14 @@ export interface Exam {
     // AI 자동 감지 결과
     detected_type?: ExamType | null;
     detection_confidence?: number | null;
-    grading_status?: 'not_graded' | 'partially_graded' | 'fully_graded' | 'not_applicable' | null;
+    grading_status?: 'not_graded' | 'partially_graded' | 'fully_graded' | 'not_applicable' | 'uncertain' | null;
+    detected_subject?: '수학' | '영어' | null;  // AI가 감지한 과목
+    subject_confidence?: number | null;  // 과목 감지 신뢰도
     // AI가 이미지에서 추출한 정보
     suggested_title?: string | null;  // 추출된 메타데이터 기반 제목 제안
     extracted_grade?: string | null;  // 추출된 학년 정보
+    // 분석 실패 시 에러 메시지
+    error_message?: string | null;
 }
 
 export interface ExamListResponse {

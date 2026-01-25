@@ -1,8 +1,12 @@
 /**
  * Topic Analysis Chart - 과목별/단원별 출제현황 (컴팩트 버전)
+ *
+ * Vercel React Best Practices:
+ * - 6.3 Hoist Static Data: 색상 상수를 tokens.ts에서 임포트
  */
 import { memo, useMemo } from 'react';
 import type { QuestionAnalysis } from '../../../services/analysis';
+import { DIFFICULTY_COLORS, SUBJECT_COLORS } from '../../../styles/tokens';
 
 interface TopicAnalysisChartProps {
   questions: QuestionAnalysis[];
@@ -18,22 +22,6 @@ interface TopicData {
   low: number;
   color: string;
 }
-
-const COLORS = {
-  high: '#ef4444',
-  medium: '#f59e0b',
-  low: '#22c55e',
-};
-
-const SUBJECT_COLORS: Record<string, string> = {
-  '공통수학1': '#6366f1',
-  '공통수학2': '#8b5cf6',
-  '수학1': '#ec4899',
-  '수학2': '#14b8a6',
-  '확률과통계': '#f97316',
-  '미적분': '#06b6d4',
-  '기하': '#84cc16',
-};
 
 export const TopicAnalysisChart = memo(function TopicAnalysisChart({
   questions,
@@ -125,7 +113,7 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                     className="h-full flex items-center justify-center text-xs text-white"
                     style={{
                       width: `${(s.low / maxSubjectCount) * 100}%`,
-                      backgroundColor: COLORS.low,
+                      backgroundColor: DIFFICULTY_COLORS.low.bg,
                       minWidth: s.low > 0 ? '20px' : 0,
                     }}
                   >
@@ -137,7 +125,7 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                     className="h-full flex items-center justify-center text-xs text-white"
                     style={{
                       width: `${(s.medium / maxSubjectCount) * 100}%`,
-                      backgroundColor: COLORS.medium,
+                      backgroundColor: DIFFICULTY_COLORS.medium.bg,
                       minWidth: s.medium > 0 ? '20px' : 0,
                     }}
                   >
@@ -149,7 +137,7 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                     className="h-full flex items-center justify-center text-xs text-white"
                     style={{
                       width: `${(s.high / maxSubjectCount) * 100}%`,
-                      backgroundColor: COLORS.high,
+                      backgroundColor: DIFFICULTY_COLORS.high.bg,
                       minWidth: s.high > 0 ? '20px' : 0,
                     }}
                   >
@@ -166,16 +154,16 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
         {/* 범례 */}
         <div className="flex gap-4 mt-3 text-xs text-gray-500 justify-end">
           <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{ backgroundColor: COLORS.low }} />
-            하
+            <span className="w-3 h-3 rounded" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
+            {DIFFICULTY_COLORS.low.label}
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{ backgroundColor: COLORS.medium }} />
-            중
+            <span className="w-3 h-3 rounded" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
+            {DIFFICULTY_COLORS.medium.label}
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{ backgroundColor: COLORS.high }} />
-            상
+            <span className="w-3 h-3 rounded" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
+            {DIFFICULTY_COLORS.high.label}
           </span>
         </div>
       </div>

@@ -1,7 +1,15 @@
 /**
  * Distribution Charts - 난이도/유형 분포 (컴팩트 버전)
+ *
+ * Vercel React Best Practices:
+ * - 6.3 Hoist Static Data: 색상 상수를 tokens.ts에서 임포트
  */
 import { memo } from 'react';
+import {
+  DIFFICULTY_COLORS,
+  QUESTION_TYPE_COLORS,
+  FORMAT_COLORS,
+} from '../../../styles/tokens';
 
 interface DifficultyPieChartProps {
   distribution: {
@@ -11,20 +19,14 @@ interface DifficultyPieChartProps {
   };
 }
 
-const DIFFICULTY_COLORS = {
-  high: '#ef4444',
-  medium: '#f59e0b',
-  low: '#22c55e',
-};
-
 export const DifficultyPieChart = memo(function DifficultyPieChart({
   distribution,
 }: DifficultyPieChartProps) {
   const total = distribution.high + distribution.medium + distribution.low;
   const data = [
-    { key: 'low', value: distribution.low, label: '하', color: DIFFICULTY_COLORS.low },
-    { key: 'medium', value: distribution.medium, label: '중', color: DIFFICULTY_COLORS.medium },
-    { key: 'high', value: distribution.high, label: '상', color: DIFFICULTY_COLORS.high },
+    { key: 'low', value: distribution.low, label: DIFFICULTY_COLORS.low.label, color: DIFFICULTY_COLORS.low.bg },
+    { key: 'medium', value: distribution.medium, label: DIFFICULTY_COLORS.medium.label, color: DIFFICULTY_COLORS.medium.bg },
+    { key: 'high', value: distribution.high, label: DIFFICULTY_COLORS.high.label, color: DIFFICULTY_COLORS.high.bg },
   ].filter((d) => d.value > 0);
 
   return (
@@ -54,9 +56,9 @@ export const DifficultyPieChart = memo(function DifficultyPieChart({
       {/* 범례 */}
       <div className="flex justify-center gap-6 text-sm">
         {[
-          { key: 'low', label: '하 (쉬움)', color: DIFFICULTY_COLORS.low },
-          { key: 'medium', label: '중 (보통)', color: DIFFICULTY_COLORS.medium },
-          { key: 'high', label: '상 (어려움)', color: DIFFICULTY_COLORS.high },
+          { key: 'low', label: '하 (쉬움)', color: DIFFICULTY_COLORS.low.bg },
+          { key: 'medium', label: '중 (보통)', color: DIFFICULTY_COLORS.medium.bg },
+          { key: 'high', label: '상 (어려움)', color: DIFFICULTY_COLORS.high.bg },
         ].map((item) => {
           const value = distribution[item.key as keyof typeof distribution];
           const percent = total > 0 ? Math.round((value / total) * 100) : 0;
@@ -80,24 +82,6 @@ interface TypePieChartProps {
   distribution: Record<string, number>;
 }
 
-const TYPE_COLORS: Record<string, string> = {
-  calculation: '#6366f1',
-  geometry: '#8b5cf6',
-  application: '#ec4899',
-  proof: '#14b8a6',
-  graph: '#f97316',
-  statistics: '#06b6d4',
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  calculation: '계산',
-  geometry: '도형',
-  application: '응용',
-  proof: '증명',
-  graph: '그래프',
-  statistics: '통계',
-};
-
 export const TypePieChart = memo(function TypePieChart({
   distribution,
 }: TypePieChartProps) {
@@ -107,8 +91,8 @@ export const TypePieChart = memo(function TypePieChart({
     .map(([key, value]) => ({
       key,
       value,
-      label: TYPE_LABELS[key] || key,
-      color: TYPE_COLORS[key] || '#6b7280',
+      label: QUESTION_TYPE_COLORS[key]?.label || key,
+      color: QUESTION_TYPE_COLORS[key]?.color || '#6b7280',
     }))
     .sort((a, b) => b.value - a.value);
 
@@ -164,7 +148,7 @@ interface TopicDistributionChartProps {
   topics: string[]; // "중단원 > 소단원" 형식의 topic 배열
 }
 
-// 중단원별 색상
+// 중단원별 색상 (동적 할당용)
 const CHAPTER_COLORS: string[] = [
   '#6366f1', // indigo
   '#8b5cf6', // violet
@@ -302,18 +286,6 @@ interface FormatDistributionChartProps {
   formats: (string | undefined)[]; // question_format 배열
 }
 
-const FORMAT_COLORS: Record<string, string> = {
-  objective: '#3b82f6',    // blue
-  short_answer: '#f59e0b', // amber
-  essay: '#8b5cf6',        // purple
-};
-
-const FORMAT_LABELS: Record<string, string> = {
-  objective: '객관식',
-  short_answer: '단답형',
-  essay: '서술형',
-};
-
 export const FormatDistributionChart = memo(function FormatDistributionChart({
   formats,
 }: FormatDistributionChartProps) {
@@ -332,8 +304,8 @@ export const FormatDistributionChart = memo(function FormatDistributionChart({
     .map(([key, value]) => ({
       key,
       value,
-      label: FORMAT_LABELS[key] || key,
-      color: FORMAT_COLORS[key] || '#6b7280',
+      label: FORMAT_COLORS[key]?.label || key,
+      color: FORMAT_COLORS[key]?.color || '#6b7280',
     }))
     .sort((a, b) => b.value - a.value);
 
@@ -363,21 +335,19 @@ export const FormatDistributionChart = memo(function FormatDistributionChart({
 
       {/* 범례 */}
       <div className="flex justify-center gap-6 text-sm">
-        {[
-          { key: 'objective', label: '객관식', color: FORMAT_COLORS.objective },
-          { key: 'short_answer', label: '단답형', color: FORMAT_COLORS.short_answer },
-          { key: 'essay', label: '서술형', color: FORMAT_COLORS.essay },
-        ].map((item) => {
-          const value = formatMap.get(item.key) || 0;
+        {['objective', 'short_answer', 'essay'].map((key) => {
+          const config = FORMAT_COLORS[key];
+          if (!config) return null;
+          const value = formatMap.get(key) || 0;
           const percent = total > 0 ? Math.round((value / total) * 100) : 0;
           if (value === 0) return null;
           return (
-            <div key={item.key} className="flex items-center gap-1.5 whitespace-nowrap">
+            <div key={key} className="flex items-center gap-1.5 whitespace-nowrap">
               <span
                 className="w-3 h-3 rounded"
-                style={{ backgroundColor: item.color }}
+                style={{ backgroundColor: config.color }}
               />
-              <span className="text-gray-600">{item.label}</span>
+              <span className="text-gray-600">{config.label}</span>
               <span className="text-gray-400">({percent}%)</span>
             </div>
           );
@@ -453,9 +423,6 @@ export const PointsDistributionChart = memo(function PointsDistributionChart({
 
   const objDist = calculateDistribution(objectivePoints);
   const subjDist = calculateDistribution(subjectivePoints);
-
-  // 두 차트 중 더 큰 maxCount를 기준으로 그래프 스케일 통일 (선택사항, 현재는 개별 스케일 사용)
-  // const globalMaxCount = Math.max(objDist.maxCount, subjDist.maxCount);
 
   if (objDist.data.length === 0 && subjDist.data.length === 0) return null;
 

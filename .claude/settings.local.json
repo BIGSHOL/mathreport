@@ -34,7 +34,16 @@
       "Bash(cmd /c \"if not exist F:\\\\math-report\\\\reports mkdir F:\\\\math-report\\\\reports\")",
       "Bash(cmd /c \"cd /d F:\\\\math-report\\\\backend && python check_user.py st2000423@gmail.com\")",
       "Bash(cmd /c \"cd /d F:\\\\math-report\\\\backend && python check_user.py st2000423@gmail.com 2>&1\")",
-      "Bash(python seed_patterns.py:*)"
+      "Bash(python seed_patterns.py:*)",
+      "Read(//f/**)",
+      "Bash(cd:*)",
+      "Bash(railway:*)",
+      "Bash(export RAILWAY_TOKEN=5c57abf0-14c4-4728-9f8a-37cbc92f11d1)",
+      "Bash(start https://supabase.com/dashboard/projects)"
+    ],
+    "additionalDirectories": [
+      "f:\\math-report\\frontend\\src",
+      "f:\\math-report"
     ]
   }
 }

@@ -2,7 +2,8 @@
  * Exam list item component - 분석 요약 포함
  * Implements: rerender-memo (memoized component)
  */
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { Exam } from '../../services/exam';
 
 interface ExamListItemProps {
@@ -10,6 +11,7 @@ interface ExamListItemProps {
   onViewResult: (examId: string) => void;
   onRequestAnalysis: (examId: string) => void;
   onDelete: (examId: string) => void;
+  onFeedback?: (examId: string, feedbackType: string, comment?: string) => void;
   // 선택 모드 관련
   selectionMode?: boolean;
   isSelected?: boolean;
@@ -31,11 +33,19 @@ const ANALYSIS_STAGES = [
   { id: 4, label: '결과 저장', duration: 2000 },
 ];
 
+// 시험지 레벨 피드백 타입
+const EXAM_FEEDBACK_TYPES = [
+  { value: 'wrong_classification', label: '유형오분류' },
+  { value: 'upload_issue', label: '업로드오류' },
+  { value: 'other', label: '기타' },
+] as const;
+
 export const ExamListItem = memo(function ExamListItem({
   exam,
   onViewResult,
   onRequestAnalysis,
   onDelete,
+  onFeedback,
   selectionMode = false,
   isSelected = false,
   onSelectionChange,
@@ -45,6 +55,63 @@ export const ExamListItem = memo(function ExamListItem({
 
   // 분석 단계 시뮬레이션
   const [currentStage, setCurrentStage] = useState(0);
+
+  // 피드백 UI 상태
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [comment, setComment] = useState('');
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 드롭다운 위치 계산
+  const updateDropdownPosition = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const dropdownHeight = 200;
+      const spaceBelow = window.innerHeight - rect.bottom;
+
+      if (spaceBelow >= dropdownHeight) {
+        setDropdownPos({
+          top: rect.bottom + 4,
+          left: rect.right - 192, // w-48 = 192px
+        });
+      } else {
+        setDropdownPos({
+          top: rect.top - dropdownHeight - 4,
+          left: rect.right - 192,
+        });
+      }
+    }
+  }, []);
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        buttonRef.current && !buttonRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
+        setShowFeedback(false);
+        setShowCommentInput(false);
+        setComment('');
+      }
+    };
+
+    if (showFeedback) {
+      updateDropdownPosition();
+      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', updateDropdownPosition, true);
+      window.addEventListener('resize', updateDropdownPosition);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        window.removeEventListener('scroll', updateDropdownPosition, true);
+        window.removeEventListener('resize', updateDropdownPosition);
+      };
+    }
+  }, [showFeedback, updateDropdownPosition]);
 
   useEffect(() => {
     if (exam.status !== 'analyzing') {
@@ -58,7 +125,7 @@ export const ExamListItem = memo(function ExamListItem({
     let accumulatedTime = 0;
 
     // 각 단계 시작 시간에 맞춰 단계 전환
-    ANALYSIS_STAGES.forEach((stage, idx) => {
+    ANALYSIS_STAGES.forEach((_stage, idx) => {
       if (idx > 0) {
         accumulatedTime += ANALYSIS_STAGES[idx - 1].duration;
         timers.push(
@@ -85,26 +152,40 @@ export const ExamListItem = memo(function ExamListItem({
   const confStyle = getConfidenceStyle(brief?.avg_confidence);
 
   // AI 감지 설명 생성
-  // grading_status: not_graded(미채점), partially_graded(일부채점), fully_graded(완전채점)
+  // grading_status: not_graded(미채점), partially_graded(일부채점), fully_graded(완전채점), uncertain(판단불가)
   const getDetectionExplanation = () => {
     if (!exam.detected_type || !exam.detection_confidence) return null;
 
     const type = exam.detected_type;
     const grading = exam.grading_status;
 
+    // uncertain 상태 처리 (흑백 등으로 판단 어려움)
+    if (grading === 'uncertain') {
+      if (type === 'blank') {
+        return '문제만 있는 시험지로 감지됨 (채점 여부 판단 불가)';
+      }
+      return '답안지로 감지됨 (채점 여부 판단 불가 - 흑백/모호한 표시)';
+    }
+
     if (type === 'blank') {
-      // 미채점 답안지가 blank로 다운그레이드된 경우
+      // 빈 시험지
+      if (grading === 'not_applicable') {
+        return '문제만 있는 빈 시험지로 감지됨';
+      }
       if (grading === 'not_graded') {
         return '손글씨는 있으나 채점 표시가 없어 시험지로 분류됨';
       }
       return '문제만 있는 시험지로 감지됨';
     } else {
-      // student: 채점된 답안지
+      // student: 답안지
       if (grading === 'fully_graded') {
         return '채점 완료된 답안지로 감지됨 (정오답 분석 가능)';
       }
       if (grading === 'partially_graded') {
         return '일부 채점된 답안지로 감지됨';
+      }
+      if (grading === 'not_graded') {
+        return '답안지로 감지됨 (채점 표시 없음)';
       }
       return '손글씨 답안과 채점 표시가 감지됨';
     }
@@ -184,7 +265,16 @@ export const ExamListItem = memo(function ExamListItem({
           <p className="flex items-center flex-wrap text-sm text-gray-500 mt-1 gap-x-1">
             <span className="truncate">{exam.subject}</span>
             <span>•</span>
-            <span>{STATUS_MAP[exam.status] || exam.status}</span>
+            {exam.status === 'failed' ? (
+              <span
+                className="text-red-600 cursor-help underline decoration-dotted"
+                title={exam.error_message || '알 수 없는 오류'}
+              >
+                {STATUS_MAP[exam.status]}
+              </span>
+            ) : (
+              <span>{STATUS_MAP[exam.status] || exam.status}</span>
+            )}
             <span>•</span>
             <span>{formattedDate}</span>
           </p>
@@ -333,6 +423,142 @@ export const ExamListItem = memo(function ExamListItem({
           >
             삭제
           </button>
+
+          {/* 피드백 버튼 */}
+          {onFeedback && (
+            <div className="relative">
+              {feedbackSent ? (
+                <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  완료
+                </span>
+              ) : (
+                <button
+                  ref={buttonRef}
+                  onClick={() => setShowFeedback(!showFeedback)}
+                  className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors ${
+                    showFeedback
+                      ? 'bg-gray-100 text-gray-700'
+                      : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                  }`}
+                  title="오류 신고"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  신고
+                </button>
+              )}
+
+              {/* 드롭다운 메뉴 - Portal로 body에 렌더링 */}
+              {showFeedback && !feedbackSent && createPortal(
+                <div
+                  ref={dropdownRef}
+                  className="fixed z-[9999] w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
+                  style={{ top: dropdownPos.top, left: Math.max(8, dropdownPos.left) }}
+                >
+                  <div className="px-3 py-2 border-b border-gray-100">
+                    <p className="text-xs font-medium text-gray-700">오류 유형 선택</p>
+                  </div>
+
+                  {showCommentInput ? (
+                    <div className="p-3">
+                      <input
+                        type="text"
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="오류 내용을 입력하세요"
+                        className="w-full text-sm px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && comment.trim()) {
+                            onFeedback(exam.id, 'other', comment.trim());
+                            setFeedbackSent(true);
+                            setShowCommentInput(false);
+                            setShowFeedback(false);
+                          }
+                          if (e.key === 'Escape') {
+                            setShowCommentInput(false);
+                            setComment('');
+                          }
+                        }}
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => {
+                            if (comment.trim()) {
+                              onFeedback(exam.id, 'other', comment.trim());
+                              setFeedbackSent(true);
+                              setShowCommentInput(false);
+                              setShowFeedback(false);
+                            }
+                          }}
+                          disabled={!comment.trim()}
+                          className="flex-1 text-sm px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white rounded-md transition-colors"
+                        >
+                          제출
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowCommentInput(false);
+                            setComment('');
+                          }}
+                          className="text-sm px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-1">
+                      {EXAM_FEEDBACK_TYPES.map((type) => (
+                        <button
+                          key={type.value}
+                          onClick={() => {
+                            if (type.value === 'other') {
+                              setShowCommentInput(true);
+                            } else {
+                              onFeedback(exam.id, type.value);
+                              setFeedbackSent(true);
+                              setShowFeedback(false);
+                            }
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                        >
+                          {type.value === 'wrong_classification' && (
+                            <span className="w-2 h-2 rounded-full bg-amber-400" />
+                          )}
+                          {type.value === 'upload_issue' && (
+                            <span className="w-2 h-2 rounded-full bg-red-400" />
+                          )}
+                          {type.value === 'other' && (
+                            <span className="w-2 h-2 rounded-full bg-gray-400" />
+                          )}
+                          {type.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="border-t border-gray-100 px-3 py-2">
+                    <button
+                      onClick={() => {
+                        setShowFeedback(false);
+                        setShowCommentInput(false);
+                        setComment('');
+                      }}
+                      className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                </div>,
+                document.body
+              )}
+            </div>
+          )}
         </div>
       </div>
     </li>

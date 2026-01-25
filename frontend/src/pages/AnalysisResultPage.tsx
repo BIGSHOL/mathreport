@@ -7,8 +7,9 @@
  * - rendering-hoist-jsx: Hoisted static elements
  * - rendering-conditional-render: Explicit ternary operators
  * - js-early-exit: Early return for loading/error states
+ * - ui-components: TabGroup 재사용 컴포넌트 활용
  */
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   useAnalysisResult,
@@ -23,6 +24,8 @@ import { DifficultyPieChart, TypePieChart, TopicDistributionChart, PointsDistrib
 import { TopicAnalysisChart } from '../components/analysis/charts/TopicAnalysisChart';
 import { ExamScopeView } from '../components/analysis/charts/ExamScopeView';
 import { ConfidenceExplanation } from '../components/analysis/ConfidenceBadge';
+import { TabGroup, type Tab } from '../components/ui/TabGroup';
+import { getConfidenceLevel, CONFIDENCE_COLORS } from '../styles/tokens';
 import examService, { type ExamType } from '../services/exam';
 
 // Hoisted static elements (rendering-hoist-jsx)
@@ -53,6 +56,26 @@ export function AnalysisResultPage() {
 
   // 학생 답안지 여부
   const isStudentExam = examType === 'student';
+
+  // 탭 구성 (useMemo로 메모이제이션)
+  const tabs: Tab[] = useMemo(() => {
+    const baseTabs: Tab[] = [
+      { id: 'basic', label: '기본 분석' },
+      { id: 'scope', label: '출제현황' },
+    ];
+    if (isStudentExam) {
+      baseTabs.push(
+        { id: 'answers', label: '정오답 분석' },
+        { id: 'extended', label: '확장 분석' }
+      );
+    }
+    return baseTabs;
+  }, [isStudentExam]);
+
+  // 탭 변경 핸들러
+  const handleTabChange = useCallback((tabId: string) => {
+    setViewMode(tabId as ViewMode);
+  }, []);
 
   const handleGenerateExtended = useCallback(async () => {
     if (!id) return;
@@ -94,66 +117,27 @@ export function AnalysisResultPage() {
             <h2 className="text-3xl font-bold text-gray-900">분석 결과</h2>
             <p className="text-gray-500 mt-2">
               총 {total_questions}문항 · {totalPoints}점 만점
-              {avgConfidence != null && (
-                <span
-                  className={`ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${avgConfidence >= 0.9
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : avgConfidence >= 0.7
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : 'bg-red-100 text-red-800'
-                    }`}
-                  title="AI 분석 신뢰도"
-                >
-                  신뢰도 {Math.round(avgConfidence * 100)}%
-                </span>
-              )}
+              {avgConfidence != null && (() => {
+                const level = getConfidenceLevel(avgConfidence);
+                const config = CONFIDENCE_COLORS[level];
+                return (
+                  <span
+                    className={`ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}
+                    title="AI 분석 신뢰도"
+                  >
+                    신뢰도 {Math.round(avgConfidence * 100)}%
+                  </span>
+                );
+              })()}
             </p>
           </div>
-          {/* View Mode Toggle */}
-          <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-            <button
-              onClick={() => setViewMode('basic')}
-              className={`px-4 py-2 text-sm font-medium ${viewMode === 'basic'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-            >
-              기본 분석
-            </button>
-            <button
-              onClick={() => setViewMode('scope')}
-              className={`px-4 py-2 text-sm font-medium ${viewMode === 'scope'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-            >
-              출제현황
-            </button>
-            {/* 학생 답안지만 정오답 분석 표시 */}
-            {isStudentExam && (
-              <button
-                onClick={() => setViewMode('answers')}
-                className={`px-4 py-2 text-sm font-medium ${viewMode === 'answers'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-              >
-                정오답 분석
-              </button>
-            )}
-            {/* 학생 답안지만 확장 분석 표시 */}
-            {isStudentExam && (
-              <button
-                onClick={() => setViewMode('extended')}
-                className={`px-4 py-2 text-sm font-medium ${viewMode === 'extended'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-              >
-                확장 분석
-              </button>
-            )}
-          </div>
+          {/* View Mode Toggle - TabGroup 컴포넌트 활용 */}
+          <TabGroup
+            tabs={tabs}
+            activeTab={viewMode}
+            onTabChange={handleTabChange}
+            variant="bordered"
+          />
         </div>
       </div>
 
@@ -225,7 +209,7 @@ export function AnalysisResultPage() {
       )}
 
       {viewMode === 'answers' && isStudentExam && (
-        <AnswerAnalysis questions={questions} />
+        <AnswerAnalysis questions={questions} analysisId={id} />
       )}
 
       {viewMode === 'extended' && (

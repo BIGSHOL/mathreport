@@ -1,37 +1,25 @@
 /**
  * Question analysis card component - 컴팩트 버전
- * Implements: rerender-memo (memoized component)
+ *
+ * Vercel React Best Practices:
+ * - rerender-memo: memoized component
+ * - 6.3 Hoist Static Data: 색상 상수를 tokens.ts에서 임포트
  */
-import { memo, useState } from 'react';
+import { memo, useState, useRef, useEffect } from 'react';
 import type { QuestionAnalysis } from '../../services/analysis';
 import { analysisService } from '../../services/analysis';
+import {
+  DIFFICULTY_COLORS,
+  FORMAT_COLORS,
+  getConfidenceLevel,
+  CONFIDENCE_COLORS,
+  getQuestionTypeLabel,
+} from '../../styles/tokens';
 
 interface QuestionCardProps {
   question: QuestionAnalysis;
   analysisId?: string;
 }
-
-const DIFFICULTY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  high: { label: '상', color: '#ef4444', bg: 'bg-red-100 text-red-700' },
-  medium: { label: '중', color: '#f59e0b', bg: 'bg-yellow-100 text-yellow-700' },
-  low: { label: '하', color: '#22c55e', bg: 'bg-green-100 text-green-700' },
-};
-
-const TYPE_MAP: Record<string, string> = {
-  calculation: '계산',
-  geometry: '도형',
-  application: '응용',
-  proof: '증명',
-  graph: '그래프',
-  statistics: '통계',
-};
-
-// 문항 형식 배지 설정
-const FORMAT_CONFIG: Record<string, { label: string; full: string; bg: string }> = {
-  objective: { label: '객', full: '객관식', bg: 'bg-blue-100 text-blue-700 ring-1 ring-blue-200' },
-  short_answer: { label: '단', full: '단답형', bg: 'bg-amber-100 text-amber-700 ring-1 ring-amber-200' },
-  essay: { label: '서', full: '서술형', bg: 'bg-purple-100 text-purple-700 ring-1 ring-purple-200' },
-};
 
 const FEEDBACK_TYPES = [
   { value: 'wrong_recognition', label: '인식오류' },
@@ -49,6 +37,23 @@ export const QuestionCard = memo(function QuestionCard({
   const [comment, setComment] = useState('');
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const feedbackRef = useRef<HTMLDivElement>(null);
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (feedbackRef.current && !feedbackRef.current.contains(event.target as Node)) {
+        setShowFeedback(false);
+        setShowCommentInput(false);
+        setComment('');
+      }
+    };
+
+    if (showFeedback) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showFeedback]);
 
   const handleFeedback = async (feedbackType: string, feedbackComment?: string) => {
     if (!analysisId) return;
@@ -87,22 +92,29 @@ export const QuestionCard = memo(function QuestionCard({
     setComment('');
   };
 
-  const diffConfig = DIFFICULTY_CONFIG[q.difficulty] || DIFFICULTY_CONFIG.medium;
+  const diffConfig = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || DIFFICULTY_COLORS.medium;
+  const formatConfig = q.question_format ? FORMAT_COLORS[q.question_format] : null;
+  const confidenceLevel = q.confidence != null ? getConfidenceLevel(q.confidence) : null;
+  const confidenceConfig = confidenceLevel ? CONFIDENCE_COLORS[confidenceLevel] : null;
+
+  // 누락 문항(placeholder) 여부
+  const isPlaceholder = (q as { _is_placeholder?: boolean })._is_placeholder === true;
 
   return (
-    <tr className="hover:bg-gray-50">
+    <tr className={isPlaceholder ? "bg-orange-50 hover:bg-orange-100 border-l-4 border-orange-400" : "hover:bg-gray-50"}>
       {/* 번호 + 형식 */}
       <td className="px-3 py-2 text-center whitespace-nowrap">
         <div className="flex items-center justify-center gap-1.5">
-          <span className="text-sm font-semibold text-gray-700">
+          <span className={`text-sm font-semibold ${isPlaceholder ? 'text-orange-600' : 'text-gray-700'}`}>
             {q.question_number}
+            {isPlaceholder && <span className="ml-1 text-xs">⚠</span>}
           </span>
-          {q.question_format && FORMAT_CONFIG[q.question_format] && (
+          {formatConfig && (
             <span
-              className={`inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold ${FORMAT_CONFIG[q.question_format].bg}`}
-              title={FORMAT_CONFIG[q.question_format].full}
+              className={`inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold ${formatConfig.tailwind}`}
+              title={formatConfig.label}
             >
-              {FORMAT_CONFIG[q.question_format].label}
+              {formatConfig.short}
             </span>
           )}
         </div>
@@ -112,7 +124,7 @@ export const QuestionCard = memo(function QuestionCard({
       <td className="px-3 py-2 text-center">
         <span
           className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white cursor-help"
-          style={{ backgroundColor: diffConfig.color }}
+          style={{ backgroundColor: diffConfig.bg }}
           title={
             q.difficulty_reason
               ? `난이도 ${diffConfig.label}: ${q.difficulty_reason}`
@@ -126,7 +138,7 @@ export const QuestionCard = memo(function QuestionCard({
       {/* 유형 */}
       <td className="px-3 py-2 whitespace-nowrap">
         <span className="text-sm text-gray-700">
-          {TYPE_MAP[q.question_type] || q.question_type}
+          {getQuestionTypeLabel(q.question_type)}
         </span>
       </td>
 
@@ -146,15 +158,9 @@ export const QuestionCard = memo(function QuestionCard({
 
       {/* 신뢰도 */}
       <td className="px-3 py-2 text-center">
-        {q.confidence != null ? (
+        {q.confidence != null && confidenceConfig ? (
           <span
-            className={`inline-flex items-center justify-center w-12 text-xs font-medium rounded px-1 py-0.5 cursor-help ${
-              q.confidence >= 0.9
-                ? 'bg-emerald-100 text-emerald-700'
-                : q.confidence >= 0.7
-                ? 'bg-yellow-100 text-yellow-700'
-                : 'bg-red-100 text-red-700'
-            }`}
+            className={`inline-flex items-center justify-center w-12 text-xs font-medium rounded px-1 py-0.5 cursor-help ${confidenceConfig.bg} ${confidenceConfig.text}`}
             title={
               q.confidence < 0.7 && q.confidence_reason
                 ? `신뢰도 ${Math.round(q.confidence * 100)}%: ${q.confidence_reason}`
@@ -171,70 +177,105 @@ export const QuestionCard = memo(function QuestionCard({
       {/* 피드백 */}
       <td className="px-3 py-2 text-center">
         {analysisId && (
-          <>
+          <div className="relative inline-block" ref={feedbackRef}>
             {feedbackSent ? (
-              <span className="text-xs text-green-600">완료</span>
-            ) : showCommentInput ? (
-              <div className="flex flex-col gap-1 min-w-[160px]">
-                <input
-                  type="text"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="오류 내용..."
-                  className="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  disabled={isSubmitting}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCommentSubmit()}
-                />
-                <div className="flex gap-1 justify-end">
-                  <button
-                    onClick={handleCommentSubmit}
-                    disabled={isSubmitting || !comment.trim()}
-                    className="text-xs px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded disabled:opacity-50"
-                  >
-                    전송
-                  </button>
-                  <button
-                    onClick={handleCancel}
-                    disabled={isSubmitting}
-                    className="text-xs px-2 py-0.5 text-gray-400 hover:text-gray-600"
-                  >
-                    취소
-                  </button>
-                </div>
-              </div>
-            ) : showFeedback ? (
-              <div className="flex flex-wrap gap-1 justify-center min-w-[140px]">
-                {FEEDBACK_TYPES.map((type) => (
-                  <button
-                    key={type.value}
-                    onClick={() =>
-                      type.value === 'other'
-                        ? handleOtherClick()
-                        : handleFeedback(type.value)
-                    }
-                    disabled={isSubmitting}
-                    className="text-xs px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 rounded text-gray-600 disabled:opacity-50"
-                  >
-                    {type.label}
-                  </button>
-                ))}
-                <button
-                  onClick={handleCancel}
-                  className="text-xs px-1 py-0.5 text-gray-400 hover:text-gray-600"
-                >
-                  ×
-                </button>
-              </div>
+              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                완료
+              </span>
             ) : (
               <button
-                onClick={() => setShowFeedback(true)}
-                className="text-xs text-gray-400 hover:text-indigo-600"
+                onClick={() => setShowFeedback(!showFeedback)}
+                className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors ${
+                  showFeedback
+                    ? 'bg-gray-100 text-gray-700'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                }`}
                 title="오류 신고"
               >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
                 신고
               </button>
             )}
-          </>
+
+            {/* 드롭다운 메뉴 */}
+            {showFeedback && !feedbackSent && (
+              <div className="absolute right-0 top-full mt-1 z-20 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                <div className="px-3 py-1.5 border-b border-gray-100">
+                  <p className="text-xs font-medium text-gray-600">오류 유형</p>
+                </div>
+
+                {showCommentInput ? (
+                  <div className="p-2">
+                    <input
+                      type="text"
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="오류 내용 입력"
+                      className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      disabled={isSubmitting}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleCommentSubmit();
+                        if (e.key === 'Escape') handleCancel();
+                      }}
+                    />
+                    <div className="flex gap-1.5 mt-2">
+                      <button
+                        onClick={handleCommentSubmit}
+                        disabled={isSubmitting || !comment.trim()}
+                        className="flex-1 text-xs px-2 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white rounded-md transition-colors"
+                      >
+                        제출
+                      </button>
+                      <button
+                        onClick={handleCancel}
+                        disabled={isSubmitting}
+                        className="text-xs px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-0.5">
+                    {FEEDBACK_TYPES.map((type) => (
+                      <button
+                        key={type.value}
+                        onClick={() =>
+                          type.value === 'other'
+                            ? handleOtherClick()
+                            : handleFeedback(type.value)
+                        }
+                        disabled={isSubmitting}
+                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          type.value === 'wrong_recognition' ? 'bg-red-400' :
+                          type.value === 'wrong_topic' ? 'bg-amber-400' :
+                          type.value === 'wrong_difficulty' ? 'bg-blue-400' : 'bg-gray-400'
+                        }`} />
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="border-t border-gray-100 px-2 py-1.5">
+                  <button
+                    onClick={handleCancel}
+                    className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </td>
     </tr>
