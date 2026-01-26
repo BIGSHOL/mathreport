@@ -27,6 +27,9 @@ export const authService = {
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          prompt: 'select_account', // 항상 계정 선택 화면 표시
+        },
       },
     });
 
