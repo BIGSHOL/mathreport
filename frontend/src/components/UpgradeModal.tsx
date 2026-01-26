@@ -13,7 +13,7 @@ interface UpgradeModalProps {
 
 export function UpgradeModal({ isOpen, onClose, type }: UpgradeModalProps) {
     const [packages, setPackages] = useState<CreditPackage[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading] = useState(false);
     const [message, setMessage] = useState('');
 
     useEffect(() => {

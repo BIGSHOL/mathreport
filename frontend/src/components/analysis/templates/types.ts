@@ -6,7 +6,7 @@ import type { ExamType } from '../../../services/exam';
 
 export interface TemplateProps {
   result: AnalysisResult;
-  extension: AnalysisExtension | null;
+  extension: AnalysisExtension | null | undefined;
   examType: ExamType;
   analysisId: string;
   onGenerateExtended?: () => Promise<void>;

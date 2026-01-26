@@ -1,15 +1,10 @@
 /**
  * Login page component with Google OAuth only.
  */
-import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 
 export function LoginPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
   const { loginWithGoogle, isLoading, error, clearError } = useAuthStore();
-
-  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname || '/exams';
 
   const handleGoogleLogin = async () => {
     clearError();

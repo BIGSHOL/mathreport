@@ -145,7 +145,7 @@ export function AnalysisTypeModal({ isOpen, onClose, exam, onConfirm }: Analysis
 
   if (!isOpen || !exam) return null;
 
-  const isStudentExam = exam.detected_type === 'student' || exam.detected_type === 'answered';
+  const isStudentExam = exam.detected_type === 'student' || (exam.detected_type as string) === 'answered';
   const confidencePercent = exam.detection_confidence
     ? Math.round(exam.detection_confidence * 100)
     : 0;
