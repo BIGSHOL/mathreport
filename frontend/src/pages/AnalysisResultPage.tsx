@@ -26,10 +26,11 @@ import { DetailedTemplate } from '../components/analysis/templates';
 import { CacheHitBanner } from '../components/analysis/CacheHitBanner';
 import { ExportModal } from '../components/analysis/ExportModal';
 import { AnswerEditor } from '../components/analysis/AnswerEditor';
+import { ExamCommentarySection } from '../components/analysis/ExamCommentarySection';
 import { ToastContainer, useToast } from '../components/Toast';
 import { getConfidenceLevel, CONFIDENCE_COLORS, DIFFICULTY_COLORS, calculateDifficultyGrade } from '../styles/tokens';
 import examService, { type ExamType, type Exam } from '../services/exam';
-import analysisService from '../services/analysis';
+import analysisService, { type ExamCommentary } from '../services/analysis';
 
 // Hoisted static elements (rendering-hoist-jsx)
 const loadingState = <div className="p-8">로딩 중...</div>;
@@ -50,6 +51,8 @@ export function AnalysisResultPage() {
   const [hasAnswerAnalysis, setHasAnswerAnalysis] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showAnswerEditor, setShowAnswerEditor] = useState(false);
+  const [commentary, setCommentary] = useState<ExamCommentary | null>(null);
+  const [isGeneratingCommentary, setIsGeneratingCommentary] = useState(false);
 
   // 토스트 알림
   const toast = useToast();
@@ -100,6 +103,13 @@ export function AnalysisResultPage() {
     }
   }, [result?.exam_id]);
 
+  // 기존 총평 로드
+  useEffect(() => {
+    if (result?.commentary) {
+      setCommentary(result.commentary);
+    }
+  }, [result?.commentary]);
+
   const examType: ExamType = exam?.exam_type || 'blank';
 
   const handleGenerateExtended = useCallback(async () => {
@@ -109,6 +119,25 @@ export function AnalysisResultPage() {
       mutateExtension(ext);
     }
   }, [id, generateExtended, mutateExtension]);
+
+  // AI 총평 생성 핸들러
+  const handleGenerateCommentary = useCallback(async (forceRegenerate: boolean = false) => {
+    if (!id) return;
+
+    setIsGeneratingCommentary(true);
+    try {
+      const newCommentary = await analysisService.generateCommentary(id, forceRegenerate);
+      setCommentary(newCommentary);
+      toast.success('AI 시험 총평이 생성되었습니다');
+      // 분석 결과에도 총평 반영
+      mutateResult();
+    } catch (error) {
+      console.error('Failed to generate commentary:', error);
+      toast.error('총평 생성에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsGeneratingCommentary(false);
+    }
+  }, [id, toast, mutateResult]);
 
   // 정오답 분석 요청 핸들러
   const handleRequestAnswerAnalysis = useCallback(async () => {
@@ -440,6 +469,40 @@ export function AnalysisResultPage() {
           </div>
         </div>
       </div>
+
+      {/* AI 시험 총평 섹션 */}
+      {!commentary && !isGeneratingCommentary && id && (
+        <div className="mb-6">
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-200 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">AI 시험 총평</h3>
+                <p className="text-xs text-gray-600">시험 전체에 대한 전문가 수준의 종합 평가를 받아보세요</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleGenerateCommentary(false)}
+              className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              총평 생성
+            </button>
+          </div>
+        </div>
+      )}
+      {(commentary || isGeneratingCommentary) && (
+        <div className="mb-6">
+          <ExamCommentarySection
+            commentary={commentary}
+            isLoading={isGeneratingCommentary}
+            onRegenerate={() => handleGenerateCommentary(true)}
+          />
+        </div>
+      )}
 
       {/* 상세 분석 템플릿 (베타 기간 중 단일 템플릿 사용) */}
       <DetailedTemplate {...templateProps} />

@@ -62,6 +62,16 @@ export interface AnalysisSummary {
     dominant_type: string;
 }
 
+export interface ExamCommentary {
+    overall_assessment: string;  // 전체 평가
+    difficulty_balance: string;  // 난이도 균형 분석
+    question_quality: string;    // 문항 품질 평가
+    key_insights: string[];      // 핵심 인사이트
+    recommendations: string[];   // 개선 권장사항
+    study_guidance: string[] | null;  // 학습 가이던스 (답안지인 경우)
+    generated_at: string;        // 총평 생성 시각
+}
+
 export interface AnalysisResult {
     id: string;
     exam_id: string;
@@ -70,6 +80,7 @@ export interface AnalysisResult {
     analyzed_at: string;
     summary: AnalysisSummary;
     questions: QuestionAnalysis[];
+    commentary?: ExamCommentary | null;  // AI 시험 총평 (optional)
     // 캐시 관련 메타데이터
     _cache_hit?: boolean;
     _analyzed_at?: string;  // 원래 분석 시간
@@ -383,6 +394,24 @@ export const analysisService = {
                 exam_title: options?.examTitle,
                 exam_grade: options?.examGrade,
                 exam_subject: options?.examSubject,
+            }
+        );
+        return response.data;
+    },
+
+    /**
+     * Generate AI exam commentary (시험 총평).
+     * @returns ExamCommentary
+     */
+    async generateCommentary(
+        analysisId: string,
+        forceRegenerate: boolean = false
+    ): Promise<ExamCommentary> {
+        const response = await api.post<ExamCommentary>(
+            `/api/v1/analysis/${analysisId}/commentary`,
+            null,
+            {
+                params: { force_regenerate: forceRegenerate }
             }
         );
         return response.data;

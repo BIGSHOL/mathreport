@@ -16,6 +16,7 @@ from app.schemas.analysis import (
     ExtendedAnalysisResponse,
     ExportRequest,
     ExportResponse,
+    ExamCommentary,
 )
 from app.schemas.feedback import FeedbackCreate, FeedbackResponse, BadgeEarned
 from app.services.analysis import get_analysis_service
@@ -272,6 +273,73 @@ async def get_analysis(
             analysis_duration=1.5
         )
     )
+
+
+@router.post(
+    "/analysis/{analysis_id}/commentary",
+    response_model=ExamCommentary,
+    status_code=status.HTTP_201_CREATED,
+    summary="AI 시험 총평 생성"
+)
+async def generate_commentary(
+    analysis_id: str,
+    current_user: CurrentUser,
+    db: DbDep,
+    force_regenerate: bool = False,
+) -> ExamCommentary:
+    """시험 분석 결과를 바탕으로 AI 총평을 생성합니다.
+
+    - 전체 평가, 난이도 균형, 문항 품질, 핵심 인사이트, 개선 권장사항 생성
+    - 답안지인 경우 학습 가이던스도 포함
+    - 기존 총평이 있으면 재사용 (force_regenerate=True로 재생성 가능)
+    - 크레딧 소모 없음 (기존 분석 결과 활용)
+    """
+    from app.services.agents.commentary_agent import get_commentary_agent
+
+    # 분석 결과 조회 및 권한 확인
+    analysis_service = get_analysis_service(db)
+    analysis = await analysis_service.get_analysis(analysis_id)
+
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
+        )
+
+    if analysis["user_id"] != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
+        )
+
+    # 기존 총평 확인
+    if not force_regenerate and analysis.get("commentary"):
+        # 기존 총평이 있으면 반환
+        return ExamCommentary.model_validate(analysis["commentary"])
+
+    # 시험지 유형 확인
+    exam_service = get_exam_service(db)
+    exam = await exam_service.get_exam(str(analysis["exam_id"]), current_user["id"])
+    exam_type = exam.get("exam_type", "blank") if exam else "blank"
+
+    # 총평 생성
+    commentary_agent = get_commentary_agent()
+    commentary = commentary_agent.generate(
+        analysis_result={
+            "summary": analysis.get("summary"),
+            "questions": analysis.get("questions"),
+            "total_questions": analysis.get("total_questions"),
+        },
+        exam_type=exam_type
+    )
+
+    # 분석 결과에 총평 저장
+    commentary_dict = commentary.model_dump()
+    await db.table("analysis_results").update({
+        "commentary": commentary_dict
+    }).eq("id", analysis_id).execute()
+
+    return commentary
 
 
 @router.patch(

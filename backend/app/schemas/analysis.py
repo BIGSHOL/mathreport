@@ -181,6 +181,10 @@ class AnalysisResult(BaseModel):
     created_at: datetime | str
     summary: AnalysisSummary
     questions: list[QuestionAnalysis]
+    commentary: dict | None = Field(
+        None,
+        description="AI 시험 총평 (ExamCommentary 형식, 선택적)"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -251,6 +255,43 @@ class AnalysisErrorResponse(BaseModel):
             ]
         }
     })
+
+
+# ============================================
+# Exam Commentary Schemas (AI 시험 총평)
+# ============================================
+
+
+class ExamCommentary(BaseModel):
+    """AI 시험 총평
+
+    시험 전체에 대한 AI 종합 평가 및 분석
+    """
+
+    overall_assessment: str = Field(
+        description="전체 평가 (시험의 전반적인 특징과 수준)"
+    )
+    difficulty_balance: str = Field(
+        description="난이도 균형 분석 (출제 난이도 분포와 적절성)"
+    )
+    question_quality: str = Field(
+        description="문항 품질 평가 (변별력, 타당성, 적절성)"
+    )
+    key_insights: list[str] = Field(
+        description="핵심 인사이트 (주요 출제 특징 3-5개)"
+    )
+    recommendations: list[str] = Field(
+        description="개선 권장사항 (출제자 관점, 빈 시험지인 경우)"
+    )
+    study_guidance: list[str] | None = Field(
+        None,
+        description="학습 가이던스 (학생 관점, 답안지인 경우)"
+    )
+    generated_at: datetime | str = Field(
+        description="총평 생성 시각"
+    )
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================
