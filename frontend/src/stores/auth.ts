@@ -5,7 +5,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '../types/auth';
 import authService from '../services/auth';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface AuthStore {
   user: User | null;
@@ -13,6 +13,7 @@ interface AuthStore {
   isLoading: boolean;
   error: string | null;
   isInitialized: boolean;
+  isAuthAvailable: boolean;
 
   // Actions
   loginWithGoogle: () => Promise<void>;
@@ -32,6 +33,7 @@ export const useAuthStore = create<AuthStore>()(
       isLoading: false,
       error: null,
       isInitialized: false,
+      isAuthAvailable: isSupabaseConfigured,
 
       loginWithGoogle: async () => {
         set({ isLoading: true, error: null });
@@ -97,6 +99,10 @@ export const useAuthStore = create<AuthStore>()(
       handleAuthCallback: async () => {
         set({ isLoading: true, error: null });
         try {
+          if (!supabase) {
+            throw new Error('인증 기능이 설정되지 않았습니다.');
+          }
+
           // Supabase가 URL에서 세션을 자동으로 파싱함
           const { data: { session }, error } = await supabase.auth.getSession();
 

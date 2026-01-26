@@ -111,3 +111,40 @@ export function useGenerateExtendedAnalysis() {
     error,
   };
 }
+
+/**
+ * Export analysis mutation hook.
+ */
+export function useExportAnalysis() {
+  const { trigger, isMutating, error } = useSWRMutation(
+    'analysis-export',
+    async (
+      _key: string,
+      {
+        arg,
+      }: {
+        arg: {
+          analysisId: string;
+          sections: string[];
+          format?: 'html' | 'image';
+          examTitle?: string;
+          examGrade?: string;
+          examSubject?: string;
+        };
+      }
+    ) => {
+      return analysisService.exportAnalysis(arg.analysisId, arg.sections, {
+        format: arg.format,
+        examTitle: arg.examTitle,
+        examGrade: arg.examGrade,
+        examSubject: arg.examSubject,
+      });
+    }
+  );
+
+  return {
+    exportAnalysis: trigger,
+    isExporting: isMutating,
+    error,
+  };
+}

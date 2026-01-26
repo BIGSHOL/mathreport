@@ -427,3 +427,30 @@ class ExtendedAnalysisResponse(BaseModel):
     extension: AnalysisExtension | None = Field(description="확장 분석")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================
+# Export Schemas (내보내기)
+# ============================================
+
+
+class ExportRequest(BaseModel):
+    """내보내기 요청"""
+    sections: list[str] = Field(
+        description="포함할 섹션 목록 (header, summary, difficulty, type, topic, scores, questions, comments)"
+    )
+    format: str = Field(
+        default="html",
+        description="내보내기 형식 (html, image)"
+    )
+    exam_title: str | None = Field(None, description="시험지 제목")
+    exam_grade: str | None = Field(None, description="학년")
+    exam_subject: str | None = Field(None, description="과목")
+
+
+class ExportResponse(BaseModel):
+    """내보내기 응답"""
+    success: bool = Field(description="성공 여부")
+    html: str | None = Field(None, description="생성된 HTML (format=html일 때)")
+    image_url: str | None = Field(None, description="이미지 URL (format=image일 때)")
+    filename: str = Field(description="다운로드 파일명")

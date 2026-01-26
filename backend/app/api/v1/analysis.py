@@ -14,6 +14,8 @@ from app.schemas.analysis import (
     AnalysisResult as AnalysisResultSchema,
     AnalysisExtension as AnalysisExtensionSchema,
     ExtendedAnalysisResponse,
+    ExportRequest,
+    ExportResponse,
 )
 from app.schemas.feedback import FeedbackCreate, FeedbackResponse, BadgeEarned
 from app.services.analysis import get_analysis_service
@@ -557,3 +559,352 @@ async def merge_analyses(
         data=result_data,
         meta=AnalysisMetadata(cache_hit=False, analysis_duration=0)
     )
+
+
+# ============================================
+# Export Endpoints (내보내기)
+# ============================================
+
+
+@router.post(
+    "/analysis/{analysis_id}/export",
+    response_model=ExportResponse,
+    status_code=status.HTTP_200_OK,
+    summary="분석 보고서 내보내기"
+)
+async def export_analysis(
+    analysis_id: str,
+    request: ExportRequest,
+    current_user: CurrentUser,
+    db: DbDep,
+) -> ExportResponse:
+    """분석 결과를 HTML로 내보냅니다.
+
+    - 1 크레딧 소모
+    - 선택한 섹션만 포함: header, summary, difficulty, type, topic, scores, questions, comments
+    """
+    # 분석 결과 소유권 확인
+    analysis_service = get_analysis_service(db)
+    analysis = await analysis_service.get_analysis(analysis_id)
+
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
+        )
+
+    if analysis["user_id"] != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
+        )
+
+    # 크레딧 소비
+    subscription_service = get_subscription_service(db)
+    can_export = await subscription_service.consume_export(current_user["id"])
+
+    if not can_export:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "INSUFFICIENT_CREDITS",
+                "message": "내보내기에는 1크레딧이 필요합니다. 크레딧을 구매해주세요."
+            }
+        )
+
+    # HTML 생성
+    html = generate_export_html(
+        analysis=analysis,
+        sections=request.sections,
+        exam_title=request.exam_title or "시험지",
+        exam_grade=request.exam_grade,
+        exam_subject=request.exam_subject or "수학"
+    )
+
+    # 파일명 생성
+    title = request.exam_title or "분석보고서"
+    date_str = datetime.now().strftime("%Y%m%d")
+    filename = f"{title}_{date_str}.html"
+
+    return ExportResponse(
+        success=True,
+        html=html,
+        image_url=None,
+        filename=filename
+    )
+
+
+def generate_export_html(
+    analysis: dict,
+    sections: list[str],
+    exam_title: str,
+    exam_grade: str | None,
+    exam_subject: str
+) -> str:
+    """분석 결과를 HTML로 생성합니다."""
+    questions = analysis.get("questions", [])
+    total_questions = analysis.get("total_questions", len(questions))
+    analyzed_at = analysis.get("analyzed_at", "")
+
+    # 통계 계산
+    total_points = round(sum(q.get("points", 0) or 0 for q in questions), 1)
+
+    diff_dist = {
+        "high": len([q for q in questions if q.get("difficulty") == "high"]),
+        "medium": len([q for q in questions if q.get("difficulty") == "medium"]),
+        "low": len([q for q in questions if q.get("difficulty") == "low"]),
+    }
+
+    type_dist = {}
+    for q in questions:
+        qtype = q.get("question_type", "other")
+        type_dist[qtype] = type_dist.get(qtype, 0) + 1
+
+    topic_dist = {}
+    for q in questions:
+        topic = (q.get("topic") or "미분류").split(" > ")[0]
+        topic_dist[topic] = topic_dist.get(topic, 0) + 1
+
+    # 평균 난이도
+    total_diff = diff_dist["high"] + diff_dist["medium"] + diff_dist["low"]
+    if total_diff > 0:
+        diff_score = (diff_dist["high"] * 3 + diff_dist["medium"] * 2 + diff_dist["low"]) / total_diff
+        avg_diff = "상" if diff_score >= 2.5 else ("중" if diff_score >= 1.5 else "하")
+    else:
+        avg_diff = "-"
+
+    # 정답률 (답안지인 경우)
+    answered_qs = [q for q in questions if q.get("is_correct") is not None]
+    correct_count = len([q for q in answered_qs if q.get("is_correct")])
+    correct_rate = round((correct_count / len(answered_qs) * 100) if answered_qs else 0)
+    earned_points = round(sum(q.get("earned_points", 0) or 0 for q in questions), 1)
+    is_answered = len(answered_qs) > 0
+
+    # 유형 한글 매핑
+    type_labels = {
+        "calculation": "계산", "geometry": "도형", "application": "응용",
+        "proof": "증명", "graph": "그래프", "statistics": "통계"
+    }
+
+    # 난이도 색상
+    diff_colors = {"high": "#dc2626", "medium": "#f59e0b", "low": "#22c55e"}
+
+    # HTML 생성
+    html_parts = ["""<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>분석 보고서</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 9pt; line-height: 1.4; color: #1f2937; background: white; }
+.page { width: 210mm; min-height: 297mm; max-height: 297mm; margin: 0 auto; padding: 10mm; overflow: hidden; }
+.header { text-align: center; border-bottom: 2px solid #4f46e5; padding-bottom: 8px; margin-bottom: 12px; }
+.header h1 { font-size: 18px; color: #312e81; }
+.header .meta { font-size: 10px; color: #6b7280; margin-top: 4px; }
+.two-column { display: flex; gap: 16px; }
+.column { flex: 1; }
+.section { border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+.section-title { font-size: 10px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+.summary-box { background: #eef2ff; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+.summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+.summary-item .value { font-size: 16px; font-weight: 700; color: #4f46e5; }
+.summary-item .label { font-size: 9px; color: #6b7280; }
+.diff-bar { display: flex; height: 16px; border-radius: 4px; overflow: hidden; margin-bottom: 4px; }
+.diff-bar div { display: flex; align-items: center; justify-content: center; color: white; font-size: 9px; }
+.diff-legend { display: flex; justify-content: space-between; font-size: 9px; color: #6b7280; }
+.type-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.type-tag { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 9px; }
+.topic-list { font-size: 9px; }
+.topic-row { display: flex; justify-content: space-between; padding: 2px 0; }
+.topic-name { color: #6b7280; }
+.topic-count { color: #4f46e5; font-weight: 500; }
+table { width: 100%; border-collapse: collapse; font-size: 9px; }
+th { text-align: left; padding: 4px; border-bottom: 1px solid #e5e7eb; color: #6b7280; font-weight: 500; }
+td { padding: 4px; border-bottom: 1px solid #f3f4f6; }
+.diff-badge { display: inline-block; width: 16px; height: 16px; border-radius: 4px; color: white; text-align: center; line-height: 16px; font-size: 9px; }
+.correct { color: #22c55e; }
+.wrong { color: #dc2626; }
+.score-box { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 8px; }
+.score-earned { font-size: 24px; font-weight: 700; color: #4f46e5; }
+.score-total { font-size: 16px; color: #6b7280; }
+.comments { margin-top: 8px; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+.comment-item { display: flex; gap: 4px; font-size: 9px; margin-bottom: 4px; }
+.comment-num { color: #4f46e5; font-weight: 500; }
+.comment-text { color: #6b7280; }
+.footer { margin-top: auto; padding-top: 8px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 9px; color: #9ca3af; }
+</style>
+</head>
+<body>
+<div class="page">
+"""]
+
+    # Header
+    if "header" in sections:
+        meta_parts = []
+        if exam_grade:
+            meta_parts.append(exam_grade)
+        meta_parts.append(exam_subject)
+        if analyzed_at:
+            try:
+                date_obj = datetime.fromisoformat(analyzed_at.replace("Z", "+00:00").replace("+00:00", ""))
+                meta_parts.append(date_obj.strftime("%Y-%m-%d"))
+            except Exception:
+                pass
+
+        html_parts.append(f"""
+<div class="header">
+<h1>{exam_title}</h1>
+<div class="meta">{" · ".join(meta_parts)}</div>
+</div>
+""")
+
+    # Summary
+    if "summary" in sections:
+        html_parts.append(f"""
+<div class="summary-box">
+<div class="summary-grid">
+<div class="summary-item"><div class="value">{total_questions}</div><div class="label">문항</div></div>
+<div class="summary-item"><div class="value">{total_points}</div><div class="label">총점</div></div>
+<div class="summary-item"><div class="value">{avg_diff}</div><div class="label">난이도</div></div>
+""")
+        if is_answered and "scores" in sections:
+            html_parts.append(f'<div class="summary-item"><div class="value" style="color: #22c55e;">{correct_rate}%</div><div class="label">정답률</div></div>')
+        html_parts.append("</div></div>")
+
+    # Two column layout
+    html_parts.append('<div class="two-column"><div class="column">')
+
+    # Scores (answered only)
+    if "scores" in sections and is_answered:
+        html_parts.append(f"""
+<div class="section">
+<div class="section-title">점수</div>
+<div class="score-box">
+<span class="score-earned">{earned_points}</span>
+<span class="score-total">/ {total_points} 점</span>
+</div>
+</div>
+""")
+
+    # Difficulty distribution
+    if "difficulty" in sections:
+        total = diff_dist["high"] + diff_dist["medium"] + diff_dist["low"]
+        low_pct = (diff_dist["low"] / total * 100) if total > 0 else 0
+        med_pct = (diff_dist["medium"] / total * 100) if total > 0 else 0
+        high_pct = (diff_dist["high"] / total * 100) if total > 0 else 0
+
+        html_parts.append(f"""
+<div class="section">
+<div class="section-title">난이도 분포</div>
+<div class="diff-bar">
+""")
+        if diff_dist["low"] > 0:
+            html_parts.append(f'<div style="width: {low_pct}%; background: {diff_colors["low"]};">{diff_dist["low"]}</div>')
+        if diff_dist["medium"] > 0:
+            html_parts.append(f'<div style="width: {med_pct}%; background: {diff_colors["medium"]};">{diff_dist["medium"]}</div>')
+        if diff_dist["high"] > 0:
+            html_parts.append(f'<div style="width: {high_pct}%; background: {diff_colors["high"]};">{diff_dist["high"]}</div>')
+
+        html_parts.append(f"""
+</div>
+<div class="diff-legend">
+<span>하 {diff_dist["low"]}</span>
+<span>중 {diff_dist["medium"]}</span>
+<span>상 {diff_dist["high"]}</span>
+</div>
+</div>
+""")
+
+    # Type distribution
+    if "type" in sections:
+        html_parts.append("""
+<div class="section">
+<div class="section-title">유형 분포</div>
+<div class="type-tags">
+""")
+        for qtype, count in sorted(type_dist.items(), key=lambda x: -x[1])[:6]:
+            label = type_labels.get(qtype, qtype)
+            html_parts.append(f'<span class="type-tag">{label} {count}</span>')
+        html_parts.append("</div></div>")
+
+    # Topic distribution
+    if "topic" in sections:
+        html_parts.append("""
+<div class="section">
+<div class="section-title">단원 분포</div>
+<div class="topic-list">
+""")
+        for topic, count in sorted(topic_dist.items(), key=lambda x: -x[1])[:5]:
+            html_parts.append(f'<div class="topic-row"><span class="topic-name">{topic}</span><span class="topic-count">{count}</span></div>')
+        html_parts.append("</div></div>")
+
+    html_parts.append('</div><div class="column">')
+
+    # Questions table
+    if "questions" in sections:
+        html_parts.append("""
+<div class="section">
+<div class="section-title">문항별 분석</div>
+<table>
+<thead><tr>
+<th>번호</th>
+<th style="text-align: center;">난이도</th>
+<th style="text-align: center;">배점</th>
+<th>단원</th>
+""")
+        if is_answered:
+            html_parts.append('<th style="text-align: center;">정답</th>')
+        html_parts.append("</tr></thead><tbody>")
+
+        for q in questions[:20]:
+            diff = q.get("difficulty", "medium")
+            diff_label = "상" if diff == "high" else ("중" if diff == "medium" else "하")
+            topic = (q.get("topic") or "-").split(" > ")[-1]
+
+            html_parts.append(f"""
+<tr>
+<td style="font-weight: 500;">{q.get("question_number", "-")}</td>
+<td style="text-align: center;"><span class="diff-badge" style="background: {diff_colors.get(diff, '#6b7280')};">{diff_label}</span></td>
+<td style="text-align: center; color: #6b7280;">{q.get("points", "-")}</td>
+<td style="max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #6b7280;">{topic}</td>
+""")
+            if is_answered:
+                is_correct = q.get("is_correct")
+                if is_correct is True:
+                    html_parts.append('<td style="text-align: center;" class="correct">O</td>')
+                elif is_correct is False:
+                    html_parts.append('<td style="text-align: center;" class="wrong">X</td>')
+                else:
+                    html_parts.append('<td style="text-align: center; color: #9ca3af;">-</td>')
+            html_parts.append("</tr>")
+
+        html_parts.append("</tbody></table>")
+        if len(questions) > 20:
+            html_parts.append(f'<div style="text-align: center; font-size: 9px; color: #9ca3af; margin-top: 4px;">... 외 {len(questions) - 20}문항</div>')
+        html_parts.append("</div>")
+
+    html_parts.append('</div></div>')  # Close two columns
+
+    # Comments
+    if "comments" in sections:
+        comments = [q for q in questions if q.get("ai_comment")][:3]
+        if comments:
+            html_parts.append("""
+<div class="comments">
+<div class="section-title">AI 분석 코멘트</div>
+""")
+            for q in comments:
+                html_parts.append(f'<div class="comment-item"><span class="comment-num">{q.get("question_number")}번:</span><span class="comment-text">{q.get("ai_comment", "")}</span></div>')
+            html_parts.append("</div>")
+
+    # Footer
+    html_parts.append("""
+<div class="footer">Powered by AI 시험지 분석</div>
+</div>
+</body>
+</html>
+""")
+
+    return "".join(html_parts)

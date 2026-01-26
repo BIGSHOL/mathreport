@@ -4,7 +4,7 @@
  * 이전 분석 결과 사용 시 표시되는 알림 배너
  * 재분석 옵션과 토큰 소모 경고 포함
  */
-import { useState } from 'react';
+import { useState, memo, useCallback } from 'react';
 import { useRequestAnalysis } from '../../hooks/useAnalysis';
 
 interface CacheHitBannerProps {
@@ -13,11 +13,11 @@ interface CacheHitBannerProps {
   onReanalyze?: () => void;
 }
 
-export function CacheHitBanner({ examId, analyzedAt, onReanalyze }: CacheHitBannerProps) {
+export const CacheHitBanner = memo(function CacheHitBanner({ examId, analyzedAt, onReanalyze }: CacheHitBannerProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const { requestAnalysis, isRequesting } = useRequestAnalysis();
 
-  const formatDate = (dateStr?: string) => {
+  const formatDate = useCallback((dateStr?: string) => {
     if (!dateStr) return '이전';
     try {
       const date = new Date(dateStr);
@@ -31,9 +31,9 @@ export function CacheHitBanner({ examId, analyzedAt, onReanalyze }: CacheHitBann
     } catch {
       return '이전';
     }
-  };
+  }, []);
 
-  const handleReanalyze = async () => {
+  const handleReanalyze = useCallback(async () => {
     try {
       const result = await requestAnalysis({
         examId,
@@ -48,7 +48,7 @@ export function CacheHitBanner({ examId, analyzedAt, onReanalyze }: CacheHitBann
       console.error('재분석 실패:', error);
       alert('재분석에 실패했습니다. 다시 시도해주세요.');
     }
-  };
+  }, [examId, requestAnalysis, onReanalyze]);
 
   return (
     <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -113,4 +113,4 @@ export function CacheHitBanner({ examId, analyzedAt, onReanalyze }: CacheHitBann
       </div>
     </div>
   );
-}
+});

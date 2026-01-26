@@ -9,7 +9,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { ProtectedRoute, PublicRoute } from './components/ProtectedRoute';
 import { useAuthStore } from './stores/auth';
-import { supabase } from './lib/supabase';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 
 // Lazy load pages for code splitting (bundle-dynamic-imports)
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
@@ -18,6 +18,7 @@ const ExamDashboardPage = lazy(() => import('./pages/ExamDashboardPage').then(m 
 const AnalysisResultPage = lazy(() => import('./pages/AnalysisResultPage').then(m => ({ default: m.AnalysisResultPage })));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const AdminPatternPage = lazy(() => import('./pages/AdminPatternPage').then(m => ({ default: m.AdminPatternPage })));
+const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then(m => ({ default: m.AdminUsersPage })));
 
 // Loading fallback (rendering-hoist-jsx)
 const PageLoading = <div className="flex items-center justify-center min-h-screen">로딩 중...</div>;
@@ -32,6 +33,10 @@ function App() {
 
   // Supabase Auth 상태 변경 리스너
   useEffect(() => {
+    if (!supabase || !isSupabaseConfigured) {
+      return;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.access_token) {
@@ -80,6 +85,7 @@ function App() {
             <Route path="/exams" element={<ExamDashboardPage />} />
             <Route path="/analysis/:id" element={<AnalysisResultPage />} />
             <Route path="/admin/patterns" element={<AdminPatternPage />} />
+            <Route path="/admin/users" element={<AdminUsersPage />} />
           </Route>
         </Route>
 

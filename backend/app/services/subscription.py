@@ -381,6 +381,25 @@ class SubscriptionService:
             message=f"{SUBSCRIPTION_PRICES[request.tier]['name']} 구독이 시작되었습니다.",
         )
 
+    async def consume_export(self, user_id: str) -> bool:
+        """내보내기 1회 소비 (성공 시 True) - 1크레딧 차감"""
+        user = await self.get_user(user_id)
+
+        credits = user.get("credits", 0)
+
+        # MASTER는 무제한
+        if user.get("is_superuser", False):
+            return True
+
+        # 크레딧 사용 (1크레딧)
+        if credits >= 1:
+            await self._update_user(user["id"], {
+                "credits": credits - 1,
+            })
+            return True
+
+        return False
+
     async def cancel_subscription(self, user_id: str) -> dict:
         """구독 취소 (만료일까지는 유지)"""
         user = await self.get_user(user_id)

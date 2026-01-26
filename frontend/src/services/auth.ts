@@ -1,7 +1,7 @@
 /**
  * Authentication API service using Supabase Auth (Google OAuth only).
  */
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import api from './api';
 import type { User, TemplateType, TemplateInfo } from '../types/auth';
 
@@ -9,9 +9,20 @@ const TOKEN_KEY = 'access_token';
 
 export const authService = {
   /**
+   * Check if auth is available.
+   */
+  isAuthAvailable(): boolean {
+    return isSupabaseConfigured;
+  },
+
+  /**
    * Login with Google OAuth.
    */
   async loginWithGoogle(): Promise<void> {
+    if (!supabase) {
+      throw new Error('인증 기능이 설정되지 않았습니다. Supabase 환경변수를 확인하세요.');
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -29,7 +40,9 @@ export const authService = {
    */
   async logout(): Promise<void> {
     try {
-      await supabase.auth.signOut();
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
     } finally {
       this.removeToken();
     }
@@ -56,7 +69,9 @@ export const authService = {
    */
   async deleteAccount(): Promise<void> {
     await api.delete('/api/v1/users/me');
-    await supabase.auth.signOut();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     this.removeToken();
   },
 
@@ -65,6 +80,10 @@ export const authService = {
    * Returns the access token if session exists.
    */
   async restoreSession(): Promise<string | null> {
+    if (!supabase) {
+      return null;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
 
     if (session?.access_token) {

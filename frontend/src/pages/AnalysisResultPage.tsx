@@ -19,9 +19,11 @@ import {
   useExtendedAnalysis,
   useGenerateExtendedAnalysis,
   useRequestAnswerAnalysis,
+  useExportAnalysis,
 } from '../hooks/useAnalysis';
 import { DetailedTemplate } from '../components/analysis/templates';
 import { CacheHitBanner } from '../components/analysis/CacheHitBanner';
+import { ExportModal } from '../components/analysis/ExportModal';
 import { getConfidenceLevel, CONFIDENCE_COLORS, DIFFICULTY_COLORS } from '../styles/tokens';
 import examService, { type ExamType, type Exam } from '../services/exam';
 
@@ -36,9 +38,11 @@ export function AnalysisResultPage() {
   const { extension, mutate: mutateExtension } = useExtendedAnalysis(id);
   const { generateExtended, isGenerating } = useGenerateExtendedAnalysis();
   const { requestAnswerAnalysis, isRequesting: isRequestingAnswerAnalysis } = useRequestAnswerAnalysis();
+  const { exportAnalysis, isExporting } = useExportAnalysis();
 
   const [exam, setExam] = useState<Exam | null>(null);
   const [hasAnswerAnalysis, setHasAnswerAnalysis] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // 캐시 히트 여부 (쿼리 파라미터에서 확인)
   const isCacheHit = searchParams.get('cached') === 'true';
@@ -79,6 +83,44 @@ export function AnalysisResultPage() {
     // 분석 결과 다시 조회
     mutateResult();
   }, [result?.exam_id, requestAnswerAnalysis, mutateResult]);
+
+  // 내보내기 핸들러
+  const handleExport = useCallback(async (format: 'html' | 'image', sections: string[]) => {
+    if (!id || !result) return;
+
+    try {
+      const response = await exportAnalysis({
+        analysisId: id,
+        sections,
+        format,
+        examTitle: exam?.suggested_title || exam?.title,
+        examGrade: exam?.extracted_grade || exam?.grade,
+        examSubject: exam?.detected_subject || exam?.subject,
+      });
+
+      if (response?.success && response.html) {
+        // HTML 다운로드
+        const blob = new Blob([response.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = response.filename || 'report.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        setShowExportModal(false);
+      }
+    } catch (error) {
+      const axiosError = error as { response?: { status?: number } };
+      if (axiosError?.response?.status === 402) {
+        alert('크레딧이 부족합니다. 크레딧을 구매해주세요.');
+      } else {
+        alert('내보내기에 실패했습니다.');
+      }
+    }
+  }, [id, result, exam, exportAnalysis]);
 
   // Early return for loading/error states (js-early-exit)
   if (isLoading) return loadingState;
@@ -201,38 +243,65 @@ export function AnalysisResultPage() {
               </div>
             </div>
 
-            {/* 우측: 종합 난이도 등급 */}
-            {difficultyGrade && (
-              <div className="flex items-center gap-3">
-                <div className="text-xs text-gray-500">난이도</div>
-                <div
-                  className={`flex items-center justify-center w-12 h-12 rounded-lg ${difficultyGrade.color} ${difficultyGrade.text} font-bold text-lg shadow-sm`}
-                  title={`난이도 등급: ${difficultyGrade.grade} (${difficultyGrade.label})`}
-                >
-                  {difficultyGrade.grade}
+            {/* 우측: 내보내기 버튼 + 종합 난이도 등급 */}
+            <div className="flex items-center gap-4">
+              {/* 내보내기 버튼 */}
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                내보내기
+              </button>
+
+              {/* 종합 난이도 등급 */}
+              {difficultyGrade && (
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-gray-500">난이도</div>
+                  <div
+                    className={`flex items-center justify-center w-12 h-12 rounded-lg ${difficultyGrade.color} ${difficultyGrade.text} font-bold text-lg shadow-sm`}
+                    title={`난이도 등급: ${difficultyGrade.grade} (${difficultyGrade.label})`}
+                  >
+                    {difficultyGrade.grade}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
+                      <span>상 {difficultyDist.high}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
+                      <span>중 {difficultyDist.medium}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
+                      <span>하 {difficultyDist.low}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
-                    <span>상 {difficultyDist.high}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
-                    <span>중 {difficultyDist.medium}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
-                    <span>하 {difficultyDist.low}</span>
-                  </div>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* 상세 분석 템플릿 (베타 기간 중 단일 템플릿 사용) */}
       <DetailedTemplate {...templateProps} />
+
+      {/* 내보내기 모달 */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        result={result}
+        examTitle={displayTitle}
+        examGrade={displayGrade}
+        examSubject={displaySubject}
+        isAnswered={hasAnswerAnalysis}
+        onExport={handleExport}
+        isExporting={isExporting}
+      />
     </div>
   );
 }

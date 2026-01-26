@@ -2,7 +2,7 @@
  * Detailed Template - 상세 분석 (기본값)
  * 모든 정보를 표시하는 기본 레이아웃
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import type { TemplateProps } from './types';
 import { QuestionCard } from '../QuestionCard';
 import { ExtendedReport } from '../ExtendedReport';
@@ -23,7 +23,7 @@ import { getQuestionTypeLabel } from '../../../styles/tokens';
 
 type ViewMode = 'basic' | 'comments' | 'answers' | 'extended';
 
-export function DetailedTemplate({
+export const DetailedTemplate = memo(function DetailedTemplate({
   result,
   extension,
   examType,
@@ -443,4 +443,4 @@ export function DetailedTemplate({
       )}
     </>
   );
-}
+});

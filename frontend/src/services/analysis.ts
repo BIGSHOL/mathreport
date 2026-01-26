@@ -329,6 +329,33 @@ export const analysisService = {
         });
         return response.data.data;
     },
+
+    /**
+     * Export analysis as HTML.
+     * @returns HTML string and suggested filename
+     */
+    async exportAnalysis(
+        analysisId: string,
+        sections: string[],
+        options?: {
+            format?: 'html' | 'image';
+            examTitle?: string;
+            examGrade?: string;
+            examSubject?: string;
+        }
+    ): Promise<{ success: boolean; html: string | null; filename: string }> {
+        const response = await api.post<{ success: boolean; html: string | null; image_url: string | null; filename: string }>(
+            `/api/v1/analysis/${analysisId}/export`,
+            {
+                sections,
+                format: options?.format || 'html',
+                exam_title: options?.examTitle,
+                exam_grade: options?.examGrade,
+                exam_subject: options?.examSubject,
+            }
+        );
+        return response.data;
+    },
 };
 
 export default analysisService;

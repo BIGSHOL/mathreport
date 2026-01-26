@@ -2,7 +2,7 @@
  * Comment Feedback Button - AI 코멘트 피드백 버튼
  * QuestionCard와 동일한 2단계 피드백 플로우 (유형 선택 → 코멘트 입력)
  */
-import { memo, useState, useRef, useEffect } from 'react';
+import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { analysisService } from '../../services/analysis';
 
@@ -31,7 +31,7 @@ export const CommentFeedbackButton = memo(function CommentFeedbackButton({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // 드롭다운 위치 계산
-  const updateDropdownPosition = () => {
+  const updateDropdownPosition = useCallback(() => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const dropdownWidth = 208; // w-52 = 13rem = 208px
@@ -40,7 +40,7 @@ export const CommentFeedbackButton = memo(function CommentFeedbackButton({
         left: Math.min(rect.right - dropdownWidth, window.innerWidth - dropdownWidth - 8),
       });
     }
-  };
+  }, []);
 
   // 외부 클릭 시 드롭다운 닫기
   useEffect(() => {
