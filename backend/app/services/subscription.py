@@ -122,9 +122,13 @@ class SubscriptionService:
         if reset_date < last_monday:
             tier = SubscriptionTier(user.get("subscription_tier", "free"))
             weekly_credits = TIER_CREDITS[tier]["weekly_credits"]
+            max_credits = TIER_CREDITS[tier]["max_credits"]
 
             current_credits = user.get("credits", 0)
-            new_credits = current_credits + weekly_credits
+            # 최대 크레딧 한도 적용
+            new_credits = min(current_credits + weekly_credits, max_credits)
+            # 실제 지급된 크레딧 (한도로 인해 일부만 지급될 수 있음)
+            actual_granted = new_credits - current_credits
 
             await self._update_user(user["id"], {
                 "credits": new_credits,
@@ -133,22 +137,30 @@ class SubscriptionService:
                 "usage_reset_at": last_monday.isoformat(),
             })
 
-            # 크레딧 지급 로그 기록
+            # 크레딧 지급 로그 기록 (실제 지급량 기록)
             credit_log_service = get_credit_log_service(self.db)
+            description = f"{tier.value.upper()} 티어 주간 크레딧 지급"
+            if actual_granted < weekly_credits:
+                description += f" (최대 한도 {max_credits} 적용)"
+
             await credit_log_service.log(
                 user_id=user["id"],
-                change_amount=weekly_credits,
+                change_amount=actual_granted,
                 balance_before=current_credits,
                 balance_after=new_credits,
                 action_type="weekly_grant",
-                description=f"{tier.value.upper()} 티어 주간 크레딧 지급",
+                description=description,
             )
 
             # 로컬 객체도 업데이트
             user["credits"] = new_credits
             user["monthly_analysis_count"] = 0
             user["monthly_extended_count"] = 0
-            print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {weekly_credits} 크레딧 지급 (잔액: {new_credits})")
+
+            if actual_granted < weekly_credits:
+                print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {actual_granted}/{weekly_credits} 크레딧 지급 (최대 한도 {max_credits} 도달, 잔액: {new_credits})")
+            else:
+                print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {weekly_credits} 크레딧 지급 (잔액: {new_credits})")
             return True
         return False
 

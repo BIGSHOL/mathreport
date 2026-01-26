@@ -20,6 +20,7 @@ import { QuestionPointsChart } from '../charts/QuestionPointsChart';
 import { DifficultyPointsAreaChart } from '../charts/DifficultyPointsAreaChart';
 import { ConfidenceExplanation } from '../ConfidenceBadge';
 import { EssayAnalysisSection } from '../EssayAnalysisSection';
+import { DiscriminationAnalysis } from '../DiscriminationAnalysis';
 import { TabGroup, type Tab } from '../../ui/TabGroup';
 import { FEATURE_FLAGS } from '../../../lib/featureFlags';
 import { getQuestionTypeLabel } from '../../../styles/tokens';
@@ -272,6 +273,13 @@ export const DetailedTemplate = memo(function DetailedTemplate({
           {isSectionVisible('showQuestions') && (
             <div className="mb-4">
               <QuestionPointsChart questions={questions} />
+            </div>
+          )}
+
+          {/* 변별력 분석 */}
+          {isSectionVisible('showQuestions') && (
+            <div className="mb-4">
+              <DiscriminationAnalysis questions={questions} />
             </div>
           )}
 
