@@ -159,11 +159,16 @@ export function AnalysisResultPage() {
     low: questions.filter(q => q.difficulty === 'low').length,
   };
 
-  // 종합 난이도 등급 계산 (A+~D-)
+  // 서술형 개수 계산
+  const essayCount = questions.filter(q => q.question_format === 'essay').length;
+
+  // 종합 난이도 등급 계산 (A+~D-, 서술형 가중치 포함)
   const difficultyGrade = calculateDifficultyGrade(
     difficultyDist.high,
     difficultyDist.medium,
-    difficultyDist.low
+    difficultyDist.low,
+    essayCount,
+    questions.length
   );
 
   // 시험지 표시 제목 (AI 추출 제목 우선)
@@ -192,6 +197,30 @@ export function AnalysisResultPage() {
           />
         )}
 
+        {/* 만점 100점 아님 경고 배너 */}
+        {totalPoints !== 100 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+            <div className="flex items-start gap-3">
+              <svg
+                className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-amber-800">
+                  만점이 100점이 아닙니다
+                </h3>
+                <p className="text-sm text-amber-700 mt-1">
+                  이 시험지의 만점은 <span className="font-semibold">{totalPoints}점</span>입니다.
+                  AI가 배점을 잘못 인식했을 수 있으니 각 문항의 배점을 확인해주세요.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 시험지 정보 카드 */}
         <div className="bg-white rounded-lg shadow p-5 mt-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -209,8 +238,18 @@ export function AnalysisResultPage() {
                 <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 font-medium">
                   {displaySubject}
                 </span>
-                <span className="text-gray-500">
-                  총 {total_questions}문항 · {totalPoints}점 만점
+                <span className="text-gray-500 flex items-center gap-1.5">
+                  <span>총 {total_questions}문항 · {totalPoints}점 만점</span>
+                  {totalPoints !== 100 && (
+                    <svg
+                      className="w-4 h-4 text-amber-500"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                      title={`만점이 100점이 아닙니다 (${totalPoints}점). 배점을 확인해주세요.`}
+                    >
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  )}
                 </span>
                 {avgConfidence != null && (() => {
                   const level = getConfidenceLevel(avgConfidence);

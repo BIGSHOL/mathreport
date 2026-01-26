@@ -147,6 +147,9 @@ async def get_exams(
                 diff_medium = sum(1 for q in questions if q.get("difficulty") == "medium")
                 diff_low = sum(1 for q in questions if q.get("difficulty") == "low")
 
+                # Calculate format distribution (서술형 개수)
+                format_essay = sum(1 for q in questions if q.get("question_format") == "essay")
+
                 analysis_map[exam_id] = AnalysisBrief(
                     total_questions=total_questions,
                     total_points=total_points,
@@ -154,6 +157,7 @@ async def get_exams(
                     difficulty_high=diff_high,
                     difficulty_medium=diff_medium,
                     difficulty_low=diff_low,
+                    format_essay=format_essay,
                 )
 
     # Convert to response with briefs

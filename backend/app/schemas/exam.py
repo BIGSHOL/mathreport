@@ -130,6 +130,7 @@ class AnalysisBrief(BaseModel):
     difficulty_high: int = Field(ge=0, description="상 난이도 문항 수")
     difficulty_medium: int = Field(ge=0, description="중 난이도 문항 수")
     difficulty_low: int = Field(ge=0, description="하 난이도 문항 수")
+    format_essay: int = Field(default=0, ge=0, description="서술형 문항 수")
 
 
 class ExamWithBrief(ExamBase):
