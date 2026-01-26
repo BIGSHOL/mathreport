@@ -41,6 +41,10 @@
       "Bash(export RAILWAY_TOKEN=5c57abf0-14c4-4728-9f8a-37cbc92f11d1)",
       "Bash(start https://supabase.com/dashboard/projects)",
       "Bash(where:*)",
+      "Bash(netstat:*)",
+      "Bash(python -m scripts.seed_patterns:*)",
+      "Bash(chcp 65001)",
+      "Bash(tasklist:*)",
       "Bash(git status:*)"
     ],
     "additionalDirectories": [
