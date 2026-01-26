@@ -14,6 +14,7 @@ from app.schemas.subscription import (
     CREDIT_PACKAGES,
     SUBSCRIPTION_PRICES,
 )
+from app.services.credit_log import get_credit_log_service
 
 
 class SubscriptionTier(str, Enum):

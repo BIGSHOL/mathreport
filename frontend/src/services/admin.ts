@@ -66,7 +66,7 @@ class AdminService {
       params.append('search', search);
     }
 
-    const response = await api.get(`/admin/users?${params.toString()}`);
+    const response = await api.get(`/api/v1/admin/users?${params.toString()}`);
     return response.data;
   }
 
@@ -74,7 +74,7 @@ class AdminService {
    * 특정 사용자 조회 (관리자 전용)
    */
   async getUser(userId: string): Promise<UserListItem> {
-    const response = await api.get(`/admin/users/${userId}`);
+    const response = await api.get(`/api/v1/admin/users/${userId}`);
     return response.data;
   }
 
@@ -82,7 +82,7 @@ class AdminService {
    * 사용자 크레딧 수정 (관리자 전용)
    */
   async updateCredits(userId: string, request: CreditUpdateRequest): Promise<CreditUpdateResponse> {
-    const response = await api.patch(`/admin/users/${userId}/credits`, request);
+    const response = await api.patch(`/api/v1/admin/users/${userId}/credits`, request);
     return response.data;
   }
 
@@ -90,7 +90,7 @@ class AdminService {
    * 사용자 요금제 수정 (관리자 전용)
    */
   async updateSubscription(userId: string, request: SubscriptionUpdateRequest): Promise<SubscriptionUpdateResponse> {
-    const response = await api.patch(`/admin/users/${userId}/subscription`, request);
+    const response = await api.patch(`/api/v1/admin/users/${userId}/subscription`, request);
     return response.data;
   }
 
@@ -98,7 +98,7 @@ class AdminService {
    * 사용자 활성/비활성 토글 (관리자 전용)
    */
   async toggleUserActive(userId: string): Promise<UserListItem> {
-    const response = await api.patch(`/admin/users/${userId}/toggle-active`);
+    const response = await api.patch(`/api/v1/admin/users/${userId}/toggle-active`);
     return response.data;
   }
 }

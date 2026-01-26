@@ -81,8 +81,7 @@ async def list_users(
     query = db.table("users").select(
         "id, email, nickname, is_active, is_superuser, "
         "subscription_tier, credits, "
-        "created_at, updated_at",
-        count="exact"
+        "created_at, updated_at"
     )
 
     # 검색 조건
@@ -90,19 +89,20 @@ async def list_users(
         query = query.or_(f"email.ilike.%{search}%,nickname.ilike.%{search}%")
 
     # 페이징 및 정렬
-    result = await query.order("created_at", desc=True).range(offset, offset + page_size - 1).execute()
-
-    if result.error:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"사용자 목록 조회 실패: {result.error}"
-        )
+    result = await query.order("created_at", desc=True).limit(page_size).offset(offset).execute()
 
     users = [UserListItem(**user) for user in result.data]
 
+    # 전체 개수 조회 (간단히 전체 조회 후 카운트)
+    count_query = db.table("users").select("id")
+    if search:
+        count_query = count_query.or_(f"email.ilike.%{search}%,nickname.ilike.%{search}%")
+    count_result = await count_query.execute()
+    total = len(count_result.data) if count_result.data else len(users)
+
     return UserListResponse(
         data=users,
-        total=result.count or len(users)
+        total=total
     )
 
 
