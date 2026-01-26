@@ -68,7 +68,8 @@ async def request_analysis(
     subscription_service = get_subscription_service(db)
     can_analyze = await subscription_service.consume_analysis(
         current_user["id"],
-        exam_type=effective_exam_type
+        exam_type=effective_exam_type,
+        exam_id=exam_id
     )
 
     if not can_analyze:

@@ -55,7 +55,7 @@ export interface CreditLogItem {
     change_amount: number;
     balance_before: number;
     balance_after: number;
-    action_type: 'analysis' | 'extended' | 'export' | 'purchase' | 'admin' | 'expire';
+    action_type: 'analysis' | 'extended' | 'export' | 'purchase' | 'admin' | 'expire' | 'reward';
     reference_id: string | null;
     description: string | null;
     created_at: string;

@@ -1,12 +1,17 @@
 """배지 시스템 서비스.
 
 피드백 기여자에게 배지를 지급하여 참여를 유도합니다.
-비금전적 보상으로 요금제에 영향 없이 동기 부여.
+패턴 채택 시 크레딧도 지급합니다.
 """
 from datetime import datetime
 from typing import Any
 
 from app.db.supabase_client import SupabaseClient
+from app.services.credit_log import get_credit_log_service
+
+
+# 패턴 채택 시 지급되는 크레딧
+PATTERN_ADOPTION_CREDIT_REWARD = 1
 
 
 # ============================================
@@ -168,27 +173,41 @@ class BadgeService:
 
         return new_badge
 
-    async def increment_pattern_adoption(self, user_id: str) -> dict | None:
-        """패턴 채택 카운트 증가 및 배지 확인
+    async def increment_pattern_adoption(self, user_id: str, feedback_id: str | None = None) -> dict:
+        """패턴 채택 카운트 증가, 배지 확인, 크레딧 지급
+
+        Args:
+            user_id: 사용자 ID
+            feedback_id: 채택된 피드백 ID (로그용)
 
         Returns:
-            새로 획득한 배지 또는 None
+            {
+                "badge": 새로 획득한 배지 또는 None,
+                "credits_earned": 지급된 크레딧 수
+            }
         """
         result = await self.db.table("users").select(
-            "pattern_adoption_count", "badges"
+            "pattern_adoption_count", "badges", "credits"
         ).eq("id", user_id).maybe_single().execute()
 
         if not result.data:
-            return None
+            return {"badge": None, "credits_earned": 0}
 
         current_count = result.data.get("pattern_adoption_count", 0)
         current_badges = result.data.get("badges", [])
+        current_credits = result.data.get("credits", 0)
         new_count = current_count + 1
 
         # 새 배지 확인
         new_badge = self._check_adoption_badge(new_count, current_badges)
 
-        update_data: dict[str, Any] = {"pattern_adoption_count": new_count}
+        # 크레딧 지급
+        new_credits = current_credits + PATTERN_ADOPTION_CREDIT_REWARD
+
+        update_data: dict[str, Any] = {
+            "pattern_adoption_count": new_count,
+            "credits": new_credits,
+        }
 
         if new_badge:
             new_badge_entry = {
@@ -199,7 +218,19 @@ class BadgeService:
 
         await self.db.table("users").update(update_data).eq("id", user_id).execute()
 
-        return new_badge
+        # 크레딧 로그 기록
+        credit_log_service = get_credit_log_service(self.db)
+        await credit_log_service.log(
+            user_id=user_id,
+            change_amount=PATTERN_ADOPTION_CREDIT_REWARD,
+            balance_before=current_credits,
+            balance_after=new_credits,
+            action_type="reward",
+            reference_id=feedback_id,
+            description="피드백 채택 보상",
+        )
+
+        return {"badge": new_badge, "credits_earned": PATTERN_ADOPTION_CREDIT_REWARD}
 
     def _check_feedback_badge(self, count: int, current_badges: list) -> dict | None:
         """피드백 카운트 기반 배지 확인"""

@@ -40,7 +40,8 @@
       "Bash(railway:*)",
       "Bash(export RAILWAY_TOKEN=5c57abf0-14c4-4728-9f8a-37cbc92f11d1)",
       "Bash(start https://supabase.com/dashboard/projects)",
-      "Bash(where:*)"
+      "Bash(where:*)",
+      "Bash(git status:*)"
     ],
     "additionalDirectories": [
       "f:\\math-report\\frontend\\src",

@@ -5,7 +5,7 @@ from typing import Optional, Literal
 from app.db.supabase_client import SupabaseClient
 
 
-ActionType = Literal["analysis", "extended", "export", "purchase", "admin", "expire"]
+ActionType = Literal["analysis", "extended", "export", "purchase", "admin", "expire", "reward"]
 
 
 class CreditLogService:
@@ -79,29 +79,42 @@ class CreditLogService:
         Returns:
             (내역 리스트, 전체 개수)
         """
-        # 내역 조회
-        result = await (
-            self.db.table("credit_logs")
-            .select("*")
-            .eq("user_id", user_id)
-            .order("created_at", desc=True)
-            .limit(limit)
-            .offset(offset)
-            .execute()
-        )
+        try:
+            # 내역 조회
+            result = await (
+                self.db.table("credit_logs")
+                .select("*")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .limit(limit)
+                .offset(offset)
+                .execute()
+            )
 
-        logs = result.data if result.data else []
+            if result.error:
+                print(f"[CreditLog] Error fetching history: {result.error}")
+                return [], 0
 
-        # 전체 개수 조회
-        count_result = await (
-            self.db.table("credit_logs")
-            .select("id")
-            .eq("user_id", user_id)
-            .execute()
-        )
-        total = len(count_result.data) if count_result.data else 0
+            logs = result.data if result.data else []
 
-        return logs, total
+            # 전체 개수 조회
+            count_result = await (
+                self.db.table("credit_logs")
+                .select("id")
+                .eq("user_id", user_id)
+                .execute()
+            )
+
+            if count_result.error:
+                print(f"[CreditLog] Error counting: {count_result.error}")
+                return logs, len(logs)
+
+            total = len(count_result.data) if count_result.data else 0
+
+            return logs, total
+        except Exception as e:
+            print(f"[CreditLog] Exception in get_history: {e}")
+            return [], 0
 
 
 def get_credit_log_service(db: SupabaseClient) -> CreditLogService:
