@@ -130,6 +130,7 @@ class AnalysisBrief(BaseModel):
     difficulty_high: int = Field(ge=0, description="상 난이도 문항 수")
     difficulty_medium: int = Field(ge=0, description="중 난이도 문항 수")
     difficulty_low: int = Field(ge=0, description="하 난이도 문항 수")
+    average_difficulty: str | None = Field(None, description="종합 난이도 (high/medium/low)")
 
 
 class ExamWithBrief(ExamBase):

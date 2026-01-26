@@ -280,6 +280,20 @@ export const ExamListItem = memo(function ExamListItem({
               <span className="font-medium">
                 {brief.total_questions}문항 · {brief.total_points}점
               </span>
+              {brief.average_difficulty && (
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-md font-medium ${
+                    brief.average_difficulty === 'high'
+                      ? 'bg-red-100 text-red-700'
+                      : brief.average_difficulty === 'medium'
+                      ? 'bg-yellow-100 text-yellow-700'
+                      : 'bg-green-100 text-green-700'
+                  }`}
+                  title="종합 난이도"
+                >
+                  {brief.average_difficulty === 'high' ? '상' : brief.average_difficulty === 'medium' ? '중' : '하'}
+                </span>
+              )}
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-green-500" />
                 하{brief.difficulty_low}

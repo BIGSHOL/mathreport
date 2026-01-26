@@ -10,6 +10,7 @@ export interface AnalysisBrief {
     difficulty_high: number;
     difficulty_medium: number;
     difficulty_low: number;
+    average_difficulty?: 'high' | 'medium' | 'low' | null;
 }
 
 export type ExamType = 'blank' | 'student';

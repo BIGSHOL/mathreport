@@ -134,6 +134,7 @@ async def get_exams(
             if result.data:
                 analysis = result.data
                 questions = analysis.get("questions") or []
+                summary = analysis.get("summary") or {}
                 total_questions = len(questions)
                 # 부동소수점 오류 방지: 소수점 1자리까지 반올림
                 total_points = round(sum(q.get("points", 0) or 0 for q in questions), 1)
@@ -147,6 +148,9 @@ async def get_exams(
                 diff_medium = sum(1 for q in questions if q.get("difficulty") == "medium")
                 diff_low = sum(1 for q in questions if q.get("difficulty") == "low")
 
+                # Get average difficulty from summary
+                average_difficulty = summary.get("average_difficulty")
+
                 analysis_map[exam_id] = AnalysisBrief(
                     total_questions=total_questions,
                     total_points=total_points,
@@ -154,6 +158,7 @@ async def get_exams(
                     difficulty_high=diff_high,
                     difficulty_medium=diff_medium,
                     difficulty_low=diff_low,
+                    average_difficulty=average_difficulty,
                 )
 
     # Convert to response with briefs
