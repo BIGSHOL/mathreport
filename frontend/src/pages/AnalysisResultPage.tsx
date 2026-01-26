@@ -92,8 +92,8 @@ export function AnalysisResultPage() {
 
   const { summary, questions, total_questions } = result;
 
-  // 총 배점 계산
-  const totalPoints = questions.reduce((sum, q) => sum + (q.points || 0), 0);
+  // 총 배점 계산 (부동소수점 오류 방지를 위해 반올림)
+  const totalPoints = Math.round(questions.reduce((sum, q) => sum + (q.points || 0), 0) * 10) / 10;
 
   // 평균 신뢰도 계산
   const questionsWithConfidence = questions.filter((q) => q.confidence != null);
