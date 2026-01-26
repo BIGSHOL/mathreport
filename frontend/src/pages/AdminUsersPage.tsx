@@ -63,8 +63,8 @@ export function AdminUsersPage() {
     setError(null);
     try {
       const response = await adminService.getUsers(page, pageSize, search || undefined);
-      setUsers(response.data);
-      setTotal(response.total);
+      setUsers(response.data || []);
+      setTotal(response.total || 0);
     } catch (err) {
       setError('사용자 목록을 불러오는데 실패했습니다.');
       console.error(err);

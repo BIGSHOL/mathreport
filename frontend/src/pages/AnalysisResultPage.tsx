@@ -24,7 +24,7 @@ import {
 import { DetailedTemplate } from '../components/analysis/templates';
 import { CacheHitBanner } from '../components/analysis/CacheHitBanner';
 import { ExportModal } from '../components/analysis/ExportModal';
-import { getConfidenceLevel, CONFIDENCE_COLORS, DIFFICULTY_COLORS } from '../styles/tokens';
+import { getConfidenceLevel, CONFIDENCE_COLORS, DIFFICULTY_COLORS, calculateDifficultyGrade } from '../styles/tokens';
 import examService, { type ExamType, type Exam } from '../services/exam';
 
 // Hoisted static elements (rendering-hoist-jsx)
@@ -158,29 +158,13 @@ export function AnalysisResultPage() {
     medium: questions.filter(q => q.difficulty === 'medium').length,
     low: questions.filter(q => q.difficulty === 'low').length,
   };
-  const totalDiff = difficultyDist.high + difficultyDist.medium + difficultyDist.low;
 
   // 종합 난이도 등급 계산 (A+~D-)
-  const calculateDifficultyGrade = () => {
-    if (totalDiff === 0) return null;
-    // 가중 평균: high=3, medium=2, low=1
-    const weightedScore = (difficultyDist.high * 3 + difficultyDist.medium * 2 + difficultyDist.low * 1) / totalDiff;
-
-    // 등급 매핑 (점수가 높을수록 어려운 시험)
-    if (weightedScore >= 2.83) return { grade: 'A+', label: '최상', color: 'bg-red-600', text: 'text-white' };
-    if (weightedScore >= 2.67) return { grade: 'A', label: '상', color: 'bg-red-500', text: 'text-white' };
-    if (weightedScore >= 2.50) return { grade: 'A-', label: '상', color: 'bg-red-400', text: 'text-white' };
-    if (weightedScore >= 2.33) return { grade: 'B+', label: '중상', color: 'bg-orange-500', text: 'text-white' };
-    if (weightedScore >= 2.17) return { grade: 'B', label: '중상', color: 'bg-orange-400', text: 'text-white' };
-    if (weightedScore >= 2.00) return { grade: 'B-', label: '중상', color: 'bg-amber-500', text: 'text-white' };
-    if (weightedScore >= 1.83) return { grade: 'C+', label: '중', color: 'bg-yellow-500', text: 'text-gray-900' };
-    if (weightedScore >= 1.67) return { grade: 'C', label: '중', color: 'bg-yellow-400', text: 'text-gray-900' };
-    if (weightedScore >= 1.50) return { grade: 'C-', label: '중하', color: 'bg-lime-500', text: 'text-white' };
-    if (weightedScore >= 1.33) return { grade: 'D+', label: '하', color: 'bg-green-500', text: 'text-white' };
-    if (weightedScore >= 1.17) return { grade: 'D', label: '하', color: 'bg-green-400', text: 'text-white' };
-    return { grade: 'D-', label: '최하', color: 'bg-emerald-400', text: 'text-white' };
-  };
-  const difficultyGrade = calculateDifficultyGrade();
+  const difficultyGrade = calculateDifficultyGrade(
+    difficultyDist.high,
+    difficultyDist.medium,
+    difficultyDist.low
+  );
 
   // 시험지 표시 제목 (AI 추출 제목 우선)
   const displayTitle = exam?.suggested_title || exam?.title || '시험지';

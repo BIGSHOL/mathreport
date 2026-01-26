@@ -258,3 +258,39 @@ export function getErrorTypeConfig(errorType: string) {
 export function getSubjectColor(subject: string): string {
   return SUBJECT_COLORS[subject] ?? SUBJECT_COLORS['기타'];
 }
+
+/**
+ * 난이도 등급 계산 (A+~D-)
+ */
+export interface DifficultyGrade {
+  grade: string;
+  label: string;
+  color: string;
+  text: string;
+}
+
+export function calculateDifficultyGrade(
+  high: number,
+  medium: number,
+  low: number
+): DifficultyGrade | null {
+  const total = high + medium + low;
+  if (total === 0) return null;
+
+  // 가중 평균: high=3, medium=2, low=1
+  const weightedScore = (high * 3 + medium * 2 + low * 1) / total;
+
+  // 등급 매핑 (점수가 높을수록 어려운 시험)
+  if (weightedScore >= 2.83) return { grade: 'A+', label: '최상', color: 'bg-red-600', text: 'text-white' };
+  if (weightedScore >= 2.67) return { grade: 'A', label: '상', color: 'bg-red-500', text: 'text-white' };
+  if (weightedScore >= 2.50) return { grade: 'A-', label: '상', color: 'bg-red-400', text: 'text-white' };
+  if (weightedScore >= 2.33) return { grade: 'B+', label: '중상', color: 'bg-orange-500', text: 'text-white' };
+  if (weightedScore >= 2.17) return { grade: 'B', label: '중상', color: 'bg-orange-400', text: 'text-white' };
+  if (weightedScore >= 2.00) return { grade: 'B-', label: '중상', color: 'bg-amber-500', text: 'text-white' };
+  if (weightedScore >= 1.83) return { grade: 'C+', label: '중', color: 'bg-yellow-500', text: 'text-gray-900' };
+  if (weightedScore >= 1.67) return { grade: 'C', label: '중', color: 'bg-yellow-400', text: 'text-gray-900' };
+  if (weightedScore >= 1.50) return { grade: 'C-', label: '중하', color: 'bg-lime-500', text: 'text-white' };
+  if (weightedScore >= 1.33) return { grade: 'D+', label: '하', color: 'bg-green-500', text: 'text-white' };
+  if (weightedScore >= 1.17) return { grade: 'D', label: '하', color: 'bg-green-400', text: 'text-white' };
+  return { grade: 'D-', label: '최하', color: 'bg-emerald-400', text: 'text-white' };
+}

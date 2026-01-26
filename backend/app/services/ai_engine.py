@@ -930,6 +930,8 @@ class AIEngine:
                 print("[Step 2-1] 채점 표시 없음 또는 탐지 실패")
 
         # [2단계] AI 분석 실행
+        # UI 업데이트를 위해 분석 시작 시점에 step 업데이트
+        await update_step(3)
         mode_label = "문항 분석" if is_questions_only else "통합 분석"
         print(f"[Step 2-2] AI {mode_label} 실행 중...")
         result = await self.analyze_exam_file(
@@ -943,34 +945,34 @@ class AIEngine:
         if not is_questions_only:
             result = self._cross_validate_grading(result, marks_result)
 
-        # 3. 분류 결과 추출 및 조건부 템플릿 적용
-        await update_step(3)
+        # 3. 분류 결과 추출
         paper_type = result.get("paper_type", "blank")
         grading_status = result.get("grading_status", "not_graded")
 
         print(f"  - 유형: {paper_type}")
         print(f"  - 채점 상태: {grading_status}")
 
-        # 분류 결과에 따른 추가 템플릿 로드 (조건 기반)
-        try:
-            conditional_result = await db.table("prompt_templates").select(
-                "name, content, conditions"
-            ).eq("is_active", True).order("priority", desc=True).execute()
+        # 조건부 템플릿 로드 (questions_only 모드에서는 건너뜀 - 이미 분석이 끝났으므로 의미 없음)
+        if not is_questions_only:
+            try:
+                conditional_result = await db.table("prompt_templates").select(
+                    "name, content, conditions"
+                ).eq("is_active", True).order("priority", desc=True).execute()
 
-            if conditional_result.data:
-                for t in conditional_result.data:
-                    conditions = t.get("conditions") or {}
-                    cond_paper_type = conditions.get("exam_paper_type")
+                if conditional_result.data:
+                    for t in conditional_result.data:
+                        conditions = t.get("conditions") or {}
+                        cond_paper_type = conditions.get("exam_paper_type")
 
-                    # 조건이 현재 분류 결과와 일치하면 피드백에 활용
-                    if cond_paper_type and cond_paper_type == paper_type:
-                        print(f"[Pattern] 조건부 템플릿 '{t.get('name', '')}' 적용됨 (paper_type={paper_type})")
-                        # 결과에 적용된 템플릿 정보 기록
-                        if "_applied_templates" not in result:
-                            result["_applied_templates"] = []
-                        result["_applied_templates"].append(t.get("name", ""))
-        except Exception as e:
-            print(f"[Pattern Error] conditional templates: {e}")
+                        # 조건이 현재 분류 결과와 일치하면 피드백에 활용
+                        if cond_paper_type and cond_paper_type == paper_type:
+                            print(f"[Pattern] 조건부 템플릿 '{t.get('name', '')}' 적용됨 (paper_type={paper_type})")
+                            # 결과에 적용된 템플릿 정보 기록
+                            if "_applied_templates" not in result:
+                                result["_applied_templates"] = []
+                            result["_applied_templates"].append(t.get("name", ""))
+            except Exception as e:
+                print(f"[Pattern Error] conditional templates: {e}")
 
         # exam_type 결정 (후처리용)
         if paper_type in ["answered", "mixed"]:
