@@ -23,8 +23,8 @@ class UserListItem(BaseModel):
     is_superuser: bool
     subscription_tier: str
     credits: int
-    monthly_analysis_count: int
-    monthly_extended_count: int
+    monthly_analysis_count: int = 0
+    monthly_extended_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -80,7 +80,7 @@ async def list_users(
     # 기본 쿼리
     query = db.table("users").select(
         "id, email, nickname, is_active, is_superuser, "
-        "subscription_tier, credits, monthly_analysis_count, monthly_extended_count, "
+        "subscription_tier, credits, "
         "created_at, updated_at",
         count="exact"
     )
@@ -115,7 +115,7 @@ async def get_user(
     """특정 사용자 조회 (관리자 전용)."""
     result = await db.table("users").select(
         "id, email, nickname, is_active, is_superuser, "
-        "subscription_tier, credits, monthly_analysis_count, monthly_extended_count, "
+        "subscription_tier, credits, "
         "created_at, updated_at"
     ).eq("id", user_id).maybe_single().execute()
 
@@ -261,7 +261,7 @@ async def toggle_user_active(
     # 업데이트된 사용자 정보 반환
     updated = await db.table("users").select(
         "id, email, nickname, is_active, is_superuser, "
-        "subscription_tier, credits, monthly_analysis_count, monthly_extended_count, "
+        "subscription_tier, credits, "
         "created_at, updated_at"
     ).eq("id", user_id).maybe_single().execute()
 

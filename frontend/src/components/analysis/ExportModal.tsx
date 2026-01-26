@@ -11,6 +11,7 @@ import { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { AnalysisResult, QuestionAnalysis } from '../../services/analysis';
 import { DIFFICULTY_COLORS, CHART_COLORS, QUESTION_TYPE_COLORS } from '../../styles/tokens';
+import html2canvas from 'html2canvas';
 
 type ChartMode = 'bar' | 'donut';
 
@@ -127,6 +128,26 @@ export function ExportModal({
   }, [result]);
 
   const handleExport = async (format: 'html' | 'image') => {
+    if (format === 'image' && previewRef.current) {
+      try {
+        const canvas = await html2canvas(previewRef.current, {
+          scale: 2, // 고해상도
+          backgroundColor: '#ffffff',
+          logging: false
+        });
+
+        const image = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = image;
+        link.download = `${examTitle}_분석보고서.png`;
+        link.click();
+      } catch (err) {
+        console.error('Image export failed:', err);
+        alert('이미지 내보내기에 실패했습니다.');
+      }
+      return;
+    }
+
     const sections: string[] = [];
     if (showHeader) sections.push('header');
     if (showSummary) sections.push('summary');
@@ -196,11 +217,10 @@ export function ExportModal({
                   <div className="flex gap-2">
                     <button
                       onClick={() => setChartMode('bar')}
-                      className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                        chartMode === 'bar'
+                      className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${chartMode === 'bar'
                           ? 'bg-indigo-600 text-white'
                           : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -209,11 +229,10 @@ export function ExportModal({
                     </button>
                     <button
                       onClick={() => setChartMode('donut')}
-                      className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                        chartMode === 'donut'
+                      className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${chartMode === 'donut'
                           ? 'bg-indigo-600 text-white'
                           : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
@@ -252,11 +271,10 @@ export function ExportModal({
                       return (
                         <label
                           key={qId}
-                          className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer transition-colors text-xs ${
-                            selectedCommentQuestions.has(qId)
+                          className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer transition-colors text-xs ${selectedCommentQuestions.has(qId)
                               ? 'bg-amber-50 border border-amber-200'
                               : 'bg-white border border-gray-200 hover:bg-gray-50'
-                          }`}
+                            }`}
                         >
                           <input
                             type="checkbox"
@@ -387,9 +405,8 @@ function SectionToggle({
   disabled?: boolean;
 }) {
   return (
-    <label className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
-      checked ? 'bg-indigo-50' : 'hover:bg-gray-100'
-    } ${disabled ? 'opacity-60' : ''}`}>
+    <label className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${checked ? 'bg-indigo-50' : 'hover:bg-gray-100'
+      } ${disabled ? 'opacity-60' : ''}`}>
       <span className={`text-sm ${checked ? 'text-indigo-700 font-medium' : 'text-gray-700'}`}>{label}</span>
       <input
         type="checkbox"
