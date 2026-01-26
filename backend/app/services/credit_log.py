@@ -5,7 +5,7 @@ from typing import Optional, Literal
 from app.db.supabase_client import SupabaseClient
 
 
-ActionType = Literal["analysis", "extended", "export", "purchase", "admin", "expire", "reward"]
+ActionType = Literal["analysis", "extended", "export", "purchase", "admin", "expire", "reward", "weekly_grant"]
 
 
 class CreditLogService:

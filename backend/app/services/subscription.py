@@ -27,12 +27,15 @@ class SubscriptionTier(str, Enum):
 TIER_CREDITS = {
     SubscriptionTier.FREE: {
         "weekly_credits": 3,      # 주 3 크레딧 지급
+        "max_credits": 30,        # 최대 보유 한도 (주간 크레딧의 10배)
     },
     SubscriptionTier.BASIC: {
         "weekly_credits": 10,     # 주 10 크레딧 지급
+        "max_credits": 100,       # 최대 보유 한도 (주간 크레딧의 10배)
     },
     SubscriptionTier.PRO: {
         "weekly_credits": 100,    # 주 100 크레딧 지급 (사실상 무제한)
+        "max_credits": 1000,      # 최대 보유 한도 (주간 크레딧의 10배)
     },
 }
 

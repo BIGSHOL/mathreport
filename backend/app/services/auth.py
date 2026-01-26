@@ -174,4 +174,19 @@ async def get_or_create_user_from_supabase(
         # 이미 생성된 경우 (동시성 처리)
         return await get_user_by_id(db, auth_user_id)
 
+    # 신규 가입 크레딧 지급 로그 기록
+    try:
+        from app.services.credit_log import get_credit_log_service
+        credit_log_service = get_credit_log_service(db)
+        await credit_log_service.log(
+            user_id=auth_user_id,
+            change_amount=5,
+            balance_before=0,
+            balance_after=5,
+            action_type="reward",
+            description="신규 가입 환영 크레딧",
+        )
+    except Exception as e:
+        print(f"[CreditLog] 신규 가입 로그 기록 실패 (무시됨): {e}")
+
     return UserDict(result.data)

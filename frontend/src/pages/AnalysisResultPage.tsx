@@ -205,24 +205,43 @@ export function AnalysisResultPage() {
     isRequestingAnswerAnalysis,
   };
 
-  // 난이도 분포 계산
+  // 난이도 분포 계산 (4단계 + 3단계)
   const difficultyDist = {
+    // 4단계 시스템
+    concept: questions.filter(q => q.difficulty === 'concept').length,
+    pattern: questions.filter(q => q.difficulty === 'pattern').length,
+    reasoning: questions.filter(q => q.difficulty === 'reasoning').length,
+    creative: questions.filter(q => q.difficulty === 'creative').length,
+    // 3단계 시스템 (하위 호환)
     high: questions.filter(q => q.difficulty === 'high').length,
     medium: questions.filter(q => q.difficulty === 'medium').length,
     low: questions.filter(q => q.difficulty === 'low').length,
   };
 
+  // 4단계 시스템 감지
+  const is4Level = difficultyDist.concept > 0 || difficultyDist.pattern > 0 ||
+                   difficultyDist.reasoning > 0 || difficultyDist.creative > 0;
+
   // 서술형 개수 계산
   const essayCount = questions.filter(q => q.question_format === 'essay').length;
 
   // 종합 난이도 등급 계산 (A+~D-, 서술형 가중치 포함)
-  const difficultyGrade = calculateDifficultyGrade(
-    difficultyDist.high,
-    difficultyDist.medium,
-    difficultyDist.low,
-    essayCount,
-    questions.length
-  );
+  const difficultyGrade = is4Level
+    ? calculateDifficultyGrade(
+        difficultyDist.concept,
+        difficultyDist.pattern,
+        difficultyDist.reasoning,
+        difficultyDist.creative,
+        essayCount,
+        questions.length
+      )
+    : calculateDifficultyGrade(
+        difficultyDist.high,
+        difficultyDist.medium,
+        difficultyDist.low,
+        essayCount,
+        questions.length
+      );
 
   // 시험지 표시 제목 (AI 추출 제목 우선)
   const displayTitle = exam?.suggested_title || exam?.title || '시험지';
@@ -350,26 +369,70 @@ export function AnalysisResultPage() {
               {/* 종합 난이도 등급 */}
               {difficultyGrade && (
                 <div className="flex items-center gap-3">
-                  <div className="text-xs text-gray-500">난이도</div>
+                  <div className="text-xs text-gray-500">종합<br/>난이도</div>
                   <div
-                    className={`flex items-center justify-center w-12 h-12 rounded-lg ${difficultyGrade.color} ${difficultyGrade.text} font-bold text-lg shadow-sm`}
+                    className={`flex items-center justify-center w-14 h-14 rounded-xl ${difficultyGrade.color} ${difficultyGrade.text} font-bold text-xl shadow-md border-2 border-white`}
                     title={`난이도 등급: ${difficultyGrade.grade} (${difficultyGrade.label})`}
                   >
                     {difficultyGrade.grade}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    <div className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
-                      <span>상 {difficultyDist.high}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
-                      <span>중 {difficultyDist.medium}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
-                      <span>하 {difficultyDist.low}</span>
-                    </div>
+                  <div className="text-xs text-gray-600">
+                    {is4Level ? (
+                      <>
+                        {difficultyDist.concept > 0 && (
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.concept.bg }} />
+                            <span className="font-medium">개념</span>
+                            <span className="text-gray-500">{difficultyDist.concept}</span>
+                          </div>
+                        )}
+                        {difficultyDist.pattern > 0 && (
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.pattern.bg }} />
+                            <span className="font-medium">유형</span>
+                            <span className="text-gray-500">{difficultyDist.pattern}</span>
+                          </div>
+                        )}
+                        {difficultyDist.reasoning > 0 && (
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.reasoning.bg }} />
+                            <span className="font-medium">사고력</span>
+                            <span className="text-gray-500">{difficultyDist.reasoning}</span>
+                          </div>
+                        )}
+                        {difficultyDist.creative > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.creative.bg }} />
+                            <span className="font-medium">창의</span>
+                            <span className="text-gray-500">{difficultyDist.creative}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {difficultyDist.high > 0 && (
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
+                            <span className="font-medium">상</span>
+                            <span className="text-gray-500">{difficultyDist.high}</span>
+                          </div>
+                        )}
+                        {difficultyDist.medium > 0 && (
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
+                            <span className="font-medium">중</span>
+                            <span className="text-gray-500">{difficultyDist.medium}</span>
+                          </div>
+                        )}
+                        {difficultyDist.low > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
+                            <span className="font-medium">하</span>
+                            <span className="text-gray-500">{difficultyDist.low}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               )}
