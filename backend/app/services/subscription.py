@@ -23,26 +23,17 @@ class SubscriptionTier(str, Enum):
     PRO = "pro"
 
 
-# 티어별 주간 한도 설정 (매주 월요일 오전 9시 KST 초기화)
-TIER_LIMITS = {
+# 티어별 주간 크레딧 지급량 (매주 월요일 오전 9시 KST에 지급)
+TIER_CREDITS = {
     SubscriptionTier.FREE: {
-        "weekly_analysis": 3,    # 주 3회
-        "weekly_extended": 0,    # 미리보기만
+        "weekly_credits": 3,      # 주 3 크레딧 지급
     },
     SubscriptionTier.BASIC: {
-        "weekly_analysis": 10,   # 주 10회
-        "weekly_extended": 3,    # 주 3회
+        "weekly_credits": 10,     # 주 10 크레딧 지급
     },
     SubscriptionTier.PRO: {
-        "weekly_analysis": -1,   # 무제한
-        "weekly_extended": -1,   # 무제한
+        "weekly_credits": 100,    # 주 100 크레딧 지급 (사실상 무제한)
     },
-}
-
-# MASTER (is_superuser=True) 한도 - 무제한
-MASTER_LIMITS = {
-    "weekly_analysis": -1,
-    "weekly_extended": -1,
 }
 
 
@@ -103,8 +94,12 @@ class SubscriptionService:
         last_monday = now - timedelta(days=days_since_monday)
         return last_monday.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    async def check_and_reset_weekly_usage(self, user: UserDict) -> bool:
-        """주간 사용량 리셋 체크 (매주 월요일 오전 9시 KST). 리셋했으면 True 반환."""
+    async def check_and_grant_weekly_credits(self, user: UserDict) -> bool:
+        """주간 크레딧 지급 체크 (매주 월요일 오전 9시 KST). 지급했으면 True 반환."""
+        # MASTER는 크레딧 지급 불필요
+        if user.get("is_superuser", False):
+            return False
+
         now = datetime.utcnow()
         reset_date_str = user.get("usage_reset_at")
 
@@ -116,32 +111,50 @@ class SubscriptionService:
         else:
             reset_date = self._get_last_monday_9am_kst()
 
-        # 마지막 월요일 00:00 UTC (= 월요일 09:00 KST) 이후로 리셋이 안됐으면 리셋
+        # 마지막 월요일 00:00 UTC (= 월요일 09:00 KST) 이후로 지급이 안됐으면 지급
         last_monday = self._get_last_monday_9am_kst()
         if reset_date < last_monday:
+            tier = SubscriptionTier(user.get("subscription_tier", "free"))
+            weekly_credits = TIER_CREDITS[tier]["weekly_credits"]
+
+            current_credits = user.get("credits", 0)
+            new_credits = current_credits + weekly_credits
+
             await self._update_user(user["id"], {
-                "monthly_analysis_count": 0,  # DB 컬럼명 (주간 용도로 사용)
-                "monthly_extended_count": 0,
+                "credits": new_credits,
+                "monthly_analysis_count": 0,  # 통계용 카운터 리셋
+                "monthly_extended_count": 0,  # 통계용 카운터 리셋
                 "usage_reset_at": last_monday.isoformat(),
             })
+
+            # 크레딧 지급 로그 기록
+            credit_log_service = get_credit_log_service(self.db)
+            await credit_log_service.log(
+                user_id=user["id"],
+                change_amount=weekly_credits,
+                balance_before=current_credits,
+                balance_after=new_credits,
+                action_type="weekly_grant",
+                description=f"{tier.value.upper()} 티어 주간 크레딧 지급",
+            )
+
             # 로컬 객체도 업데이트
+            user["credits"] = new_credits
             user["monthly_analysis_count"] = 0
             user["monthly_extended_count"] = 0
+            print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {weekly_credits} 크레딧 지급 (잔액: {new_credits})")
             return True
         return False
 
     async def get_usage_status(self, user_id: str) -> UsageStatus:
         """현재 사용량 상태 조회"""
         user = await self.get_user(user_id)
-        await self.check_and_reset_weekly_usage(user)
+        await self.check_and_grant_weekly_credits(user)
 
         # MASTER 계정 (is_superuser) 체크
         is_master = user.get("is_superuser", False)
 
         tier = SubscriptionTier(user.get("subscription_tier", "free"))
-
-        # MASTER는 무제한, 일반 유저는 티어별 한도
-        limits = MASTER_LIMITS if is_master else TIER_LIMITS[tier]
 
         # 구독 만료 체크 (MASTER가 아닌 경우만)
         now = datetime.utcnow()
@@ -161,59 +174,48 @@ class SubscriptionService:
                 "subscription_expires_at": None,
             })
             tier = SubscriptionTier.FREE
-            limits = TIER_LIMITS[tier]
             subscription_expires_at = None
 
-        # 크레딧 만료 체크
+        # 크레딧 만료 체크 (구매한 크레딧만 만료, 주간 지급 크레딧은 만료 없음)
+        # 크레딧 구분 없이 통합 관리하므로 이 기능은 비활성화 가능
+        # 향후 구매 크레딧과 주간 크레딧 분리 시 재활성화
         credits_expires_str = user.get("credits_expires_at")
         credits_expires_at = None
-
-        if credits_expires_str:
-            if isinstance(credits_expires_str, str):
-                credits_expires_at = datetime.fromisoformat(credits_expires_str.replace("Z", "+00:00").replace("+00:00", ""))
-            else:
-                credits_expires_at = credits_expires_str
+        # if credits_expires_str:
+        #     if isinstance(credits_expires_str, str):
+        #         credits_expires_at = datetime.fromisoformat(credits_expires_str.replace("Z", "+00:00").replace("+00:00", ""))
+        #     else:
+        #         credits_expires_at = credits_expires_str
+        #
+        # credits = user.get("credits", 0)
+        # if credits_expires_at and credits_expires_at < now:
+        #     await self._update_user(user["id"], {
+        #         "credits": 0,
+        #         "credits_expires_at": None,
+        #     })
+        #     credits = 0
+        #     credits_expires_at = None
 
         credits = user.get("credits", 0)
-        if credits_expires_at and credits_expires_at < now:
-            await self._update_user(user["id"], {
-                "credits": 0,
-                "credits_expires_at": None,
-            })
-            credits = 0
-            credits_expires_at = None
+        weekly_analysis_count = user.get("monthly_analysis_count", 0)  # 통계용
+        weekly_extended_count = user.get("monthly_extended_count", 0)  # 통계용
 
-        analysis_limit = limits["weekly_analysis"]
-        extended_limit = limits["weekly_extended"]
-        weekly_analysis_count = user.get("monthly_analysis_count", 0)  # DB 컬럼명
-        weekly_extended_count = user.get("monthly_extended_count", 0)  # DB 컬럼명
+        # 분석 가능 여부: MASTER이거나 크레딧 있음
+        can_analyze = is_master or credits >= 1
 
-        # 분석 가능 여부: MASTER이거나, 한도 내 OR 크레딧 있음
-        can_analyze = (
-            is_master or
-            analysis_limit == -1 or
-            weekly_analysis_count < analysis_limit or
-            credits > 0
-        )
+        # 확장 분석 가능 여부: MASTER이거나 크레딧 2개 이상
+        can_use_extended = is_master or credits >= 2
 
-        # 확장 분석 가능 여부
-        can_use_extended = (
-            is_master or
-            extended_limit == -1 or
-            weekly_extended_count < extended_limit or
-            credits >= 2  # 확장 분석은 2크레딧
-        )
-
-        # 다음 초기화 시간 계산
+        # 다음 크레딧 지급 시간 계산
         next_reset_at = self._get_next_monday_9am_kst()
 
         return UsageStatus(
             tier=tier,
             subscription_expires_at=subscription_expires_at,
-            weekly_analysis_used=weekly_analysis_count,
-            weekly_analysis_limit=analysis_limit,
-            weekly_extended_used=weekly_extended_count,
-            weekly_extended_limit=extended_limit,
+            weekly_analysis_used=weekly_analysis_count,  # 통계용 (한도 체크는 하지 않음)
+            weekly_analysis_limit=-1 if is_master else 0,  # MASTER는 무제한, 일반은 크레딧 기반
+            weekly_extended_used=weekly_extended_count,  # 통계용
+            weekly_extended_limit=-1 if is_master else 0,  # MASTER는 무제한, 일반은 크레딧 기반
             next_reset_at=next_reset_at,
             credits=credits,
             credits_expires_at=credits_expires_at,
@@ -223,7 +225,7 @@ class SubscriptionService:
         )
 
     async def consume_analysis(self, user_id: str, exam_type: str = "blank", exam_id: str | None = None) -> dict:
-        """분석 1회 소비
+        """분석 1회 소비 (크레딧 차감)
 
         Args:
             user_id: 사용자 ID
@@ -233,7 +235,7 @@ class SubscriptionService:
         Returns:
             dict: {
                 "success": bool,
-                "credits_consumed": int (소비된 크레딧, 0이면 무료 한도 내),
+                "credits_consumed": int (소비된 크레딧),
                 "credits_remaining": int (남은 크레딧)
             }
         """
@@ -241,15 +243,15 @@ class SubscriptionService:
         credit_cost = 2 if exam_type == "student" else 1
 
         user = await self.get_user(user_id)
-        await self.check_and_reset_weekly_usage(user)
+        await self.check_and_grant_weekly_credits(user)
 
-        weekly_analysis_count = user.get("monthly_analysis_count", 0)  # DB 컬럼명
+        weekly_analysis_count = user.get("monthly_analysis_count", 0)  # 통계용 카운터
         credits = user.get("credits", 0)
 
         # 로그 서비스 초기화
         credit_log_service = get_credit_log_service(self.db)
 
-        # MASTER는 무제한
+        # MASTER는 무제한 (크레딧 차감 없음)
         if user.get("is_superuser", False):
             await self._update_user(user["id"], {
                 "monthly_analysis_count": weekly_analysis_count + 1,
@@ -267,47 +269,7 @@ class SubscriptionService:
             )
             return {"success": True, "credits_consumed": 0, "credits_remaining": credits}
 
-        tier = SubscriptionTier(user.get("subscription_tier", "free"))
-        limits = TIER_LIMITS[tier]
-        analysis_limit = limits["weekly_analysis"]
-
-        # 무제한이면 카운트만 증가
-        if analysis_limit == -1:
-            await self._update_user(user["id"], {
-                "monthly_analysis_count": weekly_analysis_count + 1,
-            })
-            # 무료 사용 기록
-            description = "학생용 시험지 분석" if exam_type == "student" else "시험지 분석"
-            await credit_log_service.log(
-                user_id=user_id,
-                change_amount=0,
-                balance_before=credits,
-                balance_after=credits,
-                action_type="analysis",
-                reference_id=exam_id,
-                description=description,
-            )
-            return {"success": True, "credits_consumed": 0, "credits_remaining": credits}
-
-        # 한도 내면 카운트 증가 (무료)
-        if weekly_analysis_count < analysis_limit:
-            await self._update_user(user["id"], {
-                "monthly_analysis_count": weekly_analysis_count + 1,
-            })
-            # 무료 사용 기록
-            description = "학생용 시험지 분석" if exam_type == "student" else "시험지 분석"
-            await credit_log_service.log(
-                user_id=user_id,
-                change_amount=0,
-                balance_before=credits,
-                balance_after=credits,
-                action_type="analysis",
-                reference_id=exam_id,
-                description=description,
-            )
-            return {"success": True, "credits_consumed": 0, "credits_remaining": credits}
-
-        # 크레딧 차감 (exam_type에 따라 차등)
+        # 일반 사용자: 크레딧 차감
         if credits >= credit_cost:
             new_credits = credits - credit_cost
             await self._update_user(user["id"], {
@@ -327,23 +289,24 @@ class SubscriptionService:
             )
             return {"success": True, "credits_consumed": credit_cost, "credits_remaining": new_credits}
 
+        # 크레딧 부족
         return {"success": False, "credits_consumed": 0, "credits_remaining": credits}
 
     async def consume_extended(self, user_id: str, exam_id: str | None = None) -> bool:
-        """확장 분석 1회 소비 (성공 시 True)
+        """확장 분석 1회 소비 (2크레딧 차감, 성공 시 True)
 
         Args:
             user_id: 사용자 ID
             exam_id: 시험지 ID (로그용)
         """
         user = await self.get_user(user_id)
-        await self.check_and_reset_weekly_usage(user)
+        await self.check_and_grant_weekly_credits(user)
 
-        weekly_extended_count = user.get("monthly_extended_count", 0)  # DB 컬럼명
+        weekly_extended_count = user.get("monthly_extended_count", 0)  # 통계용 카운터
         credits = user.get("credits", 0)
         credit_log_service = get_credit_log_service(self.db)
 
-        # MASTER는 무제한
+        # MASTER는 무제한 (크레딧 차감 없음)
         if user.get("is_superuser", False):
             await self._update_user(user["id"], {
                 "monthly_extended_count": weekly_extended_count + 1,
@@ -360,45 +323,7 @@ class SubscriptionService:
             )
             return True
 
-        tier = SubscriptionTier(user.get("subscription_tier", "free"))
-        limits = TIER_LIMITS[tier]
-        extended_limit = limits["weekly_extended"]
-
-        # 무제한이면 카운트만 증가
-        if extended_limit == -1:
-            await self._update_user(user["id"], {
-                "monthly_extended_count": weekly_extended_count + 1,
-            })
-            # 무료 사용 기록
-            await credit_log_service.log(
-                user_id=user_id,
-                change_amount=0,
-                balance_before=credits,
-                balance_after=credits,
-                action_type="extended",
-                reference_id=exam_id,
-                description="확장 분석",
-            )
-            return True
-
-        # 한도 내면 카운트 증가 (무료)
-        if weekly_extended_count < extended_limit:
-            await self._update_user(user["id"], {
-                "monthly_extended_count": weekly_extended_count + 1,
-            })
-            # 무료 사용 기록
-            await credit_log_service.log(
-                user_id=user_id,
-                change_amount=0,
-                balance_before=credits,
-                balance_after=credits,
-                action_type="extended",
-                reference_id=exam_id,
-                description="확장 분석",
-            )
-            return True
-
-        # 크레딧 차감 (2크레딧)
+        # 일반 사용자: 크레딧 차감 (2크레딧)
         if credits >= 2:
             new_credits = credits - 2
             await self._update_user(user["id"], {
@@ -417,6 +342,7 @@ class SubscriptionService:
             )
             return True
 
+        # 크레딧 부족
         return False
 
     async def purchase_credits(
