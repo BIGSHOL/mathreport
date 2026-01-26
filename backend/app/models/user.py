@@ -59,7 +59,7 @@ class User(Base):
     subscription_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # 크레딧 관련
-    credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    credits: Mapped[int] = mapped_column(Integer, default=5, nullable=False)  # 회원가입 시 5크레딧 지급
     credits_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # 월별 사용량 (매월 1일 리셋)

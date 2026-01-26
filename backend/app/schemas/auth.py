@@ -154,7 +154,7 @@ class UserResponse(UserBase):
     updated_at: datetime | None = Field(default=None, description="최종 수정일")
     data_consent: bool = Field(default=False, description="AI 데이터 활용 동의")
     subscription_tier: str = Field(default="free", description="구독 티어")
-    credits: int = Field(default=0, description="보유 크레딧")
+    credits: int = Field(default=5, description="보유 크레딧")
     preferred_template: str = Field(default="detailed", description="선호 템플릿")
 
     model_config = {

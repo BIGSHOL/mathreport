@@ -27,7 +27,7 @@ class UserResponse(UserBase):
     is_active: bool
     data_consent: bool  # AI 개선 데이터 활용 동의
     subscription_tier: str = "free"  # 구독 티어
-    credits: int = 0  # 보유 크레딧
+    credits: int = 5  # 보유 크레딧 (회원가입 시 5크레딧 지급)
     preferred_template: str = "detailed"  # 선호 템플릿
     created_at: datetime
     updated_at: datetime
