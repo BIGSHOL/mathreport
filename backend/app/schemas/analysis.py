@@ -559,6 +559,87 @@ class ScoreLevelPlanResponse(BaseModel):
     generated_at: datetime | str
 
 
+# --- 자기 시험 대비 전략 ---
+
+class PriorityArea(BaseModel):
+    """우선 학습 영역"""
+    topic: str = Field(description="단원/주제")
+    reason: str = Field(description="우선순위 이유")
+    key_points: list[str] = Field(
+        min_length=2,
+        max_length=5,
+        description="집중 학습 포인트 2-5개"
+    )
+    estimated_hours: int = Field(ge=0, description="예상 학습 시간")
+
+
+class DailyPlan(BaseModel):
+    """일별 학습 계획"""
+    day_label: str = Field(description="날짜 레이블 (예: 'D-7', 'D-3', 'D-1', 'D-day')")
+    focus: str = Field(description="당일 집중 사항")
+    activities: list[str] = Field(
+        min_length=2,
+        max_length=6,
+        description="구체적인 활동 2-6개"
+    )
+    time_allocation: str = Field(description="시간 배분 (예: '3시간')")
+    dos: list[str] = Field(
+        min_length=2,
+        max_length=4,
+        description="해야 할 것 2-4개"
+    )
+    donts: list[str] = Field(
+        min_length=2,
+        max_length=4,
+        description="하지 말아야 할 것 2-4개"
+    )
+
+
+class ExamDayStrategy(BaseModel):
+    """시험 당일 전략"""
+    before_exam: list[str] = Field(
+        min_length=3,
+        max_length=5,
+        description="시험 전 체크리스트 3-5개"
+    )
+    during_exam: list[str] = Field(
+        min_length=3,
+        max_length=6,
+        description="시험 중 전략 3-6개"
+    )
+    time_management: list[str] = Field(
+        min_length=2,
+        max_length=4,
+        description="시간 관리 팁 2-4개"
+    )
+    stress_management: list[str] = Field(
+        min_length=2,
+        max_length=4,
+        description="긴장 완화 방법 2-4개"
+    )
+
+
+class ExamPrepStrategyResponse(BaseModel):
+    """자기 시험 대비 전략 응답"""
+    analysis_id: str | UUID
+    exam_name: str = Field(description="시험 이름 (예: '중간고사', '기말고사')")
+    days_until_exam: int = Field(ge=0, description="시험까지 남은 일수")
+    target_score_improvement: str = Field(description="목표 점수 향상 (예: '10-15점 향상')")
+    priority_areas: list[PriorityArea] = Field(
+        min_length=2,
+        max_length=5,
+        description="우선 학습 영역 2-5개"
+    )
+    daily_plans: list[DailyPlan] = Field(
+        min_length=2,
+        max_length=7,
+        description="일별 계획 2-7개 (D-7, D-3, D-1, D-day 등)"
+    )
+    exam_day_strategy: ExamDayStrategy = Field(description="시험 당일 전략")
+    final_advice: str = Field(description="마지막 조언")
+    generated_at: datetime | str
+
+
 # --- 성과 예측 ---
 
 class DifficultyHandling(BaseModel):

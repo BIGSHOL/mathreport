@@ -29,10 +29,11 @@ import { AnswerEditor } from '../components/analysis/AnswerEditor';
 import { ExamCommentarySection } from '../components/analysis/ExamCommentarySection';
 import { TopicStrategiesSection } from '../components/analysis/TopicStrategiesSection';
 import { ScoreLevelPlanSection } from '../components/analysis/ScoreLevelPlanSection';
+import { ExamPrepStrategySection } from '../components/analysis/ExamPrepStrategySection';
 import { ToastContainer, useToast } from '../components/Toast';
 import { getConfidenceLevel, CONFIDENCE_COLORS, DIFFICULTY_COLORS, calculateDifficultyGrade } from '../styles/tokens';
 import examService, { type ExamType, type Exam } from '../services/exam';
-import analysisService, { type ExamCommentary, type TopicStrategiesResponse, type ScoreLevelPlanResponse } from '../services/analysis';
+import analysisService, { type ExamCommentary, type TopicStrategiesResponse, type ScoreLevelPlanResponse, type ExamPrepStrategyResponse } from '../services/analysis';
 
 // Hoisted static elements (rendering-hoist-jsx)
 const loadingState = <div className="p-8">로딩 중...</div>;
@@ -59,6 +60,10 @@ export function AnalysisResultPage() {
   const [isGeneratingStrategies, setIsGeneratingStrategies] = useState(false);
   const [scoreLevelPlan, setScoreLevelPlan] = useState<ScoreLevelPlanResponse | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [examPrepStrategy, setExamPrepStrategy] = useState<ExamPrepStrategyResponse | null>(null);
+  const [isGeneratingExamPrep, setIsGeneratingExamPrep] = useState(false);
+  const [showExamPrepForm, setShowExamPrepForm] = useState(false);
+  const [examPrepFormData, setExamPrepFormData] = useState({ examName: '', daysUntilExam: 7 });
 
   // 토스트 알림
   const toast = useToast();
@@ -186,6 +191,36 @@ export function AnalysisResultPage() {
       setIsGeneratingPlan(false);
     }
   }, [id, toast]);
+
+  // 시험 대비 전략 생성 핸들러
+  const handleGenerateExamPrepStrategy = useCallback(async () => {
+    if (!id || !examPrepFormData.examName.trim()) {
+      toast.error('시험 이름을 입력해주세요');
+      return;
+    }
+
+    setIsGeneratingExamPrep(true);
+    setShowExamPrepForm(false);
+    try {
+      const strategy = await analysisService.generateExamPrepStrategy(
+        id,
+        examPrepFormData.examName,
+        examPrepFormData.daysUntilExam
+      );
+      setExamPrepStrategy(strategy);
+      toast.success('시험 대비 전략이 생성되었습니다');
+    } catch (error: any) {
+      console.error('Failed to generate exam prep strategy:', error);
+      if (error.response?.status === 400) {
+        toast.error('시험 대비 전략은 답안지 분석에만 사용 가능합니다');
+      } else {
+        toast.error('전략 생성에 실패했습니다. 다시 시도해주세요.');
+      }
+      setShowExamPrepForm(true);
+    } finally {
+      setIsGeneratingExamPrep(false);
+    }
+  }, [id, examPrepFormData, toast]);
 
   // 정오답 분석 요청 핸들러
   const handleRequestAnswerAnalysis = useCallback(async () => {
@@ -616,6 +651,95 @@ export function AnalysisResultPage() {
             plan={scoreLevelPlan!}
             isLoading={isGeneratingPlan}
             onRegenerate={handleGenerateScoreLevelPlan}
+          />
+        </div>
+      )}
+
+      {/* 시험 대비 전략 섹션 (답안지만) */}
+      {hasAnswerAnalysis && !examPrepStrategy && !isGeneratingExamPrep && !showExamPrepForm && id && (
+        <div className="mb-6">
+          <div className="bg-gradient-to-r from-pink-50 to-rose-50 rounded-lg border border-pink-200 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-pink-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">시험 대비 전략</h3>
+                <p className="text-xs text-gray-600">다가오는 시험을 위한 D-day 카운트다운 학습 전략을 제공합니다</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowExamPrepForm(true)}
+              className="px-4 py-2 bg-pink-600 text-white text-sm font-medium rounded-lg hover:bg-pink-700 transition-colors"
+            >
+              전략 생성
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 시험 대비 전략 생성 폼 */}
+      {showExamPrepForm && (
+        <div className="mb-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">시험 정보 입력</h3>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="examName" className="block text-sm font-medium text-gray-700 mb-1">
+                  시험 이름 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="examName"
+                  type="text"
+                  value={examPrepFormData.examName}
+                  onChange={(e) => setExamPrepFormData({ ...examPrepFormData, examName: e.target.value })}
+                  placeholder="예: 중간고사, 기말고사, 모의고사"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="daysUntilExam" className="block text-sm font-medium text-gray-700 mb-1">
+                  시험까지 남은 일수 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="daysUntilExam"
+                  type="number"
+                  min="1"
+                  max="30"
+                  value={examPrepFormData.daysUntilExam}
+                  onChange={(e) => setExamPrepFormData({ ...examPrepFormData, daysUntilExam: parseInt(e.target.value) || 1 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">1일 ~ 30일 사이로 입력해주세요</p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleGenerateExamPrepStrategy}
+                  className="flex-1 px-4 py-2 bg-pink-600 text-white text-sm font-medium rounded-lg hover:bg-pink-700 transition-colors"
+                >
+                  생성하기
+                </button>
+                <button
+                  onClick={() => setShowExamPrepForm(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 시험 대비 전략 표시 */}
+      {(examPrepStrategy || isGeneratingExamPrep) && (
+        <div className="mb-6">
+          <ExamPrepStrategySection
+            strategy={examPrepStrategy!}
+            isLoading={isGeneratingExamPrep}
+            onRegenerate={() => setShowExamPrepForm(true)}
           />
         </div>
       )}

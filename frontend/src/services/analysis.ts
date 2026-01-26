@@ -143,6 +143,45 @@ export interface ScoreLevelPlanResponse {
     generated_at: string;
 }
 
+// ============================================
+// Exam Prep Strategy Types (시험 대비 전략)
+// ============================================
+
+export interface PriorityArea {
+    topic: string;                 // 단원명
+    reason: string;                // 우선 학습 이유
+    key_points: string[];          // 핵심 포인트 2-5개
+    estimated_hours: number;       // 예상 학습 시간
+}
+
+export interface DailyPlan {
+    day_label: string;             // 날짜 레이블 (예: "D-7", "D-3", "D-1", "D-day")
+    focus: string;                 // 집중 사항
+    activities: string[];          // 활동 목록 2-6개
+    time_allocation: string;       // 시간 배분
+    dos: string[];                 // 해야 할 것 2-4개
+    donts: string[];               // 하지 말아야 할 것 2-4개
+}
+
+export interface ExamDayStrategy {
+    before_exam: string[];         // 시험 전 3-5개
+    during_exam: string[];         // 시험 중 3-6개
+    time_management: string[];     // 시간 관리 2-4개
+    stress_management: string[];   // 스트레스 관리 2-4개
+}
+
+export interface ExamPrepStrategyResponse {
+    analysis_id: string;
+    exam_name: string;             // 시험 이름
+    days_until_exam: number;       // 시험까지 남은 일수
+    target_score_improvement: string;  // 목표 점수 향상
+    priority_areas: PriorityArea[]; // 우선 학습 영역
+    daily_plans: DailyPlan[];      // 일별 계획
+    exam_day_strategy: ExamDayStrategy;  // 시험 당일 전략
+    final_advice: string;          // 최종 조언
+    generated_at: string;
+}
+
 export interface AnalysisResult {
     id: string;
     exam_id: string;
@@ -514,6 +553,29 @@ export const analysisService = {
     ): Promise<ScoreLevelPlanResponse> {
         const response = await api.post<ScoreLevelPlanResponse>(
             `/api/v1/analysis/${analysisId}/score-level-plan`
+        );
+        return response.data;
+    },
+
+    /**
+     * Generate exam preparation strategy (시험 대비 전략 생성).
+     * Only available for answered exams (student answer sheets).
+     * @param analysisId 분석 결과 ID
+     * @param examName 시험 이름 (예: "중간고사")
+     * @param daysUntilExam 시험까지 남은 일수 (1-30일)
+     * @returns ExamPrepStrategyResponse
+     */
+    async generateExamPrepStrategy(
+        analysisId: string,
+        examName: string,
+        daysUntilExam: number
+    ): Promise<ExamPrepStrategyResponse> {
+        const response = await api.post<ExamPrepStrategyResponse>(
+            `/api/v1/analysis/${analysisId}/exam-prep-strategy`,
+            {
+                exam_name: examName,
+                days_until_exam: daysUntilExam
+            }
         );
         return response.data;
     },

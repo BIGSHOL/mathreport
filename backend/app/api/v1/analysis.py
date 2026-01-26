@@ -19,6 +19,7 @@ from app.schemas.analysis import (
     ExamCommentary,
     TopicStrategiesResponse,
     ScoreLevelPlanResponse,
+    ExamPrepStrategyResponse,
 )
 from app.schemas.feedback import FeedbackCreate, FeedbackResponse, BadgeEarned
 from app.services.analysis import get_analysis_service
@@ -485,6 +486,84 @@ async def generate_score_level_plan(
         study_phases=plan_data["study_phases"],
         daily_routine=plan_data["daily_routine"],
         motivational_message=plan_data["motivational_message"],
+        generated_at=datetime.utcnow().isoformat()
+    )
+
+
+@router.post(
+    "/analysis/{analysis_id}/exam-prep-strategy",
+    response_model=ExamPrepStrategyResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="자기 시험 대비 전략 생성"
+)
+async def generate_exam_prep_strategy(
+    analysis_id: str,
+    current_user: CurrentUser,
+    db: DbDep,
+    exam_name: str = Body(..., description="시험 이름 (예: '중간고사')"),
+    days_until_exam: int = Body(..., ge=1, le=30, description="시험까지 남은 일수 (1-30일)"),
+) -> ExamPrepStrategyResponse:
+    """앞으로 있을 시험을 대비한 맞춤 전략을 생성합니다.
+
+    - 우선 학습 영역 선정 (취약 단원 중심)
+    - D-day별 학습 계획 (D-7, D-3, D-1, D-day 등)
+    - 시험 당일 전략 (시험 전/중/후 팁)
+    - 시간 관리 및 긴장 완화 방법
+    - 답안지 분석에만 적용 가능 (빈 시험지는 불가)
+    - 크레딧 소모 없음 (기존 분석 결과 활용)
+    """
+    from app.services.agents.exam_prep_strategy_agent import get_exam_prep_strategy_agent
+
+    # 분석 결과 조회 및 권한 확인
+    analysis_service = get_analysis_service(db)
+    analysis = await analysis_service.get_analysis(analysis_id)
+
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis not found"
+        )
+
+    # 시험지 유형 확인
+    exam_service = get_exam_service(db)
+    exam = await exam_service.get_exam(analysis["exam_id"])
+    exam_type = exam.get("exam_type", "blank") if exam else "blank"
+
+    if exam_type == "blank":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Exam prep strategy is only available for answered exams (학생 답안지만 가능)"
+        )
+
+    # 현재 점수 계산
+    questions = analysis.get("questions", [])
+    current_score = sum(q.get("earned_points", 0) for q in questions if q.get("earned_points") is not None)
+    total_score = sum(q.get("points", 0) for q in questions if q.get("points") is not None and q.get("points", 0) > 0)
+
+    # 시험 대비 전략 생성
+    strategy_agent = get_exam_prep_strategy_agent()
+    strategy_data = strategy_agent.generate(
+        analysis_data={
+            "questions": questions,
+            "summary": analysis.get("summary"),
+            "current_score": current_score,
+            "total_score": total_score,
+        },
+        exam_name=exam_name,
+        days_until_exam=days_until_exam
+    )
+
+    # 응답 구성
+    from datetime import datetime
+    return ExamPrepStrategyResponse(
+        analysis_id=analysis_id,
+        exam_name=strategy_data["exam_name"],
+        days_until_exam=strategy_data["days_until_exam"],
+        target_score_improvement=strategy_data["target_score_improvement"],
+        priority_areas=strategy_data["priority_areas"],
+        daily_plans=strategy_data["daily_plans"],
+        exam_day_strategy=strategy_data["exam_day_strategy"],
+        final_advice=strategy_data["final_advice"],
         generated_at=datetime.utcnow().isoformat()
     )
 
