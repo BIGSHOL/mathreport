@@ -17,6 +17,7 @@ from app.schemas.analysis import (
     ExportRequest,
     ExportResponse,
     ExamCommentary,
+    TopicStrategiesResponse,
 )
 from app.schemas.feedback import FeedbackCreate, FeedbackResponse, BadgeEarned
 from app.services.analysis import get_analysis_service
@@ -340,6 +341,69 @@ async def generate_commentary(
     }).eq("id", analysis_id).execute()
 
     return commentary
+
+
+@router.post(
+    "/analysis/{analysis_id}/topic-strategies",
+    response_model=TopicStrategiesResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="영역별 학습 전략 생성"
+)
+async def generate_topic_strategies(
+    analysis_id: str,
+    current_user: CurrentUser,
+    db: DbDep,
+) -> TopicStrategiesResponse:
+    """학생의 취약 단원을 분석하여 단원별 맞춤 학습 전략을 생성합니다.
+
+    - 오답이 있는 단원별로 구체적인 학습 전략 제공
+    - 학습 방법, 핵심 개념, 문제 풀이 팁, 흔한 실수, 추천 자료, 진도 체크리스트 포함
+    - 전반적인 학습 가이드와 권장 학습 순서 제공
+    - 답안지 분석에만 적용 가능 (빈 시험지는 불가)
+    - 크레딧 소모 없음 (기존 분석 결과 활용)
+    """
+    from app.services.agents.topic_strategy_agent import get_topic_strategy_agent
+
+    # 분석 결과 조회 및 권한 확인
+    analysis_service = get_analysis_service(db)
+    analysis = await analysis_service.get_analysis(analysis_id)
+
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis not found"
+        )
+
+    # 시험지 유형 확인
+    exam_service = get_exam_service(db)
+    exam = await exam_service.get_exam(analysis["exam_id"])
+    exam_type = exam.get("exam_type", "blank") if exam else "blank"
+
+    if exam_type == "blank":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Topic strategies are only available for answered exams (학생 답안지만 가능)"
+        )
+
+    # 학습 전략 생성
+    strategy_agent = get_topic_strategy_agent()
+    strategies_data = strategy_agent.generate(
+        analysis_data={
+            "questions": analysis.get("questions", []),
+            "summary": analysis.get("summary"),
+            "exam_type": exam_type,
+        }
+    )
+
+    # 응답 구성
+    from datetime import datetime
+    return TopicStrategiesResponse(
+        analysis_id=analysis_id,
+        strategies=strategies_data["strategies"],
+        overall_guidance=strategies_data["overall_guidance"],
+        study_sequence=strategies_data["study_sequence"],
+        generated_at=datetime.utcnow().isoformat()
+    )
 
 
 @router.patch(

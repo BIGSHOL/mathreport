@@ -416,6 +416,70 @@ class LearningPlan(BaseModel):
     expected_improvement: ScoreImprovement
 
 
+# --- 영역별 학습 전략 ---
+
+class TopicStudyMethod(BaseModel):
+    """단원별 학습 방법"""
+    method: str = Field(description="학습 방법 (예: '개념 정리 노트 작성')")
+    description: str = Field(description="구체적인 방법 설명")
+    estimated_time: str = Field(description="예상 소요 시간")
+
+
+class TopicLearningStrategy(BaseModel):
+    """단원별 맞춤 학습 전략
+
+    각 취약 단원에 대한 구체적이고 실용적인 학습 전략 제공
+    """
+    topic: str = Field(description="단원명")
+    weakness_summary: str = Field(description="취약점 요약")
+    priority: str = Field(description="우선순위 (high, medium, low)")
+    study_methods: list[TopicStudyMethod] = Field(
+        min_length=3,
+        max_length=5,
+        description="추천 학습 방법 3-5개"
+    )
+    key_concepts: list[str] = Field(
+        min_length=3,
+        max_length=7,
+        description="집중 학습할 핵심 개념"
+    )
+    practice_tips: list[str] = Field(
+        min_length=3,
+        max_length=5,
+        description="문제 풀이 팁 3-5개"
+    )
+    common_mistakes: list[str] = Field(
+        min_length=2,
+        max_length=5,
+        description="흔한 실수 2-5개"
+    )
+    recommended_resources: list[str] = Field(
+        min_length=2,
+        max_length=4,
+        description="추천 학습 자료 2-4개"
+    )
+    progress_checklist: list[str] = Field(
+        min_length=3,
+        max_length=5,
+        description="학습 진도 체크리스트"
+    )
+
+
+class TopicStrategiesResponse(BaseModel):
+    """영역별 학습 전략 응답"""
+    analysis_id: str | UUID
+    strategies: list[TopicLearningStrategy] = Field(
+        description="단원별 학습 전략 (우선순위순)"
+    )
+    overall_guidance: str = Field(
+        description="전반적인 학습 가이드"
+    )
+    study_sequence: list[str] = Field(
+        description="권장 학습 순서 (단원명)"
+    )
+    generated_at: datetime | str
+
+
 # --- 성과 예측 ---
 
 class DifficultyHandling(BaseModel):

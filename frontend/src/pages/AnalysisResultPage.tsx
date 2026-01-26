@@ -27,10 +27,11 @@ import { CacheHitBanner } from '../components/analysis/CacheHitBanner';
 import { ExportModal } from '../components/analysis/ExportModal';
 import { AnswerEditor } from '../components/analysis/AnswerEditor';
 import { ExamCommentarySection } from '../components/analysis/ExamCommentarySection';
+import { TopicStrategiesSection } from '../components/analysis/TopicStrategiesSection';
 import { ToastContainer, useToast } from '../components/Toast';
 import { getConfidenceLevel, CONFIDENCE_COLORS, DIFFICULTY_COLORS, calculateDifficultyGrade } from '../styles/tokens';
 import examService, { type ExamType, type Exam } from '../services/exam';
-import analysisService, { type ExamCommentary } from '../services/analysis';
+import analysisService, { type ExamCommentary, type TopicStrategiesResponse } from '../services/analysis';
 
 // Hoisted static elements (rendering-hoist-jsx)
 const loadingState = <div className="p-8">로딩 중...</div>;
@@ -53,6 +54,8 @@ export function AnalysisResultPage() {
   const [showAnswerEditor, setShowAnswerEditor] = useState(false);
   const [commentary, setCommentary] = useState<ExamCommentary | null>(null);
   const [isGeneratingCommentary, setIsGeneratingCommentary] = useState(false);
+  const [topicStrategies, setTopicStrategies] = useState<TopicStrategiesResponse | null>(null);
+  const [isGeneratingStrategies, setIsGeneratingStrategies] = useState(false);
 
   // 토스트 알림
   const toast = useToast();
@@ -138,6 +141,27 @@ export function AnalysisResultPage() {
       setIsGeneratingCommentary(false);
     }
   }, [id, toast, mutateResult]);
+
+  // 영역별 학습 전략 생성 핸들러
+  const handleGenerateTopicStrategies = useCallback(async () => {
+    if (!id) return;
+
+    setIsGeneratingStrategies(true);
+    try {
+      const strategies = await analysisService.generateTopicStrategies(id);
+      setTopicStrategies(strategies);
+      toast.success('영역별 학습 전략이 생성되었습니다');
+    } catch (error: any) {
+      console.error('Failed to generate topic strategies:', error);
+      if (error.response?.status === 400) {
+        toast.error('영역별 학습 전략은 답안지 분석에만 사용 가능합니다');
+      } else {
+        toast.error('학습 전략 생성에 실패했습니다. 다시 시도해주세요.');
+      }
+    } finally {
+      setIsGeneratingStrategies(false);
+    }
+  }, [id, toast]);
 
   // 정오답 분석 요청 핸들러
   const handleRequestAnswerAnalysis = useCallback(async () => {
@@ -500,6 +524,40 @@ export function AnalysisResultPage() {
             commentary={commentary}
             isLoading={isGeneratingCommentary}
             onRegenerate={() => handleGenerateCommentary(true)}
+          />
+        </div>
+      )}
+
+      {/* 영역별 학습 전략 섹션 (답안지만) */}
+      {hasAnswerAnalysis && !topicStrategies && !isGeneratingStrategies && id && (
+        <div className="mb-6">
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">영역별 학습 전략</h3>
+                <p className="text-xs text-gray-600">취약 단원별로 맞춤 학습 방법과 전략을 제공합니다</p>
+              </div>
+            </div>
+            <button
+              onClick={handleGenerateTopicStrategies}
+              className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              전략 생성
+            </button>
+          </div>
+        </div>
+      )}
+      {(topicStrategies || isGeneratingStrategies) && (
+        <div className="mb-6">
+          <TopicStrategiesSection
+            strategies={topicStrategies!}
+            isLoading={isGeneratingStrategies}
+            onRegenerate={handleGenerateTopicStrategies}
           />
         </div>
       )}

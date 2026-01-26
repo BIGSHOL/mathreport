@@ -72,6 +72,36 @@ export interface ExamCommentary {
     generated_at: string;        // 총평 생성 시각
 }
 
+// ============================================
+// Topic Learning Strategy Types (영역별 학습 전략)
+// ============================================
+
+export interface TopicStudyMethod {
+    method: string;           // 학습 방법명
+    description: string;      // 구체적인 방법 설명
+    estimated_time: string;   // 예상 소요 시간
+}
+
+export interface TopicLearningStrategy {
+    topic: string;                         // 단원명
+    weakness_summary: string;              // 취약점 요약
+    priority: 'high' | 'medium' | 'low';   // 우선순위
+    study_methods: TopicStudyMethod[];     // 추천 학습 방법 3-5개
+    key_concepts: string[];                // 집중 학습할 핵심 개념 3-7개
+    practice_tips: string[];               // 문제 풀이 팁 3-5개
+    common_mistakes: string[];             // 흔한 실수 2-5개
+    recommended_resources: string[];       // 추천 학습 자료 2-4개
+    progress_checklist: string[];          // 학습 진도 체크리스트 3-5개
+}
+
+export interface TopicStrategiesResponse {
+    analysis_id: string;
+    strategies: TopicLearningStrategy[];   // 단원별 학습 전략 (우선순위순)
+    overall_guidance: string;              // 전반적인 학습 가이드
+    study_sequence: string[];              // 권장 학습 순서 (단원명)
+    generated_at: string;
+}
+
 export interface AnalysisResult {
     id: string;
     exam_id: string;
@@ -413,6 +443,21 @@ export const analysisService = {
             {
                 params: { force_regenerate: forceRegenerate }
             }
+        );
+        return response.data;
+    },
+
+    /**
+     * Generate topic-specific learning strategies (영역별 학습 전략 생성).
+     * Only available for answered exams (student answer sheets).
+     * @param analysisId 분석 결과 ID
+     * @returns TopicStrategiesResponse
+     */
+    async generateTopicStrategies(
+        analysisId: string
+    ): Promise<TopicStrategiesResponse> {
+        const response = await api.post<TopicStrategiesResponse>(
+            `/api/v1/analysis/${analysisId}/topic-strategies`
         );
         return response.data;
     },
