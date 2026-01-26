@@ -77,6 +77,12 @@ export const DonutChart = memo(function DonutChart({
 
 interface DifficultyPieChartProps {
   distribution: {
+    // 4단계 시스템 (신규)
+    concept?: number;
+    pattern?: number;
+    reasoning?: number;
+    creative?: number;
+    // 3단계 시스템 (하위 호환)
     high: number;
     medium: number;
     low: number;
@@ -88,31 +94,63 @@ export const DifficultyPieChart = memo(function DifficultyPieChart({
   distribution,
   chartMode = 'bar',
 }: DifficultyPieChartProps) {
-  const total = distribution.high + distribution.medium + distribution.low;
+  // 4단계 시스템 감지: concept, pattern, reasoning, creative가 있으면 4단계
+  const is4Level = distribution.concept != null && distribution.pattern != null &&
+                   distribution.reasoning != null && distribution.creative != null;
 
-  // 도넛 차트용 통일 색상 (인디고 계열)
-  const donutData = [
+  // 총 문항 수 계산
+  const total = is4Level
+    ? (distribution.concept || 0) + (distribution.pattern || 0) + (distribution.reasoning || 0) + (distribution.creative || 0)
+    : distribution.high + distribution.medium + distribution.low;
+
+  // 도넛 차트용 데이터 (통일 색상)
+  const donutData = is4Level ? [
+    { key: 'concept', value: distribution.concept || 0, label: '개념', color: CHART_COLORS[1] },
+    { key: 'pattern', value: distribution.pattern || 0, label: '유형', color: CHART_COLORS[0] },
+    { key: 'reasoning', value: distribution.reasoning || 0, label: '사고력', color: CHART_COLORS[2] },
+    { key: 'creative', value: distribution.creative || 0, label: '창의', color: CHART_COLORS[3] },
+  ].filter((d) => d.value > 0) : [
     { key: 'low', value: distribution.low, label: '하', color: CHART_COLORS[0] },
     { key: 'medium', value: distribution.medium, label: '중', color: CHART_COLORS[1] },
     { key: 'high', value: distribution.high, label: '상', color: CHART_COLORS[2] },
   ].filter((d) => d.value > 0);
 
-  // 막대 차트용 난이도 색상 (기존 신호등 색상)
-  const barData = [
+  // 막대 차트용 데이터 (난이도별 색상)
+  const barData = is4Level ? [
+    { key: 'concept', value: distribution.concept || 0, label: DIFFICULTY_COLORS.concept.label, color: DIFFICULTY_COLORS.concept.bg },
+    { key: 'pattern', value: distribution.pattern || 0, label: DIFFICULTY_COLORS.pattern.label, color: DIFFICULTY_COLORS.pattern.bg },
+    { key: 'reasoning', value: distribution.reasoning || 0, label: DIFFICULTY_COLORS.reasoning.label, color: DIFFICULTY_COLORS.reasoning.bg },
+    { key: 'creative', value: distribution.creative || 0, label: DIFFICULTY_COLORS.creative.label, color: DIFFICULTY_COLORS.creative.bg },
+  ].filter((d) => d.value > 0) : [
     { key: 'low', value: distribution.low, label: DIFFICULTY_COLORS.low.label, color: DIFFICULTY_COLORS.low.bg },
     { key: 'medium', value: distribution.medium, label: DIFFICULTY_COLORS.medium.label, color: DIFFICULTY_COLORS.medium.bg },
     { key: 'high', value: distribution.high, label: DIFFICULTY_COLORS.high.label, color: DIFFICULTY_COLORS.high.bg },
   ].filter((d) => d.value > 0);
 
-  const legendItems = chartMode === 'donut' ? [
-    { key: 'low', label: '하 (쉬움)', color: CHART_COLORS[0] },
-    { key: 'medium', label: '중 (보통)', color: CHART_COLORS[1] },
-    { key: 'high', label: '상 (어려움)', color: CHART_COLORS[2] },
-  ] : [
-    { key: 'low', label: '하 (쉬움)', color: DIFFICULTY_COLORS.low.bg },
-    { key: 'medium', label: '중 (보통)', color: DIFFICULTY_COLORS.medium.bg },
-    { key: 'high', label: '상 (어려움)', color: DIFFICULTY_COLORS.high.bg },
-  ];
+  // 범례 항목 (도넛/막대 차트 모드별)
+  const legendItems = is4Level ? (
+    chartMode === 'donut' ? [
+      { key: 'concept', label: '개념 (기초)', color: CHART_COLORS[1] },
+      { key: 'pattern', label: '유형 (기본)', color: CHART_COLORS[0] },
+      { key: 'reasoning', label: '사고력 (심화)', color: CHART_COLORS[2] },
+      { key: 'creative', label: '창의 (최고)', color: CHART_COLORS[3] },
+    ] : [
+      { key: 'concept', label: '개념 (기초)', color: DIFFICULTY_COLORS.concept.bg },
+      { key: 'pattern', label: '유형 (기본)', color: DIFFICULTY_COLORS.pattern.bg },
+      { key: 'reasoning', label: '사고력 (심화)', color: DIFFICULTY_COLORS.reasoning.bg },
+      { key: 'creative', label: '창의 (최고)', color: DIFFICULTY_COLORS.creative.bg },
+    ]
+  ) : (
+    chartMode === 'donut' ? [
+      { key: 'low', label: '하 (쉬움)', color: CHART_COLORS[0] },
+      { key: 'medium', label: '중 (보통)', color: CHART_COLORS[1] },
+      { key: 'high', label: '상 (어려움)', color: CHART_COLORS[2] },
+    ] : [
+      { key: 'low', label: '하 (쉬움)', color: DIFFICULTY_COLORS.low.bg },
+      { key: 'medium', label: '중 (보통)', color: DIFFICULTY_COLORS.medium.bg },
+      { key: 'high', label: '상 (어려움)', color: DIFFICULTY_COLORS.high.bg },
+    ]
+  );
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
@@ -127,7 +165,7 @@ export const DifficultyPieChart = memo(function DifficultyPieChart({
           <DonutChart data={donutData} total={total} />
           <div className="space-y-2">
             {legendItems.map((item) => {
-              const value = distribution[item.key as keyof typeof distribution];
+              const value = distribution[item.key as keyof typeof distribution] || 0;
               const percent = total > 0 ? Math.round((value / total) * 100) : 0;
               return (
                 <div key={item.key} className="flex items-center gap-2 text-sm">
@@ -165,7 +203,7 @@ export const DifficultyPieChart = memo(function DifficultyPieChart({
           {/* 범례 */}
           <div className="flex justify-center gap-6 text-sm">
             {legendItems.map((item) => {
-              const value = distribution[item.key as keyof typeof distribution];
+              const value = distribution[item.key as keyof typeof distribution] || 0;
               const percent = total > 0 ? Math.round((value / total) * 100) : 0;
               return (
                 <div key={item.key} className="flex items-center gap-1.5 whitespace-nowrap">

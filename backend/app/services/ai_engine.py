@@ -761,6 +761,7 @@ class AIEngine:
         auto_classify: bool = True,
         exam_id: str | None = None,
         analysis_mode: str = "full",
+        user_id: str | None = None,
     ) -> dict:
         """
         패턴 시스템을 활용한 통합 분석 (분류 통합 - 단일 API 호출)
@@ -773,11 +774,29 @@ class AIEngine:
             auto_classify: 시험지 유형 자동 분류 여부 (통합 버전에서는 항상 분석 내에서 수행)
             exam_id: 시험지 ID (진행 상태 업데이트용)
             analysis_mode: 분석 모드 (questions_only: 문항만, full: 전체, answers_only: 정오답만)
+            user_id: 사용자 ID (분석 로깅용)
 
         Returns:
             분석 결과 딕셔너리
         """
         start_time = time.time()
+
+        # Analytics 로깅: 분석 시작
+        if user_id and exam_id:
+            try:
+                from app.services.analytics_log import get_analytics_log_service
+                analytics = get_analytics_log_service(db)
+                await analytics.log_analysis_start(
+                    user_id=user_id,
+                    exam_id=exam_id,
+                    metadata={
+                        "analysis_mode": analysis_mode,
+                        "grade_level": grade_level,
+                        "unit": unit,
+                    }
+                )
+            except Exception as e:
+                print(f"[Analytics Log Error] {e}")
 
         # 헬퍼: 분석 단계 업데이트
         async def update_step(step: int):
@@ -1098,6 +1117,46 @@ class AIEngine:
             cache.set(cache_key, result)
             print(f"[Cache SAVE] {cache_key[:20]}... ({elapsed:.2f}초)")
             print(f"[Cache Stats] {cache.get_stats()}")
+
+        # Analytics 로깅: 분석 완료
+        if user_id and exam_id:
+            try:
+                from app.services.analytics_log import get_analytics_log_service
+                analytics = get_analytics_log_service(db)
+
+                questions = result.get("questions", [])
+                summary = result.get("summary", {})
+
+                # 메트릭 수집
+                metrics = {
+                    "duration_seconds": round(elapsed, 2),
+                    "detected_questions": len(questions),
+                    "avg_confidence": result.get("avg_confidence"),
+                    "total_points": sum(q.get("points", 0) for q in questions),
+                }
+
+                # 메타데이터 수집
+                metadata = {
+                    "paper_type": paper_type,
+                    "exam_type": exam_type,
+                    "grading_status": grading_status,
+                    "grade_level": grade_level,
+                    "unit": unit,
+                    "analysis_mode": analysis_mode,
+                    "difficulty_distribution": summary.get("difficulty_distribution", {}),
+                    "type_distribution": summary.get("type_distribution", {}),
+                }
+
+                # 분석 ID는 나중에 analysis.py에서 생성되므로 여기서는 exam_id만 사용
+                await analytics.log_analysis_complete(
+                    user_id=user_id,
+                    exam_id=exam_id,
+                    analysis_id=exam_id,  # 임시로 exam_id 사용, analysis.py에서 업데이트 필요
+                    metrics=metrics,
+                    metadata=metadata,
+                )
+            except Exception as e:
+                print(f"[Analytics Log Error] {e}")
 
         return result
 

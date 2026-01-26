@@ -4,8 +4,8 @@
  * 출제 경향 분석 API
  */
 
-import { apiClient } from './api';
-import { TrendsResponse, TrendsRequest } from '../types/trends';
+import apiClient from './api';
+import type { TrendsResponse, TrendsRequest } from '../types/trends';
 
 /**
  * 출제 경향 조회

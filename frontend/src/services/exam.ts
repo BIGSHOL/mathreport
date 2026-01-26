@@ -7,9 +7,18 @@ export interface AnalysisBrief {
     total_questions: number;
     total_points: number;
     avg_confidence: number | null;
+
+    // 4단계 난이도 시스템 (신규 - 권장)
+    difficulty_concept: number;
+    difficulty_pattern: number;
+    difficulty_reasoning: number;
+    difficulty_creative: number;
+
+    // 3단계 난이도 시스템 (하위 호환)
     difficulty_high: number;
     difficulty_medium: number;
     difficulty_low: number;
+
     format_essay: number;
 }
 

@@ -11,8 +11,15 @@
 // Color Tokens
 // ============================================
 
-/** 난이도 색상 */
+/** 난이도 색상 (4단계 + 3단계 하위 호환) */
 export const DIFFICULTY_COLORS = {
+  // 4단계 시스템 (신규 - 권장)
+  concept: { bg: '#22c55e', text: '#ffffff', label: '개념', tailwind: 'bg-green-500' },      // 초록 - 쉬움
+  pattern: { bg: '#3b82f6', text: '#ffffff', label: '유형', tailwind: 'bg-blue-500' },       // 파랑 - 보통
+  reasoning: { bg: '#f59e0b', text: '#ffffff', label: '사고력', tailwind: 'bg-amber-500' },  // 주황 - 어려움
+  creative: { bg: '#ef4444', text: '#ffffff', label: '창의', tailwind: 'bg-red-500' },       // 빨강 - 최고난도
+
+  // 3단계 시스템 (하위 호환)
   high: { bg: '#ef4444', text: '#ffffff', label: '상', tailwind: 'bg-red-500' },
   medium: { bg: '#f59e0b', text: '#ffffff', label: '중', tailwind: 'bg-amber-500' },
   low: { bg: '#22c55e', text: '#ffffff', label: '하', tailwind: 'bg-green-500' },
@@ -203,7 +210,7 @@ export const BUTTON = {
 // Utility Functions
 // ============================================
 
-export type DifficultyLevel = 'high' | 'medium' | 'low';
+export type DifficultyLevel = 'concept' | 'pattern' | 'reasoning' | 'creative' | 'high' | 'medium' | 'low';
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
 /**
@@ -261,6 +268,7 @@ export function getSubjectColor(subject: string): string {
 
 /**
  * 난이도 등급 계산 (A+~D-)
+ * 4단계 및 3단계 시스템 모두 지원
  */
 export interface DifficultyGrade {
   grade: string;
@@ -270,39 +278,86 @@ export interface DifficultyGrade {
 }
 
 export function calculateDifficultyGrade(
-  high: number,
-  medium: number,
-  low: number,
-  essayCount?: number,
-  totalCount?: number
+  param1: number,  // 4단계: concept, 3단계: high
+  param2: number,  // 4단계: pattern, 3단계: medium
+  param3: number,  // 4단계: reasoning, 3단계: low
+  param4?: number, // 4단계: creative, 3단계: essayCount
+  param5?: number, // 4단계: essayCount, 3단계: totalCount
+  param6?: number  // 4단계: totalCount
 ): DifficultyGrade | null {
-  const total = high + medium + low;
-  if (total === 0) return null;
+  // 4단계 시스템 감지: param4가 숫자이고 param6도 있으면 4단계
+  const is4Level = param4 != null && param6 != null;
 
-  // 극단적 가중치: high=5, medium=2, low=0.5
-  // 상 문제의 영향력을 크게 높여 난이도를 더 민감하게 반영
-  let weightedScore = (high * 5 + medium * 2 + low * 0.5) / total;
+  if (is4Level) {
+    // 4단계 시스템: concept, pattern, reasoning, creative
+    const concept = param1;
+    const pattern = param2;
+    const reasoning = param3;
+    const creative = param4;
+    const essayCount = param5;
+    const totalCount = param6;
 
-  // 서술형 가중치 (서술형 비율에 따라 최대 0.5점 보너스)
-  // 서술형은 일반적으로 난이도가 높으므로 추가 점수 부여
-  if (essayCount != null && totalCount != null && totalCount > 0) {
-    const essayRatio = essayCount / totalCount;
-    const essayBonus = essayRatio * 0.5; // 서술형 100%면 +0.5점
-    weightedScore += essayBonus;
+    const total = concept + pattern + reasoning + creative;
+    if (total === 0) return null;
+
+    // 4단계 가중치: concept=0.5, pattern=2, reasoning=5, creative=8
+    // 창의 문제의 영향력을 크게 높임
+    let weightedScore = (concept * 0.5 + pattern * 2 + reasoning * 5 + creative * 8) / total;
+
+    // 서술형 가중치 (서술형 비율에 따라 최대 0.5점 보너스)
+    if (essayCount != null && totalCount != null && totalCount > 0) {
+      const essayRatio = essayCount / totalCount;
+      const essayBonus = essayRatio * 0.5;
+      weightedScore += essayBonus;
+    }
+
+    // 등급 매핑 (최대 점수 8.5)
+    if (weightedScore >= 5.5) return { grade: 'A+', label: '최상', color: 'bg-red-600', text: 'text-white' };
+    if (weightedScore >= 4.8) return { grade: 'A', label: '상', color: 'bg-red-500', text: 'text-white' };
+    if (weightedScore >= 4.2) return { grade: 'A-', label: '상', color: 'bg-red-400', text: 'text-white' };
+    if (weightedScore >= 3.6) return { grade: 'B+', label: '중상', color: 'bg-orange-500', text: 'text-white' };
+    if (weightedScore >= 3.0) return { grade: 'B', label: '중상', color: 'bg-orange-400', text: 'text-white' };
+    if (weightedScore >= 2.5) return { grade: 'B-', label: '중상', color: 'bg-amber-500', text: 'text-white' };
+    if (weightedScore >= 2.0) return { grade: 'C+', label: '중', color: 'bg-yellow-500', text: 'text-gray-900' };
+    if (weightedScore >= 1.6) return { grade: 'C', label: '중', color: 'bg-yellow-400', text: 'text-gray-900' };
+    if (weightedScore >= 1.2) return { grade: 'C-', label: '중하', color: 'bg-lime-500', text: 'text-white' };
+    if (weightedScore >= 0.9) return { grade: 'D+', label: '하', color: 'bg-green-500', text: 'text-white' };
+    if (weightedScore >= 0.6) return { grade: 'D', label: '하', color: 'bg-green-400', text: 'text-white' };
+    return { grade: 'D-', label: '최하', color: 'bg-emerald-400', text: 'text-white' };
+
+  } else {
+    // 3단계 시스템 (하위 호환): high, medium, low
+    const high = param1;
+    const medium = param2;
+    const low = param3;
+    const essayCount = param4;
+    const totalCount = param5;
+
+    const total = high + medium + low;
+    if (total === 0) return null;
+
+    // 극단적 가중치: high=5, medium=2, low=0.5
+    let weightedScore = (high * 5 + medium * 2 + low * 0.5) / total;
+
+    // 서술형 가중치
+    if (essayCount != null && totalCount != null && totalCount > 0) {
+      const essayRatio = essayCount / totalCount;
+      const essayBonus = essayRatio * 0.5;
+      weightedScore += essayBonus;
+    }
+
+    // 등급 매핑 (최대 점수 5.5)
+    if (weightedScore >= 3.70) return { grade: 'A+', label: '최상', color: 'bg-red-600', text: 'text-white' };
+    if (weightedScore >= 3.30) return { grade: 'A', label: '상', color: 'bg-red-500', text: 'text-white' };
+    if (weightedScore >= 2.90) return { grade: 'A-', label: '상', color: 'bg-red-400', text: 'text-white' };
+    if (weightedScore >= 2.50) return { grade: 'B+', label: '중상', color: 'bg-orange-500', text: 'text-white' };
+    if (weightedScore >= 2.10) return { grade: 'B', label: '중상', color: 'bg-orange-400', text: 'text-white' };
+    if (weightedScore >= 1.75) return { grade: 'B-', label: '중상', color: 'bg-amber-500', text: 'text-white' };
+    if (weightedScore >= 1.50) return { grade: 'C+', label: '중', color: 'bg-yellow-500', text: 'text-gray-900' };
+    if (weightedScore >= 1.25) return { grade: 'C', label: '중', color: 'bg-yellow-400', text: 'text-gray-900' };
+    if (weightedScore >= 1.00) return { grade: 'C-', label: '중하', color: 'bg-lime-500', text: 'text-white' };
+    if (weightedScore >= 0.80) return { grade: 'D+', label: '하', color: 'bg-green-500', text: 'text-white' };
+    if (weightedScore >= 0.60) return { grade: 'D', label: '하', color: 'bg-green-400', text: 'text-white' };
+    return { grade: 'D-', label: '최하', color: 'bg-emerald-400', text: 'text-white' };
   }
-
-  // 등급 매핑 (점수가 높을수록 어려운 시험)
-  // 새로운 가중치에 맞춰 기준 재조정 (최대 점수 5.5)
-  if (weightedScore >= 3.70) return { grade: 'A+', label: '최상', color: 'bg-red-600', text: 'text-white' };
-  if (weightedScore >= 3.30) return { grade: 'A', label: '상', color: 'bg-red-500', text: 'text-white' };
-  if (weightedScore >= 2.90) return { grade: 'A-', label: '상', color: 'bg-red-400', text: 'text-white' };
-  if (weightedScore >= 2.50) return { grade: 'B+', label: '중상', color: 'bg-orange-500', text: 'text-white' };
-  if (weightedScore >= 2.10) return { grade: 'B', label: '중상', color: 'bg-orange-400', text: 'text-white' };
-  if (weightedScore >= 1.75) return { grade: 'B-', label: '중상', color: 'bg-amber-500', text: 'text-white' };
-  if (weightedScore >= 1.50) return { grade: 'C+', label: '중', color: 'bg-yellow-500', text: 'text-gray-900' };
-  if (weightedScore >= 1.25) return { grade: 'C', label: '중', color: 'bg-yellow-400', text: 'text-gray-900' };
-  if (weightedScore >= 1.00) return { grade: 'C-', label: '중하', color: 'bg-lime-500', text: 'text-white' };
-  if (weightedScore >= 0.80) return { grade: 'D+', label: '하', color: 'bg-green-500', text: 'text-white' };
-  if (weightedScore >= 0.60) return { grade: 'D', label: '하', color: 'bg-green-400', text: 'text-white' };
-  return { grade: 'D-', label: '최하', color: 'bg-emerald-400', text: 'text-white' };
 }

@@ -175,9 +175,15 @@ export interface AnalysisErrorResponse {
 // ============================================
 
 /**
- * 문항 난이도 레이블 맵핑
+ * 문항 난이도 레이블 맵핑 (4단계 + 3단계 하위 호환)
  */
 export const DIFFICULTY_LABELS: Record<QuestionDifficulty, string> = {
+  // 4단계 시스템
+  [QuestionDifficulty.CONCEPT]: "개념",
+  [QuestionDifficulty.PATTERN]: "유형",
+  [QuestionDifficulty.REASONING]: "사고력",
+  [QuestionDifficulty.CREATIVE]: "창의",
+  // 3단계 시스템 (하위 호환)
   [QuestionDifficulty.HIGH]: "상",
   [QuestionDifficulty.MEDIUM]: "중",
   [QuestionDifficulty.LOW]: "하",
@@ -196,9 +202,15 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
 };
 
 /**
- * 난이도별 색상 (TailwindCSS)
+ * 난이도별 색상 (TailwindCSS) - 4단계 + 3단계 하위 호환
  */
 export const DIFFICULTY_COLORS: Record<QuestionDifficulty, string> = {
+  // 4단계 시스템
+  [QuestionDifficulty.CONCEPT]: "text-green-600",
+  [QuestionDifficulty.PATTERN]: "text-blue-600",
+  [QuestionDifficulty.REASONING]: "text-amber-600",
+  [QuestionDifficulty.CREATIVE]: "text-red-600",
+  // 3단계 시스템 (하위 호환)
   [QuestionDifficulty.HIGH]: "text-red-600",
   [QuestionDifficulty.MEDIUM]: "text-yellow-600",
   [QuestionDifficulty.LOW]: "text-green-600",

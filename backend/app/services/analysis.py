@@ -85,6 +85,25 @@ class AnalysisService:
                 "analyzed_at": existing.get("analyzed_at"),
             }
 
+        # 2.5. 재분석 로깅 (force_reanalyze가 True이고 기존 분석이 있을 때)
+        if force_reanalyze and existing:
+            try:
+                from app.services.analytics_log import get_analytics_log_service
+                analytics = get_analytics_log_service(self.db)
+
+                prev_confidence = existing.get("avg_confidence")
+                reason = "low_confidence" if prev_confidence and prev_confidence < 0.6 else "user_request"
+
+                await analytics.log_reanalysis(
+                    user_id=user_id,
+                    exam_id=exam_id,
+                    analysis_id=existing["id"],
+                    reason=reason,
+                    prev_confidence=prev_confidence,
+                )
+            except Exception as log_error:
+                print(f"[Analytics Log Error] {log_error}")
+
         # 3. Update status to ANALYZING
         await self.db.table("exams").eq("id", exam_id).update({
             "status": "analyzing",
@@ -107,6 +126,7 @@ class AnalysisService:
                 auto_classify=True,  # 시험지 유형 자동 분류
                 exam_id=exam_id,  # 진행 단계 업데이트용
                 analysis_mode=analysis_mode,  # 분석 모드 (questions_only/full)
+                user_id=user_id,  # Analytics 로깅용
             )
 
             # 5. Process & Save Result
@@ -208,6 +228,29 @@ class AnalysisService:
             }
 
         except Exception as e:
+            # Analytics 로깅: 분석 에러
+            try:
+                from app.services.analytics_log import get_analytics_log_service
+                analytics = get_analytics_log_service(self.db)
+
+                error_type = "timeout" if "timeout" in str(e).lower() else "analysis_error"
+                await analytics.log_analysis_error(
+                    user_id=user_id,
+                    exam_id=exam_id,
+                    error_info={
+                        "error_type": error_type,
+                        "error_message": str(e)[:500],
+                        "step": "analysis",
+                    },
+                    metadata={
+                        "analysis_mode": analysis_mode,
+                        "grade_level": exam.get("grade"),
+                        "unit": exam.get("unit"),
+                    }
+                )
+            except Exception as log_error:
+                print(f"[Analytics Log Error] {log_error}")
+
             # Update status to FAILED
             error_msg = str(e)[:500] if str(e) else "알 수 없는 오류"
             await self.db.table("exams").eq("id", exam_id).update({

@@ -277,13 +277,26 @@ export const ExamListItem = memo(function ExamListItem({
 
           {/* 분석 요약 (completed 상태이고 brief가 있을 때만) */}
           {exam.status === 'completed' && brief && (() => {
-            const difficultyGrade = calculateDifficultyGrade(
-              brief.difficulty_high,
-              brief.difficulty_medium,
-              brief.difficulty_low,
-              brief.format_essay,
-              brief.total_questions
-            );
+            // 4단계 시스템 감지
+            const is4Level = brief.difficulty_concept != null && brief.difficulty_pattern != null &&
+                             brief.difficulty_reasoning != null && brief.difficulty_creative != null;
+
+            const difficultyGrade = is4Level
+              ? calculateDifficultyGrade(
+                  brief.difficulty_concept,
+                  brief.difficulty_pattern,
+                  brief.difficulty_reasoning,
+                  brief.difficulty_creative,
+                  brief.format_essay,
+                  brief.total_questions
+                )
+              : calculateDifficultyGrade(
+                  brief.difficulty_high,
+                  brief.difficulty_medium,
+                  brief.difficulty_low,
+                  brief.format_essay,
+                  brief.total_questions
+                );
 
             return (
               <div className="flex items-center gap-3 mt-2 text-xs text-gray-600">
@@ -309,18 +322,41 @@ export const ExamListItem = memo(function ExamListItem({
                     {difficultyGrade.grade}
                   </span>
                 )}
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                  하{brief.difficulty_low}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-yellow-500" />
-                  중{brief.difficulty_medium}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                  상{brief.difficulty_high}
-                </span>
+                {is4Level ? (
+                  <>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      개념{brief.difficulty_concept}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      유형{brief.difficulty_pattern}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      사고{brief.difficulty_reasoning}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-red-500" />
+                      창의{brief.difficulty_creative}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      하{brief.difficulty_low}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-yellow-500" />
+                      중{brief.difficulty_medium}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-red-500" />
+                      상{brief.difficulty_high}
+                    </span>
+                  </>
+                )}
                 {/* 신뢰도 < 60%일 때 무료 재분석 안내 */}
                 {brief.avg_confidence != null && brief.avg_confidence < 0.6 && (
                   <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded" title="신뢰도가 낮아 무료로 재분석할 수 있습니다">

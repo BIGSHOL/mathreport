@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import useSWR from 'swr';
 import trendsService from '../services/trends';
-import { TrendsResponse, TrendsRequest } from '../types/trends';
+import type { TrendsResponse, TrendsRequest } from '../types/trends';
 
 const TrendsPage: React.FC = () => {
   const [filters, setFilters] = useState<TrendsRequest>({});

@@ -568,6 +568,20 @@ async def submit_feedback(
             detail={"code": "DB_ERROR", "message": f"피드백 저장 실패: {result.error}"}
         )
 
+    # Analytics 로깅: 피드백 제출
+    try:
+        from app.services.analytics_log import get_analytics_log_service
+        analytics = get_analytics_log_service(db)
+        await analytics.log_feedback(
+            user_id=current_user["id"],
+            analysis_id=analysis_id,
+            question_id=feedback.question_id,
+            feedback_type=feedback.feedback_type,
+            feedback_value={"comment": feedback.comment} if feedback.comment else None,
+        )
+    except Exception as log_error:
+        print(f"[Analytics Log Error] {log_error}")
+
     # 자동 학습 트리거 (피드백 10개 이상 쌓이면 자동 분석)
     try:
         learning_service = get_ai_learning_service(db)
@@ -702,7 +716,7 @@ async def export_analysis(
 
     # 크레딧 소비
     subscription_service = get_subscription_service(db)
-    can_export = await subscription_service.consume_export(current_user["id"])
+    can_export = await subscription_service.consume_export(current_user["id"], analysis["exam_id"])
 
     if not can_export:
         raise HTTPException(
@@ -712,6 +726,19 @@ async def export_analysis(
                 "message": "내보내기에는 1크레딧이 필요합니다. 크레딧을 구매해주세요."
             }
         )
+
+    # Analytics 로깅: 내보내기
+    try:
+        from app.services.analytics_log import get_analytics_log_service
+        analytics = get_analytics_log_service(db)
+        await analytics.log_export(
+            user_id=current_user["id"],
+            analysis_id=analysis_id,
+            export_format="html",
+            sections=request.sections,
+        )
+    except Exception as log_error:
+        print(f"[Analytics Log Error] {log_error}")
 
     # HTML 생성
     html = generate_export_html(
