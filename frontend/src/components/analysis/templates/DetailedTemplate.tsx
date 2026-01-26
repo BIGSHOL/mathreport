@@ -16,6 +16,7 @@ import {
 } from '../charts/DifficultyPieChart';
 import { TopicAnalysisChart } from '../charts/TopicAnalysisChart';
 import { ConfidenceExplanation } from '../ConfidenceBadge';
+import { EssayAnalysisSection } from '../EssayAnalysisSection';
 import { TabGroup, type Tab } from '../../ui/TabGroup';
 import { FEATURE_FLAGS } from '../../../lib/featureFlags';
 import { getQuestionTypeLabel } from '../../../styles/tokens';
@@ -249,6 +250,11 @@ export const DetailedTemplate = memo(function DetailedTemplate({
             <div className="mb-4">
               <TopicAnalysisChart questions={questions} chartMode={chartType} />
             </div>
+          )}
+
+          {/* 서술형 문항 집중 분석 섹션 */}
+          {isSectionVisible('showQuestions') && (
+            <EssayAnalysisSection questions={questions} />
           )}
 
           {/* Question List - 테이블 형식 (형식별 그룹) */}
