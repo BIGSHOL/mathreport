@@ -72,6 +72,19 @@ export interface TrendsSummary {
 }
 
 /**
+ * AI 기반 트렌드 인사이트
+ */
+export interface TrendInsights {
+  overall_trend: string;            // 전반적인 출제 경향 요약
+  key_patterns: string[];           // 핵심 출제 패턴 (3-5개)
+  difficulty_analysis: string;      // 난이도 트렌드 분석
+  topic_focus: string;              // 집중 출제 단원 분석
+  preparation_tips: string[];       // 시험 대비 팁 (3-5개)
+  future_prediction: string | null; // 향후 출제 예측
+  generated_at: string;             // 생성 시각
+}
+
+/**
  * 출제 경향 분석 응답
  */
 export interface TrendsResponse {
@@ -81,6 +94,7 @@ export interface TrendsResponse {
   question_types: QuestionTypeStat[];
   question_formats: QuestionFormatStat[];
   textbooks: TextbookStat[];
+  insights?: TrendInsights | null; // AI 기반 인사이트 (선택적)
 }
 
 // ============================================

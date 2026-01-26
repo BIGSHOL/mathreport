@@ -10,7 +10,7 @@ import type { TrendsResponse, TrendsRequest } from '../types/trends';
 /**
  * 출제 경향 조회
  */
-export const getTrends = async (params?: TrendsRequest): Promise<TrendsResponse> => {
+export const getTrends = async (params?: TrendsRequest & { with_insights?: boolean }): Promise<TrendsResponse> => {
   const queryParams = new URLSearchParams();
 
   if (params?.subject) {
@@ -24,6 +24,9 @@ export const getTrends = async (params?: TrendsRequest): Promise<TrendsResponse>
   }
   if (params?.school_type) {
     queryParams.append('school_type', params.school_type);
+  }
+  if (params?.with_insights) {
+    queryParams.append('with_insights', 'true');
   }
 
   const response = await apiClient.get<TrendsResponse>(

@@ -6,15 +6,40 @@ import React, { useState } from 'react';
 import useSWR from 'swr';
 import trendsService from '../services/trends';
 import type { TrendsResponse, TrendsRequest } from '../types/trends';
+import { TrendInsightsSection } from '../components/trends/TrendInsightsSection';
 
 const TrendsPage: React.FC = () => {
   const [filters, setFilters] = useState<TrendsRequest>({});
+  const [withInsights, setWithInsights] = useState(false);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
 
   // SWR로 트렌드 데이터 가져오기
-  const { data, error, isLoading } = useSWR<TrendsResponse>(
-    ['/api/v1/trends', filters],
-    () => trendsService.getTrends(filters)
+  const { data, error, isLoading, mutate } = useSWR<TrendsResponse>(
+    ['/api/v1/trends', filters, withInsights],
+    () => trendsService.getTrends({ ...filters, with_insights: withInsights })
   );
+
+  // AI 인사이트 생성 핸들러
+  const handleGenerateInsights = async () => {
+    setIsLoadingInsights(true);
+    setWithInsights(true);
+    try {
+      await mutate();
+    } finally {
+      setIsLoadingInsights(false);
+    }
+  };
+
+  // AI 인사이트 재생성 핸들러
+  const handleRegenerateInsights = async () => {
+    setIsLoadingInsights(true);
+    try {
+      // 캐시 무시하고 강제 재조회
+      await mutate(undefined, { revalidate: true });
+    } finally {
+      setIsLoadingInsights(false);
+    }
+  };
 
   const handleFilterChange = (key: keyof TrendsRequest, value: string) => {
     setFilters((prev) => ({
@@ -336,9 +361,76 @@ const TrendsPage: React.FC = () => {
         </section>
       )}
 
-      {/* 출제 특징 인사이트 */}
+      {/* AI 트렌드 인사이트 */}
+      {!data.insights && !isLoadingInsights && (
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{
+            background: 'linear-gradient(to right, rgb(243, 232, 255), rgb(253, 242, 248))',
+            borderRadius: '12px',
+            border: '1px solid rgb(216, 180, 254)',
+            padding: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                flexShrink: 0,
+                width: '40px',
+                height: '40px',
+                background: 'rgb(147, 51, 234)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <svg style={{ width: '24px', height: '24px', color: 'white' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', marginBottom: '2px' }}>
+                  AI 트렌드 인사이트
+                </h3>
+                <p style={{ fontSize: '12px', color: 'rgb(107, 114, 128)' }}>
+                  출제 경향 데이터를 AI가 분석하여 전문가 수준의 인사이트를 제공합니다
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleGenerateInsights}
+              style={{
+                padding: '8px 16px',
+                background: 'rgb(147, 51, 234)',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: '500',
+                borderRadius: '8px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgb(126, 34, 206)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgb(147, 51, 234)'}
+            >
+              인사이트 생성
+            </button>
+          </div>
+        </div>
+      )}
+      {(data.insights || isLoadingInsights) && (
+        <div style={{ marginBottom: '32px' }}>
+          <TrendInsightsSection
+            insights={data.insights || null}
+            isLoading={isLoadingInsights}
+            onRegenerate={handleRegenerateInsights}
+          />
+        </div>
+      )}
+
+      {/* 출제 특징 인사이트 (규칙 기반) */}
       <section style={{ marginBottom: '32px' }}>
-        <h2 style={{ fontSize: '20px', marginBottom: '16px' }}>출제 특징 인사이트</h2>
+        <h2 style={{ fontSize: '20px', marginBottom: '16px' }}>출제 특징 통계</h2>
         <div style={{
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           padding: '24px',

@@ -66,6 +66,17 @@ class TrendsSummary(BaseModel):
     avg_confidence: float | None = Field(None, ge=0, le=1, description="평균 신뢰도")
 
 
+class TrendInsights(BaseModel):
+    """AI 기반 트렌드 인사이트"""
+    overall_trend: str = Field(description="전반적인 출제 경향 요약")
+    key_patterns: list[str] = Field(description="핵심 출제 패턴 (3-5개)")
+    difficulty_analysis: str = Field(description="난이도 트렌드 분석")
+    topic_focus: str = Field(description="집중 출제 단원 분석")
+    preparation_tips: list[str] = Field(description="시험 대비 팁 (3-5개)")
+    future_prediction: str | None = Field(None, description="향후 출제 예측 (충분한 데이터가 있을 때)")
+    generated_at: str = Field(description="생성 시각")
+
+
 class TrendsResponse(BaseModel):
     """출제 경향 분석 응답"""
     summary: TrendsSummary
@@ -74,6 +85,7 @@ class TrendsResponse(BaseModel):
     question_types: list[QuestionTypeStat] = Field(description="문항 유형 분포")
     question_formats: list[QuestionFormatStat] = Field(description="문항 형식 분포")
     textbooks: list[TextbookStat] = Field(description="교과서별 통계")
+    insights: TrendInsights | None = Field(None, description="AI 기반 인사이트 (선택적)")
 
 
 # ============================================
@@ -91,6 +103,7 @@ async def get_trends(
     grade: Annotated[str | None, Query(description="학년 필터 (기본값: 전체)")] = None,
     school_region: Annotated[str | None, Query(description="지역 필터 (기본값: 전체)")] = None,
     school_type: Annotated[str | None, Query(description="학교 유형 필터 (기본값: 전체)")] = None,
+    with_insights: Annotated[bool, Query(description="AI 인사이트 포함 여부")] = False,
     current_user: CurrentUser = None,
     db: DbDep = None,
 ) -> TrendsResponse:
@@ -317,6 +330,41 @@ async def get_trends(
             chapters=chapters
         ))
 
+    # AI 인사이트 생성 (요청 시에만)
+    insights_data = None
+    if with_insights:
+        from app.services.agents.trends_insights_agent import get_trends_insights_agent
+
+        try:
+            agent = get_trends_insights_agent()
+            insights_obj = agent.generate({
+                "summary": {
+                    "total_exams": len(exam_ids),
+                    "total_questions": total_questions,
+                    "avg_questions_per_exam": total_questions / len(exam_ids) if len(exam_ids) > 0 else 0,
+                    "total_points": total_points,
+                    "avg_confidence": avg_confidence,
+                },
+                "topics": [t.model_dump() for t in topics_list],
+                "difficulty": [d.model_dump() for d in difficulty_list],
+                "question_types": [qt.model_dump() for qt in types_list],
+                "question_formats": [qf.model_dump() for qf in formats_list],
+                "textbooks": [tb.model_dump() for tb in textbooks_list],
+            })
+
+            insights_data = TrendInsights(
+                overall_trend=insights_obj.overall_trend,
+                key_patterns=insights_obj.key_patterns,
+                difficulty_analysis=insights_obj.difficulty_analysis,
+                topic_focus=insights_obj.topic_focus,
+                preparation_tips=insights_obj.preparation_tips,
+                future_prediction=insights_obj.future_prediction,
+                generated_at=insights_obj.generated_at,
+            )
+        except Exception as e:
+            print(f"[Trends] AI insights generation failed: {e}")
+            # 실패해도 통계는 반환
+
     # 응답 생성
     return TrendsResponse(
         summary=TrendsSummary(
@@ -330,5 +378,6 @@ async def get_trends(
         difficulty=difficulty_list,
         question_types=types_list,
         question_formats=formats_list,
-        textbooks=textbooks_list
+        textbooks=textbooks_list,
+        insights=insights_data
     )
