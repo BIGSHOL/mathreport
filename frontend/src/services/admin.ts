@@ -67,6 +67,15 @@ export interface AdminCreditLogsResponse {
   has_more: boolean;
 }
 
+export interface ResetAnalysisResponse {
+  user_id: string;
+  deleted_exams: number;
+  deleted_analysis_results: number;
+  deleted_analysis_extensions: number;
+  deleted_feedbacks: number;
+  message: string;
+}
+
 // ============================================
 // Service
 // ============================================
@@ -127,6 +136,14 @@ class AdminService {
     const response = await api.get(`/api/v1/admin/users/${userId}/credit-history`, {
       params: { limit, offset },
     });
+    return response.data;
+  }
+
+  /**
+   * 사용자 분석 데이터 초기화 (관리자 전용)
+   */
+  async resetUserAnalysis(userId: string): Promise<ResetAnalysisResponse> {
+    const response = await api.delete(`/api/v1/admin/users/${userId}/analysis`);
     return response.data;
   }
 }

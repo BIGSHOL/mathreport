@@ -35,6 +35,16 @@ class AdminCreditLogsResponse(BaseModel):
     has_more: bool
 
 
+class ResetAnalysisResponse(BaseModel):
+    """분석 데이터 초기화 응답"""
+    user_id: str
+    deleted_exams: int
+    deleted_analysis_results: int
+    deleted_analysis_extensions: int
+    deleted_feedbacks: int
+    message: str
+
+
 # ============================================
 # Schemas
 # ============================================
@@ -317,4 +327,104 @@ async def get_user_credit_history(
         logs=[AdminCreditLogItem(**log) for log in logs],
         total=total,
         has_more=(offset + limit) < total,
+    )
+
+
+@router.delete("/users/{user_id}/analysis", response_model=ResetAnalysisResponse)
+async def reset_user_analysis(
+    user_id: str,
+    admin: AdminUser,
+    db: DbDep,
+):
+    """사용자 분석 데이터 초기화 (관리자 전용).
+
+    삭제되는 데이터:
+    - 시험지 (exams)
+    - 분석 결과 (analysis_results)
+    - 확장 분석 (analysis_extensions)
+    - 피드백 (feedbacks)
+    - 패턴 매칭 기록 (pattern_match_history)
+    - 질문 참조 (question_references)
+
+    유지되는 데이터:
+    - 계정 정보
+    - 크레딧 및 크레딧 내역
+    - 구독 정보
+    """
+    # 사용자 존재 확인
+    result = await db.table("users").select("id, nickname").eq("id", user_id).maybe_single().execute()
+
+    if result.error or result.data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다"
+        )
+
+    user_nickname = result.data.get("nickname", "Unknown")
+
+    # 삭제 통계
+    deleted_counts = {
+        "exams": 0,
+        "analysis_results": 0,
+        "analysis_extensions": 0,
+        "feedbacks": 0,
+    }
+
+    try:
+        # 1. 피드백 삭제
+        feedbacks_result = await db.table("feedbacks").select("id").eq("user_id", user_id).execute()
+        if feedbacks_result.data:
+            deleted_counts["feedbacks"] = len(feedbacks_result.data)
+            await db.table("feedbacks").eq("user_id", user_id).delete().execute()
+
+        # 2. 분석 결과 ID 목록 조회 (확장 분석 삭제용)
+        analysis_result = await db.table("analysis_results").select("id").eq("user_id", user_id).execute()
+        analysis_ids = [r["id"] for r in analysis_result.data] if analysis_result.data else []
+
+        # 3. 확장 분석 삭제
+        if analysis_ids:
+            extensions_result = await db.table("analysis_extensions").select("id").eq("user_id", user_id).execute()
+            if extensions_result.data:
+                deleted_counts["analysis_extensions"] = len(extensions_result.data)
+                await db.table("analysis_extensions").eq("user_id", user_id).delete().execute()
+
+        # 4. 패턴 매칭 기록 삭제 (analysis_id 기반)
+        for analysis_id in analysis_ids:
+            await db.table("pattern_match_history").eq("analysis_id", analysis_id).delete().execute()
+
+        # 5. 질문 참조 삭제 (analysis_id 기반)
+        for analysis_id in analysis_ids:
+            await db.table("question_references").eq("source_analysis_id", analysis_id).delete().execute()
+
+        # 6. 분석 결과 삭제
+        if analysis_ids:
+            deleted_counts["analysis_results"] = len(analysis_ids)
+            await db.table("analysis_results").eq("user_id", user_id).delete().execute()
+
+        # 7. 시험지 삭제
+        exams_result = await db.table("exams").select("id").eq("user_id", user_id).execute()
+        if exams_result.data:
+            deleted_counts["exams"] = len(exams_result.data)
+            await db.table("exams").eq("user_id", user_id).delete().execute()
+
+        # 8. 사용량 카운터 초기화
+        await db.table("users").eq("id", user_id).update({
+            "monthly_analysis_count": 0,
+            "monthly_extended_count": 0,
+            "updated_at": datetime.utcnow().isoformat()
+        }).execute()
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"데이터 초기화 실패: {str(e)}"
+        )
+
+    return ResetAnalysisResponse(
+        user_id=user_id,
+        deleted_exams=deleted_counts["exams"],
+        deleted_analysis_results=deleted_counts["analysis_results"],
+        deleted_analysis_extensions=deleted_counts["analysis_extensions"],
+        deleted_feedbacks=deleted_counts["feedbacks"],
+        message=f"{user_nickname}님의 분석 데이터가 초기화되었습니다."
     )

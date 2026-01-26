@@ -87,6 +87,17 @@ export function AdminUsersPage() {
     isLoading: false,
   });
 
+  // 분석 초기화 모달
+  const [resetModal, setResetModal] = useState<{
+    isOpen: boolean;
+    user: UserListItem | null;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    user: null,
+    isLoading: false,
+  });
+
   // 관리자 권한 체크
   useEffect(() => {
     if (user && user.role !== 'admin') {
@@ -222,6 +233,26 @@ export function AdminUsersPage() {
     } catch (err) {
       console.error(err);
       setHistoryModal((m) => ({ ...m, isLoading: false }));
+    }
+  };
+
+  // 분석 데이터 초기화
+  const handleResetAnalysis = async () => {
+    if (!resetModal.user) return;
+
+    setResetModal((m) => ({ ...m, isLoading: true }));
+
+    try {
+      const result = await adminService.resetUserAnalysis(resetModal.user.id);
+      alert(
+        `${result.message}\n\n삭제된 데이터:\n- 시험지: ${result.deleted_exams}개\n- 분석 결과: ${result.deleted_analysis_results}개\n- 확장 분석: ${result.deleted_analysis_extensions}개\n- 피드백: ${result.deleted_feedbacks}개`
+      );
+      setResetModal({ isOpen: false, user: null, isLoading: false });
+      loadUsers();
+    } catch (err) {
+      alert('분석 데이터 초기화에 실패했습니다.');
+      console.error(err);
+      setResetModal((m) => ({ ...m, isLoading: false }));
     }
   };
 
@@ -380,6 +411,18 @@ export function AdminUsersPage() {
                             className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
                           >
                             요금제
+                          </button>
+                          <button
+                            onClick={() =>
+                              setResetModal({
+                                isOpen: true,
+                                user: u,
+                                isLoading: false,
+                              })
+                            }
+                            className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200"
+                          >
+                            초기화
                           </button>
                           {!u.is_superuser && (
                             <button
@@ -644,6 +687,51 @@ export function AdminUsersPage() {
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
               >
                 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 분석 초기화 확인 모달 */}
+      {resetModal.isOpen && resetModal.user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              분석 데이터 초기화
+            </h3>
+            <div className="mb-6">
+              <p className="text-gray-700 mb-3">
+                <span className="font-semibold text-red-600">{resetModal.user.nickname}</span>님의
+                모든 분석 데이터를 삭제합니다.
+              </p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                <p className="font-semibold mb-2">삭제되는 데이터:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>업로드한 시험지</li>
+                  <li>분석 결과 및 확장 분석</li>
+                  <li>피드백 기록</li>
+                  <li>주간 사용량 카운터</li>
+                </ul>
+                <p className="mt-3 text-xs">
+                  * 계정 정보, 크레딧, 크레딧 내역은 유지됩니다.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setResetModal({ isOpen: false, user: null, isLoading: false })}
+                disabled={resetModal.isLoading}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleResetAnalysis}
+                disabled={resetModal.isLoading}
+                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {resetModal.isLoading ? '삭제 중...' : '삭제'}
               </button>
             </div>
           </div>
