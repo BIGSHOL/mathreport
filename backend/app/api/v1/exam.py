@@ -142,18 +142,40 @@ async def get_exams(
                 confidences = [q.get("confidence") for q in questions if q.get("confidence") is not None]
                 avg_confidence = sum(confidences) / len(confidences) if confidences else None
 
-                # 배점 검증 기반 신뢰도 페널티 적용
+                # 배점 검증 기반 신뢰도 페널티 적용 (섹션 구분 시험지 예외 처리)
                 if avg_confidence is not None:
                     points_diff = abs(100 - total_points)
-                    if points_diff <= 5:
+
+                    # 섹션 구분 시험지 감지 (예: 객관식 100점 + 서술형 100점 = 200점)
+                    is_sectioned_exam = False
+                    if total_points % 100 == 0 and total_points >= 200:
+                        # 문항 유형별 배점 합계 계산
+                        essay_points = sum(q.get("points", 0) for q in questions if q.get("question_format") == "essay")
+                        non_essay_points = sum(q.get("points", 0) for q in questions if q.get("question_format") != "essay")
+
+                        # 각 섹션이 100의 배수로 명확히 구분되면 정상 시험지로 간주
+                        if (essay_points % 100 == 0 and essay_points >= 100) or \
+                           (non_essay_points % 100 == 0 and non_essay_points >= 100):
+                            is_sectioned_exam = True
+
+                    # 섹션 구분 시험지는 페널티 면제
+                    if is_sectioned_exam:
+                        pass
+                    elif points_diff <= 5:
                         # 95~105점: 페널티 없음
                         pass
-                    elif points_diff <= 10:
-                        # 90~94점 또는 106~110점: 15% 감소
-                        avg_confidence *= 0.85
+                    elif points_diff <= 15:
+                        # 85~94점 또는 106~115점: 20% 감소
+                        avg_confidence *= 0.8
+                    elif points_diff <= 25:
+                        # 75~84점 또는 116~125점: 40% 감소
+                        avg_confidence *= 0.6
+                    elif points_diff <= 50:
+                        # 50~74점 또는 126~150점: 60% 감소
+                        avg_confidence *= 0.4
                     else:
-                        # 그 외: 30% 감소
-                        avg_confidence *= 0.7
+                        # 50점 미만 또는 150점 초과: 80% 감소 (거의 확실한 오분석)
+                        avg_confidence *= 0.2
 
                 # Calculate difficulty distribution
                 diff_high = sum(1 for q in questions if q.get("difficulty") == "high")

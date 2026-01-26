@@ -116,6 +116,7 @@ async def list_users(
     query = db.table("users").select(
         "id, email, nickname, is_active, is_superuser, "
         "subscription_tier, credits, "
+        "monthly_analysis_count, monthly_extended_count, "
         "created_at, updated_at"
     )
 
@@ -151,6 +152,7 @@ async def get_user(
     result = await db.table("users").select(
         "id, email, nickname, is_active, is_superuser, "
         "subscription_tier, credits, "
+        "monthly_analysis_count, monthly_extended_count, "
         "created_at, updated_at"
     ).eq("id", user_id).maybe_single().execute()
 
@@ -295,6 +297,7 @@ async def toggle_user_active(
     updated = await db.table("users").select(
         "id, email, nickname, is_active, is_superuser, "
         "subscription_tier, credits, "
+        "monthly_analysis_count, monthly_extended_count, "
         "created_at, updated_at"
     ).eq("id", user_id).maybe_single().execute()
 

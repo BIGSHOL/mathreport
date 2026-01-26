@@ -13,7 +13,8 @@
  * 추후 SummaryTemplate, ParentTemplate, PrintTemplate 활성화 예정
  */
 import { useState, useCallback, useEffect } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useSWRConfig } from 'swr';
 import {
   useAnalysisResult,
   useExtendedAnalysis,
@@ -34,6 +35,8 @@ const notFoundState = <div className="p-8">결과를 찾을 수 없습니다</di
 
 export function AnalysisResultPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { mutate: globalMutate } = useSWRConfig();
   const [searchParams, setSearchParams] = useSearchParams();
   const { result, isLoading, error, mutate: mutateResult } = useAnalysisResult(id);
   const { extension, mutate: mutateExtension } = useExtendedAnalysis(id);
@@ -47,6 +50,13 @@ export function AnalysisResultPage() {
 
   // 토스트 알림
   const toast = useToast();
+
+  // 목록으로 돌아가기 핸들러 (SWR 캐시 무효화)
+  const handleBackToList = useCallback(() => {
+    // 시험 목록 캐시 무효화하여 최신 상태 가져오기
+    globalMutate('/api/v1/exams');
+    navigate('/exams');
+  }, [globalMutate, navigate]);
 
   // 캐시 히트 여부 (쿼리 파라미터에서 확인)
   const isCacheHit = searchParams.get('cached') === 'true';
@@ -203,12 +213,12 @@ export function AnalysisResultPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-6">
-        <Link
-          to="/exams"
+        <button
+          onClick={handleBackToList}
           className="text-indigo-600 hover:text-indigo-900 mb-4 inline-block"
         >
           &larr; 목록으로 돌아가기
-        </Link>
+        </button>
 
         {/* 캐시 히트 알림 배너 */}
         {isCacheHit && result?.exam_id && (

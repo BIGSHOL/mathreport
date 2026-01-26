@@ -246,11 +246,25 @@ class SubscriptionService:
         weekly_analysis_count = user.get("monthly_analysis_count", 0)  # DB 컬럼명
         credits = user.get("credits", 0)
 
+        # 로그 서비스 초기화
+        credit_log_service = get_credit_log_service(self.db)
+
         # MASTER는 무제한
         if user.get("is_superuser", False):
             await self._update_user(user["id"], {
                 "monthly_analysis_count": weekly_analysis_count + 1,
             })
+            # 무료 사용 기록
+            description = "학생용 시험지 분석" if exam_type == "student" else "시험지 분석"
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=0,
+                balance_before=credits,
+                balance_after=credits,
+                action_type="analysis",
+                reference_id=exam_id,
+                description=description,
+            )
             return {"success": True, "credits_consumed": 0, "credits_remaining": credits}
 
         tier = SubscriptionTier(user.get("subscription_tier", "free"))
@@ -262,24 +276,45 @@ class SubscriptionService:
             await self._update_user(user["id"], {
                 "monthly_analysis_count": weekly_analysis_count + 1,
             })
+            # 무료 사용 기록
+            description = "학생용 시험지 분석" if exam_type == "student" else "시험지 분석"
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=0,
+                balance_before=credits,
+                balance_after=credits,
+                action_type="analysis",
+                reference_id=exam_id,
+                description=description,
+            )
             return {"success": True, "credits_consumed": 0, "credits_remaining": credits}
 
-        # 한도 내면 카운트 증가
+        # 한도 내면 카운트 증가 (무료)
         if weekly_analysis_count < analysis_limit:
             await self._update_user(user["id"], {
                 "monthly_analysis_count": weekly_analysis_count + 1,
             })
+            # 무료 사용 기록
+            description = "학생용 시험지 분석" if exam_type == "student" else "시험지 분석"
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=0,
+                balance_before=credits,
+                balance_after=credits,
+                action_type="analysis",
+                reference_id=exam_id,
+                description=description,
+            )
             return {"success": True, "credits_consumed": 0, "credits_remaining": credits}
 
-        # 크레딧 사용 (exam_type에 따라 차등)
+        # 크레딧 차감 (exam_type에 따라 차등)
         if credits >= credit_cost:
             new_credits = credits - credit_cost
             await self._update_user(user["id"], {
                 "credits": new_credits,
                 "monthly_analysis_count": weekly_analysis_count + 1,
             })
-            # 크레딧 로그 기록
-            credit_log_service = get_credit_log_service(self.db)
+            # 크레딧 차감 기록
             description = "학생용 시험지 분석" if exam_type == "student" else "시험지 분석"
             await credit_log_service.log(
                 user_id=user_id,
@@ -306,12 +341,23 @@ class SubscriptionService:
 
         weekly_extended_count = user.get("monthly_extended_count", 0)  # DB 컬럼명
         credits = user.get("credits", 0)
+        credit_log_service = get_credit_log_service(self.db)
 
         # MASTER는 무제한
         if user.get("is_superuser", False):
             await self._update_user(user["id"], {
                 "monthly_extended_count": weekly_extended_count + 1,
             })
+            # 무료 사용 기록
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=0,
+                balance_before=credits,
+                balance_after=credits,
+                action_type="extended",
+                reference_id=exam_id,
+                description="확장 분석",
+            )
             return True
 
         tier = SubscriptionTier(user.get("subscription_tier", "free"))
@@ -323,24 +369,43 @@ class SubscriptionService:
             await self._update_user(user["id"], {
                 "monthly_extended_count": weekly_extended_count + 1,
             })
+            # 무료 사용 기록
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=0,
+                balance_before=credits,
+                balance_after=credits,
+                action_type="extended",
+                reference_id=exam_id,
+                description="확장 분석",
+            )
             return True
 
-        # 한도 내면 카운트 증가
+        # 한도 내면 카운트 증가 (무료)
         if weekly_extended_count < extended_limit:
             await self._update_user(user["id"], {
                 "monthly_extended_count": weekly_extended_count + 1,
             })
+            # 무료 사용 기록
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=0,
+                balance_before=credits,
+                balance_after=credits,
+                action_type="extended",
+                reference_id=exam_id,
+                description="확장 분석",
+            )
             return True
 
-        # 크레딧 사용 (2크레딧)
+        # 크레딧 차감 (2크레딧)
         if credits >= 2:
             new_credits = credits - 2
             await self._update_user(user["id"], {
                 "credits": new_credits,
                 "monthly_extended_count": weekly_extended_count + 1,
             })
-            # 크레딧 로그 기록
-            credit_log_service = get_credit_log_service(self.db)
+            # 크레딧 차감 기록
             await credit_log_service.log(
                 user_id=user_id,
                 change_amount=-2,
@@ -445,6 +510,17 @@ class SubscriptionService:
 
         # MASTER는 무제한
         if user.get("is_superuser", False):
+            # MASTER 내보내기도 로그 기록
+            credit_log_service = get_credit_log_service(self.db)
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=0,
+                balance_before=credits,
+                balance_after=credits,
+                action_type="export",
+                reference_id=exam_id,
+                description="결과 내보내기",
+            )
             return True
 
         # 크레딧 사용 (1크레딧)
