@@ -9,32 +9,10 @@
  */
 import { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { AnalysisResult, QuestionAnalysis } from '../../services/analysis';
-import { DIFFICULTY_COLORS, CHART_COLORS, QUESTION_TYPE_COLORS } from '../../styles/tokens';
+import type { AnalysisResult } from '../../services/analysis';
+import { DIFFICULTY_COLORS } from '../../styles/tokens';
 import { toPng } from 'html-to-image';
 import { DetailedTemplate } from './templates/DetailedTemplate';
-
-// ... (inside component)
-
-const handleImageDownload = async () => {
-  if (previewRef.current) {
-    try {
-      const dataUrl = await toPng(previewRef.current, {
-        cacheBust: true,
-        backgroundColor: '#ffffff',
-        pixelRatio: 2, // 고해상도
-      });
-
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `${examTitle}_분석보고서.png`;
-      link.click();
-    } catch (err) {
-      console.error('Image export failed:', err);
-      alert(`이미지 내보내기에 실패했습니다: ${err}`);
-    }
-  }
-};
 
 type ChartMode = 'bar' | 'donut';
 
@@ -102,53 +80,7 @@ export function ExportModal({
     });
   };
 
-  const stats = useMemo(() => {
-    const { questions } = result;
-    const totalPoints = Math.round(questions.reduce((sum, q) => sum + (q.points || 0), 0) * 10) / 10;
-
-    const diffDist = {
-      high: questions.filter(q => q.difficulty === 'high').length,
-      medium: questions.filter(q => q.difficulty === 'medium').length,
-      low: questions.filter(q => q.difficulty === 'low').length,
-    };
-
-    const typeDist: Record<string, number> = {};
-    questions.forEach(q => {
-      const type = q.question_type || 'other';
-      typeDist[type] = (typeDist[type] || 0) + 1;
-    });
-
-    const topicDist: Record<string, number> = {};
-    questions.forEach(q => {
-      const topic = q.topic?.split(' > ')[0] || '미분류';
-      topicDist[topic] = (topicDist[topic] || 0) + 1;
-    });
-
-    const answeredQs = questions.filter(q => q.is_correct !== undefined && q.is_correct !== null);
-    const correctCount = answeredQs.filter(q => q.is_correct).length;
-    const correctRate = answeredQs.length > 0 ? Math.round((correctCount / answeredQs.length) * 100) : 0;
-
-    const diffScore = questions.length > 0
-      ? (diffDist.high * 3 + diffDist.medium * 2 + diffDist.low * 1) / questions.length
-      : 2;
-
-    const getDiffGrade = () => {
-      if (diffScore >= 2.83) return { grade: 'A+', color: '#dc2626' };
-      if (diffScore >= 2.67) return { grade: 'A', color: '#ef4444' };
-      if (diffScore >= 2.50) return { grade: 'A-', color: '#f87171' };
-      if (diffScore >= 2.33) return { grade: 'B+', color: '#f97316' };
-      if (diffScore >= 2.17) return { grade: 'B', color: '#fb923c' };
-      if (diffScore >= 2.00) return { grade: 'B-', color: '#f59e0b' };
-      if (diffScore >= 1.83) return { grade: 'C+', color: '#eab308' };
-      if (diffScore >= 1.67) return { grade: 'C', color: '#facc15' };
-      if (diffScore >= 1.50) return { grade: 'C-', color: '#84cc16' };
-      if (diffScore >= 1.33) return { grade: 'D+', color: '#22c55e' };
-      if (diffScore >= 1.17) return { grade: 'D', color: '#4ade80' };
-      return { grade: 'D-', color: '#34d399' };
-    };
-
-    return { totalPoints, diffDist, typeDist, topicDist, correctRate, diffGrade: getDiffGrade() };
-  }, [result]);
+  // Stats calculation removed - not used in simplified export modal
 
   const handleImageDownload = async () => {
     if (previewRef.current) {
@@ -199,9 +131,7 @@ export function ExportModal({
 
   if (!isOpen) return null;
 
-  const selectedCommentsArray = questionsWithComments.filter(q =>
-    selectedCommentQuestions.has(q.id || q.question_number?.toString() || '')
-  );
+  // selectedCommentsArray removed - not used
 
   const modalContent = (
     <div className="fixed inset-0 z-50 overflow-y-auto">

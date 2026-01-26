@@ -222,12 +222,13 @@ class SubscriptionService:
             is_master=is_master,
         )
 
-    async def consume_analysis(self, user_id: str, exam_type: str = "blank") -> bool:
+    async def consume_analysis(self, user_id: str, exam_type: str = "blank", exam_id: str | None = None) -> bool:
         """분석 1회 소비 (성공 시 True)
 
         Args:
             user_id: 사용자 ID
             exam_type: 시험지 유형 (blank: 1크레딧, student: 2크레딧)
+            exam_id: 시험지 ID (로그용)
         """
         # exam_type에 따른 크레딧 비용 결정
         credit_cost = 2 if exam_type == "student" else 1
@@ -265,16 +266,34 @@ class SubscriptionService:
 
         # 크레딧 사용 (exam_type에 따라 차등)
         if credits >= credit_cost:
+            new_credits = credits - credit_cost
             await self._update_user(user["id"], {
-                "credits": credits - credit_cost,
+                "credits": new_credits,
                 "monthly_analysis_count": weekly_analysis_count + 1,
             })
+            # 크레딧 로그 기록
+            credit_log_service = get_credit_log_service(self.db)
+            description = "학생용 시험지 분석" if exam_type == "student" else "시험지 분석"
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=-credit_cost,
+                balance_before=credits,
+                balance_after=new_credits,
+                action_type="analysis",
+                reference_id=exam_id,
+                description=description,
+            )
             return True
 
         return False
 
-    async def consume_extended(self, user_id: str) -> bool:
-        """확장 분석 1회 소비 (성공 시 True)"""
+    async def consume_extended(self, user_id: str, exam_id: str | None = None) -> bool:
+        """확장 분석 1회 소비 (성공 시 True)
+
+        Args:
+            user_id: 사용자 ID
+            exam_id: 시험지 ID (로그용)
+        """
         user = await self.get_user(user_id)
         await self.check_and_reset_weekly_usage(user)
 
@@ -308,10 +327,22 @@ class SubscriptionService:
 
         # 크레딧 사용 (2크레딧)
         if credits >= 2:
+            new_credits = credits - 2
             await self._update_user(user["id"], {
-                "credits": credits - 2,
+                "credits": new_credits,
                 "monthly_extended_count": weekly_extended_count + 1,
             })
+            # 크레딧 로그 기록
+            credit_log_service = get_credit_log_service(self.db)
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=-2,
+                balance_before=credits,
+                balance_after=new_credits,
+                action_type="extended",
+                reference_id=exam_id,
+                description="확장 분석",
+            )
             return True
 
         return False
@@ -337,6 +368,18 @@ class SubscriptionService:
             "credits": new_credits,
             "credits_expires_at": (datetime.utcnow() + timedelta(days=180)).isoformat(),  # 6개월
         })
+
+        # 크레딧 로그 기록
+        credit_log_service = get_credit_log_service(self.db)
+        await credit_log_service.log(
+            user_id=user_id,
+            change_amount=package["credits"],
+            balance_before=current_credits,
+            balance_after=new_credits,
+            action_type="purchase",
+            reference_id=request.package,
+            description=f"크레딧 구매 ({package['credits']}개)",
+        )
 
         return PurchaseCreditsResponse(
             success=True,
@@ -382,8 +425,13 @@ class SubscriptionService:
             message=f"{SUBSCRIPTION_PRICES[request.tier]['name']} 구독이 시작되었습니다.",
         )
 
-    async def consume_export(self, user_id: str) -> bool:
-        """내보내기 1회 소비 (성공 시 True) - 1크레딧 차감"""
+    async def consume_export(self, user_id: str, exam_id: str | None = None) -> bool:
+        """내보내기 1회 소비 (성공 시 True) - 1크레딧 차감
+
+        Args:
+            user_id: 사용자 ID
+            exam_id: 시험지 ID (로그용)
+        """
         user = await self.get_user(user_id)
 
         credits = user.get("credits", 0)
@@ -394,9 +442,21 @@ class SubscriptionService:
 
         # 크레딧 사용 (1크레딧)
         if credits >= 1:
+            new_credits = credits - 1
             await self._update_user(user["id"], {
-                "credits": credits - 1,
+                "credits": new_credits,
             })
+            # 크레딧 로그 기록
+            credit_log_service = get_credit_log_service(self.db)
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=-1,
+                balance_before=credits,
+                balance_after=new_credits,
+                action_type="export",
+                reference_id=exam_id,
+                description="결과 내보내기",
+            )
             return True
 
         return False

@@ -50,6 +50,23 @@ export interface SubscribeResponse {
     message: string;
 }
 
+export interface CreditLogItem {
+    id: string;
+    change_amount: number;
+    balance_before: number;
+    balance_after: number;
+    action_type: 'analysis' | 'extended' | 'export' | 'purchase' | 'admin' | 'expire';
+    reference_id: string | null;
+    description: string | null;
+    created_at: string;
+}
+
+export interface CreditLogsResponse {
+    logs: CreditLogItem[];
+    total: number;
+    has_more: boolean;
+}
+
 export const subscriptionService = {
     /**
      * Get current usage status.
@@ -97,6 +114,16 @@ export const subscriptionService = {
     async purchaseCredits(packageId: string): Promise<PurchaseCreditsResponse> {
         const response = await api.post<PurchaseCreditsResponse>('/api/v1/subscription/credits/purchase', {
             package: packageId,
+        });
+        return response.data;
+    },
+
+    /**
+     * Get credit history.
+     */
+    async getCreditHistory(limit: number = 20, offset: number = 0): Promise<CreditLogsResponse> {
+        const response = await api.get<CreditLogsResponse>('/api/v1/subscription/credits/history', {
+            params: { limit, offset },
         });
         return response.data;
     },

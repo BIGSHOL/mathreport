@@ -8,7 +8,28 @@ import subscriptionService, {
     type Plan,
     type CreditPackage,
     type UsageStatus,
+    type CreditLogItem,
 } from '../services/subscription';
+
+// 액션 타입별 라벨 및 스타일
+const ACTION_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+    analysis: { label: '분석', color: 'bg-blue-100 text-blue-700' },
+    extended: { label: '확장 분석', color: 'bg-purple-100 text-purple-700' },
+    export: { label: '내보내기', color: 'bg-orange-100 text-orange-700' },
+    purchase: { label: '구매', color: 'bg-green-100 text-green-700' },
+    admin: { label: '관리자', color: 'bg-gray-100 text-gray-700' },
+    expire: { label: '만료', color: 'bg-red-100 text-red-700' },
+};
+
+// 날짜 포맷팅
+function formatDate(dateStr: string): string {
+    const date = new Date(dateStr);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${month}/${day} ${hours}:${minutes}`;
+}
 
 // 초기화까지 남은 시간 계산
 function getTimeUntilReset(nextResetAt: string): string {
@@ -33,6 +54,13 @@ export function PricingPage() {
     const [message, _setMessage] = useState({ type: '', text: '' });
     void _setMessage; // TODO: 구독/결제 기능 구현 시 사용
 
+    // 크레딧 내역 관련 상태
+    const [showHistory, setShowHistory] = useState(false);
+    const [historyLogs, setHistoryLogs] = useState<CreditLogItem[]>([]);
+    const [historyTotal, setHistoryTotal] = useState(0);
+    const [historyHasMore, setHistoryHasMore] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+
     useEffect(() => {
         loadData();
     }, []);
@@ -55,6 +83,37 @@ export function PricingPage() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const loadHistory = async (reset: boolean = false) => {
+        if (!user) return;
+        setHistoryLoading(true);
+        try {
+            const offset = reset ? 0 : historyLogs.length;
+            const response = await subscriptionService.getCreditHistory(10, offset);
+            if (reset) {
+                setHistoryLogs(response.logs);
+            } else {
+                setHistoryLogs(prev => [...prev, ...response.logs]);
+            }
+            setHistoryTotal(response.total);
+            setHistoryHasMore(response.has_more);
+        } catch (error) {
+            console.error('Failed to load credit history:', error);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    const handleToggleHistory = () => {
+        if (!showHistory && historyLogs.length === 0) {
+            loadHistory(true);
+        }
+        setShowHistory(!showHistory);
+    };
+
+    const handleLoadMore = () => {
+        loadHistory(false);
     };
 
     // TODO: 구독/결제 기능 구현 시 활성화
@@ -122,6 +181,63 @@ export function PricingPage() {
                             초기화까지 {getTimeUntilReset(usage.next_reset_at)}
                         </span>
                     </div>
+
+                    {/* 크레딧 내역 토글 */}
+                    <div className="text-center mt-3">
+                        <button
+                            onClick={handleToggleHistory}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 underline"
+                        >
+                            {showHistory ? '크레딧 내역 접기 ▲' : '크레딧 내역 보기 ▼'}
+                        </button>
+                    </div>
+
+                    {/* 크레딧 내역 리스트 */}
+                    {showHistory && (
+                        <div className="mt-4 pt-4 border-t border-indigo-200">
+                            {historyLoading && historyLogs.length === 0 ? (
+                                <div className="text-center text-xs text-indigo-500 py-2">로딩 중...</div>
+                            ) : historyLogs.length === 0 ? (
+                                <div className="text-center text-xs text-indigo-500 py-2">크레딧 내역이 없습니다</div>
+                            ) : (
+                                <>
+                                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                                        {historyLogs.map((log) => {
+                                            const config = ACTION_TYPE_CONFIG[log.action_type] || { label: log.action_type, color: 'bg-gray-100 text-gray-700' };
+                                            return (
+                                                <div key={log.id} className="flex items-center justify-between text-xs bg-white rounded px-3 py-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${config.color}`}>
+                                                            {config.label}
+                                                        </span>
+                                                        <span className="text-gray-600">{log.description || '-'}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`font-bold ${log.change_amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {log.change_amount > 0 ? '+' : ''}{log.change_amount}
+                                                        </span>
+                                                        <span className="text-gray-400 w-20 text-right">{log.balance_after}크레딧</span>
+                                                        <span className="text-gray-400 w-16 text-right">{formatDate(log.created_at)}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {historyHasMore && (
+                                        <div className="text-center mt-3">
+                                            <button
+                                                onClick={handleLoadMore}
+                                                disabled={historyLoading}
+                                                className="text-xs text-indigo-600 hover:text-indigo-800 underline disabled:text-indigo-300"
+                                            >
+                                                {historyLoading ? '로딩 중...' : `더 보기 (${historyLogs.length}/${historyTotal})`}
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
 

@@ -1,5 +1,9 @@
 """Subscription API endpoints."""
+from datetime import datetime
+from typing import Optional
+
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from app.core.deps import CurrentUser, DbDep
 from app.schemas.subscription import (
@@ -12,6 +16,30 @@ from app.schemas.subscription import (
     SUBSCRIPTION_PRICES,
 )
 from app.services.subscription import get_subscription_service, SubscriptionTier, TIER_LIMITS
+from app.services.credit_log import get_credit_log_service
+
+
+# ============================================
+# Schemas for Credit History
+# ============================================
+
+class CreditLogItem(BaseModel):
+    """크레딧 내역 아이템"""
+    id: str
+    change_amount: int
+    balance_before: int
+    balance_after: int
+    action_type: str
+    reference_id: Optional[str] = None
+    description: Optional[str] = None
+    created_at: datetime
+
+
+class CreditLogsResponse(BaseModel):
+    """크레딧 내역 응답"""
+    logs: list[CreditLogItem]
+    total: int
+    has_more: bool
 
 router = APIRouter(tags=["subscription"])
 
@@ -90,6 +118,27 @@ async def purchase_credits(
     """크레딧을 구매합니다. (Mock - 실제 결제 없음)"""
     service = get_subscription_service(db)
     return await service.purchase_credits(current_user["id"], request)
+
+
+@router.get("/credits/history", response_model=CreditLogsResponse, summary="크레딧 내역 조회")
+async def get_credit_history(
+    current_user: CurrentUser,
+    db: DbDep,
+    limit: int = 20,
+    offset: int = 0,
+) -> CreditLogsResponse:
+    """크레딧 변동 내역을 조회합니다."""
+    service = get_credit_log_service(db)
+    logs, total = await service.get_history(
+        user_id=current_user["id"],
+        limit=limit,
+        offset=offset,
+    )
+    return CreditLogsResponse(
+        logs=[CreditLogItem(**log) for log in logs],
+        total=total,
+        has_more=(offset + limit) < total,
+    )
 
 
 def _get_tier_features(tier: SubscriptionTier) -> list[str]:

@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.deps import AdminUser, DbDep
+from app.services.credit_log import get_credit_log_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -160,19 +161,17 @@ async def update_user_credits(
             detail=f"크레딧 업데이트 실패: {update_result.error}"
         )
 
-    # 크레딧 변경 로그 기록 (선택사항)
-    try:
-        await db.table("credit_logs").insert({
-            "user_id": user_id,
-            "admin_id": admin["id"],
-            "previous_credits": previous_credits,
-            "new_credits": new_credits,
-            "change": request.amount,
-            "reason": request.reason,
-            "created_at": datetime.utcnow().isoformat()
-        }).execute()
-    except Exception:
-        pass  # 로그 테이블이 없어도 무시
+    # 크레딧 변경 로그 기록
+    credit_log_service = get_credit_log_service(db)
+    await credit_log_service.log(
+        user_id=user_id,
+        change_amount=request.amount,
+        balance_before=previous_credits,
+        balance_after=new_credits,
+        action_type="admin",
+        description=request.reason or "관리자 크레딧 조정",
+        admin_id=admin["id"],
+    )
 
     return CreditUpdateResponse(
         user_id=user_id,
