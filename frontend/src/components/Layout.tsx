@@ -44,15 +44,26 @@ export function Layout() {
                                     요금제
                                 </Link>
                                 {user?.role === 'admin' && (
-                                    <Link
-                                        to="/admin/patterns"
-                                        className={`${location.pathname.startsWith('/admin')
-                                            ? 'border-indigo-500 text-gray-900'
-                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                                            } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                                    >
-                                        패턴 관리
-                                    </Link>
+                                    <>
+                                        <Link
+                                            to="/admin/users"
+                                            className={`${location.pathname === '/admin/users'
+                                                ? 'border-indigo-500 text-gray-900'
+                                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                                                } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                                        >
+                                            사용자 관리
+                                        </Link>
+                                        <Link
+                                            to="/admin/patterns"
+                                            className={`${location.pathname === '/admin/patterns'
+                                                ? 'border-indigo-500 text-gray-900'
+                                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                                                } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                                        >
+                                            패턴 관리
+                                        </Link>
+                                    </>
                                 )}
                             </div>
                         </div>
