@@ -9,9 +9,9 @@ import type { QuestionAnalysis } from '../../../services/analysis';
 import { DIFFICULTY_COLORS, SUBJECT_COLORS, CHART_COLORS } from '../../../styles/tokens';
 import { DonutChart } from './DifficultyPieChart';
 
-// 도넛 차트 표준 크기
-const DONUT_SIZE = 140;
-const DONUT_STROKE = 28;
+// 도넛 차트 표준 크기 (컴팩트 버전)
+const DONUT_SIZE = 100;
+const DONUT_STROKE = 20;
 
 type ChartMode = 'bar' | 'donut';
 
@@ -99,52 +99,54 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
   const maxUnitCount = Math.max(...unitData.map((u) => u.count));
 
   // 도넛 차트용 데이터 (통일 색상)
-  const subjectDonutData = subjectData.map((s, idx) => ({
-    key: s.name,
-    value: s.count,
-    label: s.name,
-    color: CHART_COLORS[idx % CHART_COLORS.length],
-  }));
   const unitDonutData = unitData.map((u, idx) => ({
     key: u.name,
     value: u.count,
     label: u.shortName,
     color: CHART_COLORS[idx % CHART_COLORS.length],
   }));
-  const totalSubjectCount = subjectData.reduce((a, b) => a + b.count, 0);
   const totalUnitCount = unitData.reduce((a, b) => a + b.count, 0);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* 과목별 출제현황 */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="text-base font-semibold text-gray-900 mb-3">
-          과목별 출제현황
-        </h3>
-        {chartMode === 'donut' ? (
-          /* 도넛 차트 */
-          <div className="flex items-center justify-center gap-8">
-            <DonutChart data={subjectDonutData} total={totalSubjectCount} size={DONUT_SIZE} strokeWidth={DONUT_STROKE} />
-            <div className="space-y-2">
-              {subjectDonutData.map((s) => {
-                const percent = totalSubjectCount > 0 ? Math.round((s.value / totalSubjectCount) * 100) : 0;
+    <div className={chartMode === 'donut' ? 'bg-white rounded-lg shadow p-4' : 'grid grid-cols-1 lg:grid-cols-2 gap-4'}>
+      {chartMode === 'donut' ? (
+        /* 도넛 모드: 단원별만 표시 (컴팩트) */
+        <>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-gray-900">단원별 출제현황</h3>
+            <span className="text-sm text-gray-500">총 {totalUnitCount}문항</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <DonutChart data={unitDonutData} total={totalUnitCount} size={DONUT_SIZE} strokeWidth={DONUT_STROKE} />
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-3 max-w-full">
+              {unitDonutData.slice(0, 5).map((u) => {
+                const percent = totalUnitCount > 0 ? Math.round((u.value / totalUnitCount) * 100) : 0;
                 return (
-                  <div key={s.key} className="flex items-center gap-2 text-sm">
+                  <div key={u.key} className="flex items-center gap-1 text-xs whitespace-nowrap">
                     <span
-                      className="w-3 h-3 rounded-sm flex-shrink-0"
-                      style={{ backgroundColor: s.color }}
+                      className="w-2 h-2 rounded-sm flex-shrink-0"
+                      style={{ backgroundColor: u.color }}
                     />
-                    <span className="text-gray-600 w-20">{s.label}</span>
-                    <span className="font-medium text-gray-900 w-6 text-right">{s.value}</span>
-                    <span className="text-gray-400 w-12">({percent}%)</span>
+                    <span className="text-gray-600 truncate max-w-[60px]">{u.label}</span>
+                    <span className="font-medium text-gray-900">{u.value}</span>
+                    <span className="text-gray-400">({percent}%)</span>
                   </div>
                 );
               })}
+              {unitDonutData.length > 5 && (
+                <span className="text-xs text-gray-400">+{unitDonutData.length - 5}개</span>
+              )}
             </div>
           </div>
-        ) : (
-          /* 막대 차트 */
-          <>
+        </>
+      ) : (
+        /* 막대 모드: 기존 2컬럼 레이아웃 */
+        <>
+          {/* 과목별 출제현황 */}
+          <div className="bg-white rounded-lg shadow p-4">
+            <h3 className="text-base font-semibold text-gray-900 mb-3">
+              과목별 출제현황
+            </h3>
             <div className="space-y-2">
               {subjectData.map((s, idx) => {
                 const barColor = CHART_COLORS[idx % CHART_COLORS.length];
@@ -218,72 +220,48 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                 {DIFFICULTY_COLORS.high.label}
               </span>
             </div>
-          </>
-        )}
-      </div>
+          </div>
 
       {/* 단원별 출제현황 */}
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="text-base font-semibold text-gray-900 mb-3">
           단원별 출제현황
         </h3>
-        {chartMode === 'donut' ? (
-          /* 도넛 차트 */
-          <div className="flex items-center justify-center gap-8">
-            <DonutChart data={unitDonutData} total={totalUnitCount} size={DONUT_SIZE} strokeWidth={DONUT_STROKE} />
-            <div className="space-y-2 max-h-36 overflow-y-auto">
-              {unitDonutData.map((u) => {
-                const percent = totalUnitCount > 0 ? Math.round((u.value / totalUnitCount) * 100) : 0;
-                return (
-                  <div key={u.key} className="flex items-center gap-2 text-sm">
-                    <span
-                      className="w-3 h-3 rounded-sm flex-shrink-0"
-                      style={{ backgroundColor: u.color }}
-                    />
-                    <span className="text-gray-600 truncate w-20">{u.label}</span>
-                    <span className="font-medium text-gray-900 w-6 text-right">{u.value}</span>
-                    <span className="text-gray-400 w-12">({percent}%)</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          /* 막대 차트 */
-          <div className="space-y-2">
-            {unitData.map((u, idx) => {
-              const barColor = CHART_COLORS[idx % CHART_COLORS.length];
-              return (
-                <div key={u.name} className="flex items-center gap-2">
-                  <div className="w-32 text-sm text-gray-700 flex items-center gap-1 flex-shrink-0 truncate" title={u.name}>
-                    <span
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: barColor }}
-                    />
-                    <span className="truncate">{u.shortName}</span>
-                  </div>
-                  {/* 단순 바 */}
-                  <div className="flex-1 h-5 rounded overflow-hidden bg-gray-100">
-                    <div
-                      className="h-full rounded flex items-center justify-end pr-2 text-xs text-white"
-                      style={{
-                        width: `${(u.count / maxUnitCount) * 100}%`,
-                        backgroundColor: barColor,
-                        minWidth: '30px',
-                      }}
-                    >
-                      {u.count}
-                    </div>
-                  </div>
-                  <div className="w-16 text-right text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
-                    {Number(u.points.toFixed(1))}점
+        <div className="space-y-2">
+          {unitData.map((u, idx) => {
+            const barColor = CHART_COLORS[idx % CHART_COLORS.length];
+            return (
+              <div key={u.name} className="flex items-center gap-2">
+                <div className="w-32 text-sm text-gray-700 flex items-center gap-1 flex-shrink-0 truncate" title={u.name}>
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: barColor }}
+                  />
+                  <span className="truncate">{u.shortName}</span>
+                </div>
+                {/* 단순 바 */}
+                <div className="flex-1 h-5 rounded overflow-hidden bg-gray-100">
+                  <div
+                    className="h-full rounded flex items-center justify-end pr-2 text-xs text-white"
+                    style={{
+                      width: `${(u.count / maxUnitCount) * 100}%`,
+                      backgroundColor: barColor,
+                      minWidth: '30px',
+                    }}
+                  >
+                    {u.count}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+                <div className="w-16 text-right text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
+                  {Number(u.points.toFixed(1))}점
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
+        </>
+      )}
     </div>
   );
 });

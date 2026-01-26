@@ -22,9 +22,9 @@ interface DonutChartProps {
   strokeWidth?: number;
 }
 
-// 도넛 차트 표준 크기
-const DONUT_SIZE = 140;
-const DONUT_STROKE = 28;
+// 도넛 차트 표준 크기 (컴팩트 버전)
+const DONUT_SIZE = 100;
+const DONUT_STROKE = 20;
 
 export const DonutChart = memo(function DonutChart({
   data,
@@ -160,22 +160,22 @@ export const DifficultyPieChart = memo(function DifficultyPieChart({
       </div>
 
       {chartMode === 'donut' ? (
-        /* 도넛 차트 */
-        <div className="flex items-center justify-center gap-8">
+        /* 도넛 차트 - 컴팩트 세로 레이아웃 */
+        <div className="flex flex-col items-center">
           <DonutChart data={donutData} total={total} />
-          <div className="space-y-2">
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-3">
             {legendItems.map((item) => {
               const value = distribution[item.key as keyof typeof distribution] || 0;
               const percent = total > 0 ? Math.round((value / total) * 100) : 0;
               return (
-                <div key={item.key} className="flex items-center gap-2 text-sm">
+                <div key={item.key} className="flex items-center gap-1 text-xs whitespace-nowrap">
                   <span
-                    className="w-3 h-3 rounded-sm"
+                    className="w-2 h-2 rounded-sm"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="text-gray-600 w-20">{item.label}</span>
-                  <span className="font-medium text-gray-900 w-6 text-right">{value}</span>
-                  <span className="text-gray-400 w-12">({percent}%)</span>
+                  <span className="text-gray-600">{item.label}</span>
+                  <span className="font-medium text-gray-900">{value}</span>
+                  <span className="text-gray-400">({percent}%)</span>
                 </div>
               );
             })}
@@ -201,7 +201,7 @@ export const DifficultyPieChart = memo(function DifficultyPieChart({
           </div>
 
           {/* 범례 */}
-          <div className="flex justify-center gap-6 text-sm">
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm">
             {legendItems.map((item) => {
               const value = distribution[item.key as keyof typeof distribution] || 0;
               const percent = total > 0 ? Math.round((value / total) * 100) : 0;
@@ -263,21 +263,21 @@ export const TypePieChart = memo(function TypePieChart({
       </div>
 
       {chartMode === 'donut' ? (
-        /* 도넛 차트 */
-        <div className="flex items-center justify-center gap-8">
+        /* 도넛 차트 - 컴팩트 세로 레이아웃 */
+        <div className="flex flex-col items-center">
           <DonutChart data={donutData} total={total} />
-          <div className="space-y-2">
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-3">
             {donutData.map((d) => {
               const percent = total > 0 ? Math.round((d.value / total) * 100) : 0;
               return (
-                <div key={d.key} className="flex items-center gap-2 text-sm">
+                <div key={d.key} className="flex items-center gap-1 text-xs whitespace-nowrap">
                   <span
-                    className="w-3 h-3 rounded-sm flex-shrink-0"
+                    className="w-2 h-2 rounded-sm flex-shrink-0"
                     style={{ backgroundColor: d.color }}
                   />
-                  <span className="text-gray-600 w-12">{d.label}</span>
-                  <span className="font-medium text-gray-900 w-6 text-right">{d.value}</span>
-                  <span className="text-gray-400 w-12">({percent}%)</span>
+                  <span className="text-gray-600">{d.label}</span>
+                  <span className="font-medium text-gray-900">{d.value}</span>
+                  <span className="text-gray-400">({percent}%)</span>
                 </div>
               );
             })}
@@ -393,21 +393,21 @@ export const TopicDistributionChart = memo(function TopicDistributionChart({
       </div>
 
       {chartMode === 'donut' ? (
-        /* 도넛 차트 */
-        <div className="flex items-center justify-center gap-8">
+        /* 도넛 차트 - 컴팩트 세로 레이아웃 */
+        <div className="flex flex-col items-center">
           <DonutChart data={donutData} total={total} />
-          <div className="space-y-2 max-h-36 overflow-y-auto">
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-3 max-w-full">
             {donutData.map((d) => {
               const chapterPercent = total > 0 ? Math.round((d.value / total) * 100) : 0;
               return (
-                <div key={d.key} className="flex items-center gap-2 text-sm">
+                <div key={d.key} className="flex items-center gap-1 text-xs whitespace-nowrap">
                   <span
-                    className="w-3 h-3 rounded-sm flex-shrink-0"
+                    className="w-2 h-2 rounded-sm flex-shrink-0"
                     style={{ backgroundColor: d.color }}
                   />
-                  <span className="text-gray-600 truncate w-20">{d.label}</span>
-                  <span className="font-medium text-gray-900 w-6 text-right">{d.value}</span>
-                  <span className="text-gray-400 w-12">({chapterPercent}%)</span>
+                  <span className="text-gray-600 truncate max-w-[80px]">{d.label}</span>
+                  <span className="font-medium text-gray-900">{d.value}</span>
+                  <span className="text-gray-400">({chapterPercent}%)</span>
                 </div>
               );
             })}
@@ -544,21 +544,21 @@ export const FormatDistributionChart = memo(function FormatDistributionChart({
       </div>
 
       {chartMode === 'donut' ? (
-        /* 도넛 차트 */
-        <div className="flex items-center justify-center gap-8">
+        /* 도넛 차트 - 컴팩트 세로 레이아웃 */
+        <div className="flex flex-col items-center">
           <DonutChart data={donutData} total={total} />
-          <div className="space-y-2">
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-3">
             {legendItemsDonut.map((item) => {
               const percent = total > 0 ? Math.round((item.value / total) * 100) : 0;
               return (
-                <div key={item.key} className="flex items-center gap-2 text-sm">
+                <div key={item.key} className="flex items-center gap-1 text-xs whitespace-nowrap">
                   <span
-                    className="w-3 h-3 rounded-sm"
+                    className="w-2 h-2 rounded-sm"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="text-gray-600 w-14">{item.label}</span>
-                  <span className="font-medium text-gray-900 w-6 text-right">{item.value}</span>
-                  <span className="text-gray-400 w-12">({percent}%)</span>
+                  <span className="text-gray-600">{item.label}</span>
+                  <span className="font-medium text-gray-900">{item.value}</span>
+                  <span className="text-gray-400">({percent}%)</span>
                 </div>
               );
             })}
@@ -584,7 +584,7 @@ export const FormatDistributionChart = memo(function FormatDistributionChart({
           </div>
 
           {/* 범례 */}
-          <div className="flex justify-center gap-6 text-sm">
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm">
             {legendItemsBar.map((item) => {
               const percent = total > 0 ? Math.round((item.value / total) * 100) : 0;
               return (
@@ -701,21 +701,21 @@ export const PointsDistributionChart = memo(function PointsDistributionChart({
             데이터 없음
           </div>
         ) : chartMode === 'donut' ? (
-          /* 도넛 차트 */
-          <div className="flex items-center justify-center gap-4">
+          /* 도넛 차트 - 컴팩트 세로 레이아웃 */
+          <div className="flex flex-col items-center">
             <DonutChart data={donutData} total={totalCount} size={DONUT_SIZE} strokeWidth={DONUT_STROKE} />
-            <div className="space-y-1.5">
+            <div className="flex flex-wrap justify-center gap-x-2 gap-y-1 mt-2">
               {coloredData.map((d) => {
                 const percent = totalCount > 0 ? Math.round((d.count / totalCount) * 100) : 0;
                 return (
-                  <div key={d.key} className="flex items-center gap-2 text-xs">
+                  <div key={d.key} className="flex items-center gap-1 text-xs whitespace-nowrap">
                     <span
-                      className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                      className="w-2 h-2 rounded-sm flex-shrink-0"
                       style={{ backgroundColor: d.color }}
                     />
-                    <span className="text-gray-600 w-14">{d.key}</span>
-                    <span className="font-medium text-gray-900 w-4 text-right">{d.count}</span>
-                    <span className="text-gray-400 w-10">({percent}%)</span>
+                    <span className="text-gray-600">{d.key}</span>
+                    <span className="font-medium text-gray-900">{d.count}</span>
+                    <span className="text-gray-400">({percent}%)</span>
                   </div>
                 );
               })}

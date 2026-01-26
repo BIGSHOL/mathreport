@@ -216,44 +216,69 @@ export const DetailedTemplate = memo(function DetailedTemplate({
             <ConfidenceExplanation avgConfidence={avgConfidence} />
           )}
 
-          {/* 분포 차트 - 1행: 난이도, 유형 */}
-          {(isSectionVisible('showDifficulty') || isSectionVisible('showType')) && (() => {
-            const row1Count = [isSectionVisible('showDifficulty'), isSectionVisible('showType')].filter(Boolean).length;
-            const gridClass = isExport
-              ? (row1Count === 1 ? 'grid-cols-1' : 'grid-cols-2')
-              : 'grid-cols-1 lg:grid-cols-2';
-
-            return (
-              <div className={`grid gap-4 mb-4 ${gridClass}`}>
-                {isSectionVisible('showDifficulty') && (
-                  <DifficultyPieChart distribution={summary.difficulty_distribution} chartMode={chartType} />
-                )}
-                {isSectionVisible('showType') && (
-                  <TypePieChart distribution={summary.type_distribution} chartMode={chartType} />
-                )}
-              </div>
-            );
-          })()}
-
-          {/* 분포 차트 - 2행: 문항 형식 */}
-          {isSectionVisible('showSummary') && (
-            <div className="mb-4">
-              <FormatDistributionChart formats={questions.map((q) => q.question_format)} chartMode={chartType} />
+          {/* 도넛 모드: 컴팩트 2x3 그리드 / 막대 모드: 기존 레이아웃 */}
+          {chartType === 'donut' ? (
+            /* 컴팩트 도넛 차트 그리드 */
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+              {isSectionVisible('showDifficulty') && (
+                <DifficultyPieChart distribution={summary.difficulty_distribution} chartMode={chartType} />
+              )}
+              {isSectionVisible('showType') && (
+                <TypePieChart distribution={summary.type_distribution} chartMode={chartType} />
+              )}
+              {isSectionVisible('showSummary') && (
+                <FormatDistributionChart formats={questions.map((q) => q.question_format)} chartMode={chartType} />
+              )}
+              {isSectionVisible('showSummary') && (
+                <PointsDistributionChart questions={questions} chartMode={chartType} />
+              )}
+              {isSectionVisible('showTopic') && (
+                <TopicAnalysisChart questions={questions} chartMode={chartType} />
+              )}
             </div>
-          )}
+          ) : (
+            /* 막대 차트 모드: 기존 레이아웃 */
+            <>
+              {/* 분포 차트 - 1행: 난이도, 유형 */}
+              {(isSectionVisible('showDifficulty') || isSectionVisible('showType')) && (() => {
+                const row1Count = [isSectionVisible('showDifficulty'), isSectionVisible('showType')].filter(Boolean).length;
+                const gridClass = isExport
+                  ? (row1Count === 1 ? 'grid-cols-1' : 'grid-cols-2')
+                  : 'grid-cols-1 lg:grid-cols-2';
 
-          {/* 분포 차트 - 3행: 배점 (요약 통계에 포함) */}
-          {isSectionVisible('showSummary') && (
-            <div className="mb-4">
-              <PointsDistributionChart questions={questions} chartMode={chartType} />
-            </div>
-          )}
+                return (
+                  <div className={`grid gap-4 mb-4 ${gridClass}`}>
+                    {isSectionVisible('showDifficulty') && (
+                      <DifficultyPieChart distribution={summary.difficulty_distribution} chartMode={chartType} />
+                    )}
+                    {isSectionVisible('showType') && (
+                      <TypePieChart distribution={summary.type_distribution} chartMode={chartType} />
+                    )}
+                  </div>
+                );
+              })()}
 
-          {/* 과목별/단원별 출제현황 (단원 분포에 포함) */}
-          {isSectionVisible('showTopic') && (
-            <div className="mb-4">
-              <TopicAnalysisChart questions={questions} chartMode={chartType} />
-            </div>
+              {/* 분포 차트 - 2행: 문항 형식 */}
+              {isSectionVisible('showSummary') && (
+                <div className="mb-4">
+                  <FormatDistributionChart formats={questions.map((q) => q.question_format)} chartMode={chartType} />
+                </div>
+              )}
+
+              {/* 분포 차트 - 3행: 배점 (요약 통계에 포함) */}
+              {isSectionVisible('showSummary') && (
+                <div className="mb-4">
+                  <PointsDistributionChart questions={questions} chartMode={chartType} />
+                </div>
+              )}
+
+              {/* 과목별/단원별 출제현황 (단원 분포에 포함) */}
+              {isSectionVisible('showTopic') && (
+                <div className="mb-4">
+                  <TopicAnalysisChart questions={questions} chartMode={chartType} />
+                </div>
+              )}
+            </>
           )}
 
           {/* 서술형 문항 집중 분석 섹션 */}
