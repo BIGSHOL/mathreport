@@ -133,7 +133,9 @@ export function ExportModal({
         const canvas = await html2canvas(previewRef.current, {
           scale: 2, // 고해상도
           backgroundColor: '#ffffff',
-          logging: false
+          logging: false,
+          useCORS: true, // CORS 이슈 해결
+          allowTaint: true, // 외부 이미지 허용
         });
 
         const image = canvas.toDataURL('image/png');
@@ -143,7 +145,7 @@ export function ExportModal({
         link.click();
       } catch (err) {
         console.error('Image export failed:', err);
-        alert('이미지 내보내기에 실패했습니다.');
+        alert(`이미지 내보내기에 실패했습니다: ${err}`);
       }
       return;
     }
@@ -218,8 +220,8 @@ export function ExportModal({
                     <button
                       onClick={() => setChartMode('bar')}
                       className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${chartMode === 'bar'
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                         }`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -230,8 +232,8 @@ export function ExportModal({
                     <button
                       onClick={() => setChartMode('donut')}
                       className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${chartMode === 'donut'
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                         }`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -272,8 +274,8 @@ export function ExportModal({
                         <label
                           key={qId}
                           className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer transition-colors text-xs ${selectedCommentQuestions.has(qId)
-                              ? 'bg-amber-50 border border-amber-200'
-                              : 'bg-white border border-gray-200 hover:bg-gray-50'
+                            ? 'bg-amber-50 border border-amber-200'
+                            : 'bg-white border border-gray-200 hover:bg-gray-50'
                             }`}
                         >
                           <input
