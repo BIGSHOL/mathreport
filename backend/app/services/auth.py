@@ -160,7 +160,7 @@ async def get_or_create_user_from_supabase(
         "is_superuser": False,
         "data_consent": False,
         "subscription_tier": "free",
-        "credits": 0,
+        "credits": 5,  # 신규 가입 환영 크레딧
         "monthly_analysis_count": 0,
         "monthly_extended_count": 0,
         "usage_reset_at": datetime.utcnow().isoformat(),

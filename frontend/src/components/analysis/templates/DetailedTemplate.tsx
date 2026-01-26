@@ -15,6 +15,9 @@ import {
   FormatDistributionChart,
 } from '../charts/DifficultyPieChart';
 import { TopicAnalysisChart } from '../charts/TopicAnalysisChart';
+import { TypeRadarChart } from '../charts/TypeRadarChart';
+import { QuestionPointsChart } from '../charts/QuestionPointsChart';
+import { DifficultyPointsAreaChart } from '../charts/DifficultyPointsAreaChart';
 import { ConfidenceExplanation } from '../ConfidenceBadge';
 import { EssayAnalysisSection } from '../EssayAnalysisSection';
 import { TabGroup, type Tab } from '../../ui/TabGroup';
@@ -255,6 +258,21 @@ export const DetailedTemplate = memo(function DetailedTemplate({
           {/* 서술형 문항 집중 분석 섹션 */}
           {isSectionVisible('showQuestions') && (
             <EssayAnalysisSection questions={questions} />
+          )}
+
+          {/* 고급 인사이트 차트 (Recharts) */}
+          {isSectionVisible('showType') && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+              <TypeRadarChart distribution={summary.type_distribution} />
+              <DifficultyPointsAreaChart questions={questions} />
+            </div>
+          )}
+
+          {/* 문항별 배점+난이도 콤보 차트 */}
+          {isSectionVisible('showQuestions') && (
+            <div className="mb-4">
+              <QuestionPointsChart questions={questions} />
+            </div>
           )}
 
           {/* Question List - 테이블 형식 (형식별 그룹) */}

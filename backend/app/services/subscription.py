@@ -103,16 +103,19 @@ class SubscriptionService:
         now = datetime.utcnow()
         reset_date_str = user.get("usage_reset_at")
 
+        # 마지막 월요일 00:00 UTC (= 월요일 09:00 KST) 계산
+        last_monday = self._get_last_monday_9am_kst()
+
         if reset_date_str:
             if isinstance(reset_date_str, str):
                 reset_date = datetime.fromisoformat(reset_date_str.replace("Z", "+00:00").replace("+00:00", ""))
             else:
                 reset_date = reset_date_str
         else:
-            reset_date = self._get_last_monday_9am_kst()
+            # 첫 로그인: 지난주 월요일로 설정하여 이번 주 크레딧을 받을 수 있도록
+            reset_date = last_monday - timedelta(days=7)
 
-        # 마지막 월요일 00:00 UTC (= 월요일 09:00 KST) 이후로 지급이 안됐으면 지급
-        last_monday = self._get_last_monday_9am_kst()
+        # 마지막 리셋이 이번 주 월요일보다 이전이면 크레딧 지급
         if reset_date < last_monday:
             tier = SubscriptionTier(user.get("subscription_tier", "free"))
             weekly_credits = TIER_CREDITS[tier]["weekly_credits"]
