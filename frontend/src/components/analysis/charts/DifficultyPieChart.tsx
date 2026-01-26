@@ -390,7 +390,7 @@ export const TopicDistributionChart = memo(function TopicDistributionChart({
               <div key={chapter.name}>
                 {/* 중단원 바 */}
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="w-28 text-sm font-medium text-gray-800 flex items-center gap-1.5 flex-shrink-0">
+                  <div className="w-28 text-sm font-medium text-gray-800 flex items-center gap-1.5 flex-shrink-0" title={chapter.name}>
                     <span
                       className="w-2.5 h-2.5 rounded flex-shrink-0"
                       style={{ backgroundColor: chapterColor }}
