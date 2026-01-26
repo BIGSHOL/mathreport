@@ -15,7 +15,8 @@ from app.schemas.subscription import (
     CREDIT_PACKAGES,
     SUBSCRIPTION_PRICES,
 )
-from app.services.subscription import get_subscription_service, SubscriptionTier, TIER_LIMITS
+from app.services.subscription import get_subscription_service
+from app.models.user import SubscriptionTier, TIER_LIMITS
 from app.services.credit_log import get_credit_log_service
 
 
