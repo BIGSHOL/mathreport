@@ -823,6 +823,8 @@ class AIEngine:
             dynamic_prompt = self._get_unified_prompt()
 
         # ============ 패턴 시스템 전체 통합 ============
+        await update_step(2)
+        print("[Step 2] 패턴 및 컨텍스트 로딩 중...")
         all_additions = []
         detected_paper_type = "unknown"  # 1차 분류 결과 (캐시용)
 
@@ -996,7 +998,6 @@ class AIEngine:
         marks_result = {"marks": [], "overall_grading_status": "unknown"}
 
         # [1단계] 채점 표시 탐지 (questions_only 모드에서는 건너뜀)
-        await update_step(2)
         if is_questions_only:
             print("[Step 2-1] 문항만 분석 모드 - 채점 표시 탐지 건너뜀")
         else:
