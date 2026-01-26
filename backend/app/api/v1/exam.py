@@ -142,6 +142,19 @@ async def get_exams(
                 confidences = [q.get("confidence") for q in questions if q.get("confidence") is not None]
                 avg_confidence = sum(confidences) / len(confidences) if confidences else None
 
+                # 배점 검증 기반 신뢰도 페널티 적용
+                if avg_confidence is not None:
+                    points_diff = abs(100 - total_points)
+                    if points_diff <= 5:
+                        # 95~105점: 페널티 없음
+                        pass
+                    elif points_diff <= 10:
+                        # 90~94점 또는 106~110점: 15% 감소
+                        avg_confidence *= 0.85
+                    else:
+                        # 그 외: 30% 감소
+                        avg_confidence *= 0.7
+
                 # Calculate difficulty distribution
                 diff_high = sum(1 for q in questions if q.get("difficulty") == "high")
                 diff_medium = sum(1 for q in questions if q.get("difficulty") == "medium")
