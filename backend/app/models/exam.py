@@ -44,6 +44,9 @@ class Exam(Base):
     grade: Mapped[str | None] = mapped_column(String(20), nullable=True)
     subject: Mapped[str] = mapped_column(String(50), nullable=False, default="수학")
     unit: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    school_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    school_region: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    school_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     exam_type: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

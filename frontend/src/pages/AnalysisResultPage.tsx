@@ -25,9 +25,11 @@ import {
 import { DetailedTemplate } from '../components/analysis/templates';
 import { CacheHitBanner } from '../components/analysis/CacheHitBanner';
 import { ExportModal } from '../components/analysis/ExportModal';
+import { AnswerEditor } from '../components/analysis/AnswerEditor';
 import { ToastContainer, useToast } from '../components/Toast';
 import { getConfidenceLevel, CONFIDENCE_COLORS, DIFFICULTY_COLORS, calculateDifficultyGrade } from '../styles/tokens';
 import examService, { type ExamType, type Exam } from '../services/exam';
+import analysisService from '../services/analysis';
 
 // Hoisted static elements (rendering-hoist-jsx)
 const loadingState = <div className="p-8">로딩 중...</div>;
@@ -47,6 +49,7 @@ export function AnalysisResultPage() {
   const [exam, setExam] = useState<Exam | null>(null);
   const [hasAnswerAnalysis, setHasAnswerAnalysis] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showAnswerEditor, setShowAnswerEditor] = useState(false);
 
   // 토스트 알림
   const toast = useToast();
@@ -115,6 +118,24 @@ export function AnalysisResultPage() {
     // 분석 결과 다시 조회
     mutateResult();
   }, [result?.exam_id, requestAnswerAnalysis, mutateResult]);
+
+  // 정오답 수정 저장 핸들러
+  const handleSaveAnswers = useCallback(async (updates: Record<string, boolean | null>) => {
+    if (!id || !result) return;
+
+    try {
+      // 백엔드 API 호출
+      const response = await analysisService.updateAnswers(id, updates);
+
+      // 성공 시 분석 결과 다시 조회
+      mutateResult();
+      toast.success(response.message || '정오답이 수정되었습니다');
+    } catch (error) {
+      console.error('Failed to update answers:', error);
+      toast.error('정오답 수정에 실패했습니다. 다시 시도해주세요.');
+      throw error;
+    }
+  }, [id, result, mutateResult, toast]);
 
   // 내보내기 핸들러
   const handleExport = useCallback(async (format: 'html' | 'image', sections: string[]) => {
@@ -299,8 +320,22 @@ export function AnalysisResultPage() {
               </div>
             </div>
 
-            {/* 우측: 내보내기 버튼 + 종합 난이도 등급 */}
+            {/* 우측: 버튼들 + 종합 난이도 등급 */}
             <div className="flex items-center gap-4">
+              {/* 정오답 수정 버튼 (학생 답안지만) */}
+              {examType === 'student' && (
+                <button
+                  onClick={() => setShowAnswerEditor(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+                  title="AI 판별이 정확하지 않을 때 직접 수정하세요"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  정오답 수정
+                </button>
+              )}
+
               {/* 내보내기 버튼 */}
               <button
                 onClick={() => setShowExportModal(true)}
@@ -358,6 +393,15 @@ export function AnalysisResultPage() {
         onExport={handleExport}
         isExporting={isExporting}
       />
+
+      {/* 정오답 수정 모달 */}
+      {showAnswerEditor && examType === 'student' && (
+        <AnswerEditor
+          questions={questions}
+          onSave={handleSaveAnswers}
+          onClose={() => setShowAnswerEditor(false)}
+        />
+      )}
 
       {/* 토스트 알림 */}
       <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />

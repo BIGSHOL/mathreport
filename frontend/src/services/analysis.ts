@@ -334,6 +334,23 @@ export const analysisService = {
     },
 
     /**
+     * Update answers manually (AI 잘못 판별한 정오답 수정).
+     * @param analysisId 분석 결과 ID
+     * @param updates question_id -> is_correct (boolean | null) 매핑
+     * @returns 업데이트 결과
+     */
+    async updateAnswers(
+        analysisId: string,
+        updates: Record<string, boolean | null>
+    ): Promise<{ success: boolean; updated_count: number; message: string }> {
+        const response = await api.patch<{ success: boolean; updated_count: number; message: string }>(
+            `/api/v1/analysis/${analysisId}/answers`,
+            updates
+        );
+        return response.data;
+    },
+
+    /**
      * Merge multiple analysis results into one.
      */
     async mergeAnalyses(analysisIds: string[], title?: string): Promise<AnalysisResult> {

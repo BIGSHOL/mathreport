@@ -43,6 +43,9 @@ export interface ExamCreateRequest {
   grade?: string;
   subject?: string;
   unit?: string;
+  school_name?: string;
+  school_region?: string;
+  school_type?: string;
 }
 
 /**
@@ -68,6 +71,9 @@ export interface ExamBase {
   grade?: string;
   subject: string;
   unit?: string;
+  school_name?: string;
+  school_region?: string;
+  school_type?: string;
   file_path: string;
   file_type: FileType;
   status: ExamStatus;
@@ -188,6 +194,9 @@ export interface ExamFormData {
   grade: string;
   subject: string;
   unit: string;
+  school_name?: string;
+  school_region?: string;
+  school_type?: string;
 }
 
 /**

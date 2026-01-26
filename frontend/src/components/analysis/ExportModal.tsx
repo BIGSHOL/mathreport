@@ -164,7 +164,7 @@ export function ExportModal({
                   <SectionToggle label="요약 통계" checked={showSummary} onChange={setShowSummary} />
                   <SectionToggle label="난이도 분포" checked={showDifficulty} onChange={setShowDifficulty} />
                   <SectionToggle label="유형 분포" checked={showType} onChange={setShowType} />
-                  <SectionToggle label="단원 분포" checked={showTopic} onChange={setShowTopic} />
+                  <SectionToggle label="단원별 출제경향" checked={showTopic} onChange={setShowTopic} />
                   <SectionToggle label="문항 테이블" checked={showQuestions} onChange={setShowQuestions} />
                   <SectionToggle label="AI 코멘트" checked={showComments} onChange={setShowComments} />
                 </div>

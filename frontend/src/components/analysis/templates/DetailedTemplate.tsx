@@ -11,7 +11,6 @@ import { CommentFeedbackButton } from '../CommentFeedbackButton';
 import {
   DifficultyPieChart,
   TypePieChart,
-  TopicDistributionChart,
   PointsDistributionChart,
   FormatDistributionChart,
 } from '../charts/DifficultyPieChart';
@@ -231,24 +230,12 @@ export const DetailedTemplate = memo(function DetailedTemplate({
             );
           })()}
 
-          {/* 분포 차트 - 2행: 문항 형식, 단원 */}
-          {(isSectionVisible('showSummary') || isSectionVisible('showTopic')) && (() => {
-            const row2Count = [isSectionVisible('showSummary'), isSectionVisible('showTopic')].filter(Boolean).length;
-            const gridClass = isExport
-              ? (row2Count === 1 ? 'grid-cols-1' : 'grid-cols-2')
-              : 'grid-cols-1 lg:grid-cols-2';
-
-            return (
-              <div className={`grid gap-4 mb-4 ${gridClass}`}>
-                {isSectionVisible('showSummary') && (
-                  <FormatDistributionChart formats={questions.map((q) => q.question_format)} chartMode={chartType} />
-                )}
-                {isSectionVisible('showTopic') && (
-                  <TopicDistributionChart topics={questions.map((q) => q.topic || '')} chartMode={chartType} />
-                )}
-              </div>
-            );
-          })()}
+          {/* 분포 차트 - 2행: 문항 형식 */}
+          {isSectionVisible('showSummary') && (
+            <div className="mb-4">
+              <FormatDistributionChart formats={questions.map((q) => q.question_format)} chartMode={chartType} />
+            </div>
+          )}
 
           {/* 분포 차트 - 3행: 배점 (요약 통계에 포함) */}
           {isSectionVisible('showSummary') && (

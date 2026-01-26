@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api.v1 import auth, exam, users, analysis, subscription, ai_learning, pattern, reference, admin
+from app.api.v1 import auth, exam, users, analysis, subscription, ai_learning, pattern, reference, admin, trends
 from app.core.config import settings
 
 # CORS origins - 환경변수에서 로드
@@ -97,6 +97,7 @@ app.include_router(ai_learning.router, prefix="/api/v1")
 app.include_router(pattern.router, prefix="/api/v1")
 app.include_router(reference.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(trends.router, prefix="/api/v1")
 
 
 @app.get("/health")

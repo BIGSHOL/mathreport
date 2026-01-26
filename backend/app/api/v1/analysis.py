@@ -274,6 +274,85 @@ async def get_analysis(
     )
 
 
+@router.patch(
+    "/analysis/{analysis_id}/answers",
+    summary="정오답 수동 수정"
+)
+async def update_answers(
+    analysis_id: str,
+    current_user: CurrentUser,
+    db: DbDep,
+    updates: dict = Body(..., description="question_id -> is_correct (boolean | null) 매핑")
+):
+    """
+    AI가 잘못 판별한 정오답을 학부모/선생님이 직접 수정합니다.
+
+    Args:
+        analysis_id: 분석 결과 ID
+        updates: { "question_id": true/false/null } 형식의 업데이트 데이터
+
+    Returns:
+        업데이트된 문항 수
+    """
+    from app.db import get_db
+
+    analysis_service = get_analysis_service(db)
+    analysis = await analysis_service.get_analysis(analysis_id)
+
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
+        )
+
+    # Check ownership
+    if analysis["user_id"] != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "접근 권한이 없습니다."}
+        )
+
+    # 정오답 업데이트
+    updated_count = 0
+    questions = analysis.get("questions", [])
+
+    for question in questions:
+        question_id = question.get("id")
+        if question_id in updates:
+            new_value = updates[question_id]
+            # boolean이거나 null이어야 함
+            if new_value is not None and not isinstance(new_value, bool):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"code": "INVALID_VALUE", "message": f"잘못된 값: {new_value}. true/false/null만 가능합니다."}
+                )
+
+            question["is_correct"] = new_value
+
+            # earned_points 재계산 (is_correct가 true이면 만점, false이면 0점)
+            if new_value is True:
+                question["earned_points"] = question.get("points", 0)
+            elif new_value is False:
+                question["earned_points"] = 0.0
+            else:
+                question["earned_points"] = None
+
+            updated_count += 1
+
+    # DB 업데이트
+    db_instance = get_db()
+    await db_instance.analysis.update_one(
+        {"id": analysis_id},
+        {"$set": {"questions": questions}}
+    )
+
+    return {
+        "success": True,
+        "updated_count": updated_count,
+        "message": f"{updated_count}개 문항이 수정되었습니다."
+    }
+
+
 # ============================================
 # Extended Analysis Endpoints (4단계 보고서)
 # ============================================

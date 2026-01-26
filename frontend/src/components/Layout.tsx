@@ -24,15 +24,26 @@ export function Layout() {
                             </Link>
                             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                                 {user && (
-                                    <Link
-                                        to="/exams"
-                                        className={`${isActive('/exams')
-                                            ? 'border-indigo-500 text-gray-900'
-                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                                            } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                                    >
-                                        시험지 관리
-                                    </Link>
+                                    <>
+                                        <Link
+                                            to="/exams"
+                                            className={`${isActive('/exams')
+                                                ? 'border-indigo-500 text-gray-900'
+                                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                                                } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                                        >
+                                            시험지 관리
+                                        </Link>
+                                        <Link
+                                            to="/trends"
+                                            className={`${isActive('/trends')
+                                                ? 'border-indigo-500 text-gray-900'
+                                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                                                } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                                        >
+                                            출제 경향
+                                        </Link>
+                                    </>
                                 )}
                                 <Link
                                     to="/pricing"

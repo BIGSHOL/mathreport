@@ -19,8 +19,15 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class QuestionDifficulty(str, Enum):
-    """문항 난이도"""
+    """문항 난이도 (4단계 시스템 권장)"""
 
+    # 4단계 시스템 (신규)
+    BASIC = "basic"          # 기초 - 기본 개념 확인
+    STANDARD = "standard"    # 표준 - 일반적인 문제 해결
+    CHALLENGE = "challenge"  # 도전 - 복합 개념 응용
+    ADVANCED = "advanced"    # 최고 - 창의적 사고 필요
+
+    # 3단계 시스템 (하위 호환)
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"

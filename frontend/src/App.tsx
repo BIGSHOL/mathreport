@@ -19,6 +19,7 @@ const AnalysisResultPage = lazy(() => import('./pages/AnalysisResultPage').then(
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const AdminPatternPage = lazy(() => import('./pages/AdminPatternPage').then(m => ({ default: m.AdminPatternPage })));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then(m => ({ default: m.AdminUsersPage })));
+const TrendsPage = lazy(() => import('./pages/TrendsPage'));
 
 // Loading fallback (rendering-hoist-jsx)
 const PageLoading = <div className="flex items-center justify-center min-h-screen">로딩 중...</div>;
@@ -84,6 +85,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/exams" element={<ExamDashboardPage />} />
             <Route path="/analysis/:id" element={<AnalysisResultPage />} />
+            <Route path="/trends" element={<TrendsPage />} />
             <Route path="/admin/patterns" element={<AdminPatternPage />} />
             <Route path="/admin/users" element={<AdminUsersPage />} />
           </Route>
