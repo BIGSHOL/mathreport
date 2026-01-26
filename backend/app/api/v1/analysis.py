@@ -332,14 +332,14 @@ async def generate_extended_analysis(
 
 @router.get(
     "/analysis/{analysis_id}/extended",
-    response_model=AnalysisExtensionSchema,
+    response_model=AnalysisExtensionSchema | None,
     summary="확장 분석 조회"
 )
 async def get_extended_analysis(
     analysis_id: str,
     current_user: CurrentUser,
     db: DbDep,
-) -> AnalysisExtensionSchema:
+) -> AnalysisExtensionSchema | None:
     """저장된 확장 분석을 조회합니다."""
     # 기본 분석 소유권 확인
     analysis_service = get_analysis_service(db)
@@ -360,12 +360,7 @@ async def get_extended_analysis(
     orchestrator = AnalysisOrchestrator(db)
     extension = await orchestrator.get_extended_analysis(analysis_id)
 
-    if not extension:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "EXTENSION_NOT_FOUND", "message": "확장 분석이 없습니다. POST로 생성하세요."}
-        )
-
+    # 404 대신 None 반환 (프론트엔드 콘솔 에러 방지)
     return extension
 
 

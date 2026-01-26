@@ -99,17 +99,17 @@ export const ERROR_TYPE_COLORS: Record<string, { bg: string; text: string; label
 
 /** 도넛 차트 통일 색상 팔레트 (인디고 계열 기반) */
 export const CHART_COLORS = [
-  '#6366f1', // indigo-500
-  '#8b5cf6', // violet-500
-  '#a855f7', // purple-500
-  '#ec4899', // pink-500
-  '#f43f5e', // rose-500
-  '#f97316', // orange-500
+  '#3b82f6', // blue-500 (Primary)
+  '#22c55e', // green-500 (Secondary)
   '#eab308', // yellow-500
-  '#22c55e', // green-500
-  '#14b8a6', // teal-500
+  '#ef4444', // red-500
+  '#8b5cf6', // violet-500
+  '#f97316', // orange-500
   '#06b6d4', // cyan-500
-  '#3b82f6', // blue-500
+  '#ec4899', // pink-500
+  '#6366f1', // indigo-500
+  '#14b8a6', // teal-500
+  '#84cc16', // lime-500
   '#64748b', // slate-500
 ] as const;
 

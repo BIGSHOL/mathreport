@@ -33,10 +33,19 @@ export const DetailedTemplate = memo(function DetailedTemplate({
   hasAnswerAnalysis,
   onRequestAnswerAnalysis,
   isRequestingAnswerAnalysis,
+  isExport = false,
+  exportMetadata,
+  exportOptions,
+  preferredChartType,
+  selectedCommentIds,
 }: TemplateProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('basic');
   // 기본 분석 탭 차트 유형 ('donut' | 'bar')
-  const [chartType, setChartType] = useState<'donut' | 'bar'>('bar');
+  const [internalChartType, setInternalChartType] = useState<'donut' | 'bar'>('bar');
+
+  // Export 모드이거나 preferredChartType이 있으면 그것을 사용, 아니면 내부 상태 사용
+  const chartType = preferredChartType || internalChartType;
+
   // AI 코멘트 탭 토글 상태
   const [showDifficultyReason, setShowDifficultyReason] = useState(true);
   const [showAiComment, setShowAiComment] = useState(true);
@@ -49,14 +58,18 @@ export const DetailedTemplate = memo(function DetailedTemplate({
     const questionsWithConfidence = questions.filter((q) => q.confidence != null);
     return questionsWithConfidence.length > 0
       ? questionsWithConfidence.reduce((sum, q) => sum + (q.confidence || 0), 0) /
-          questionsWithConfidence.length
+      questionsWithConfidence.length
       : null;
   }, [questions]);
 
-  // AI 코멘트가 있는 문항 필터링
+  // AI 코멘트가 있는 문항 필터링 (선택된 ID가 있으면 그것만 필터링)
   const questionsWithComments = useMemo(() => {
-    return questions.filter((q) => q.ai_comment && q.ai_comment.trim().length > 0);
-  }, [questions]);
+    const candidates = questions.filter((q) => q.ai_comment && q.ai_comment.trim().length > 0);
+    if (selectedCommentIds) {
+      return candidates.filter(q => selectedCommentIds.has(q.id || q.question_number?.toString() || ''));
+    }
+    return candidates;
+  }, [questions, selectedCommentIds]);
 
   // 문항을 형식별로 그룹핑 (객관식 / 서술형)
   const groupedQuestions = useMemo(() => {
@@ -95,166 +108,217 @@ export const DetailedTemplate = memo(function DetailedTemplate({
     setViewMode(tabId as ViewMode);
   }, []);
 
+  const showBasic = isExport || viewMode === 'basic';
+  const showComments = isExport || viewMode === 'comments';
+  const showAnswers = !isExport && viewMode === 'answers';
+  const showExtended = !isExport && viewMode === 'extended';
+
+  // Export visibility helpers
+  const isSectionVisible = (section: keyof NonNullable<TemplateProps['exportOptions']>) => {
+    if (!isExport) return true;
+    return exportOptions?.[section] ?? true;
+  };
+
   return (
     <>
-      {/* 탭 네비게이션 */}
-      <div className="mb-6 flex items-center justify-between">
-        <TabGroup
-          tabs={tabs}
-          activeTab={viewMode}
-          onTabChange={handleTabChange}
-          variant="bordered"
-        />
-        {/* 기본 분석 탭 차트 형태 토글 */}
-        {viewMode === 'basic' && (
-          <div className="flex items-center gap-1 bg-gray-100 rounded-md p-0.5">
-            <button
-              onClick={() => setChartType('bar')}
-              className={`px-2.5 py-1 text-xs rounded transition-colors ${
-                chartType === 'bar'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              막대
-            </button>
-            <button
-              onClick={() => setChartType('donut')}
-              className={`px-2.5 py-1 text-xs rounded transition-colors ${
-                chartType === 'donut'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              도넛
-            </button>
+      {/* Export 전용 헤더 (미리보기/이미지 저장용) */}
+      {isExport && exportMetadata && (
+        <div className="mb-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {exportMetadata.examTitle}
+          </h1>
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            {exportMetadata.examSubject && (
+              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded font-medium">
+                {exportMetadata.examSubject}
+              </span>
+            )}
+            {exportMetadata.examGrade && (
+              <span>{exportMetadata.examGrade}</span>
+            )}
+            <span>·</span>
+            <span>총 {questions.length}문항</span>
+            <span>·</span>
+            <span>{questions.reduce((sum, q) => sum + (q.points || 0), 0)}점 만점</span>
           </div>
-        )}
-        {/* AI 코멘트 탭 토글 버튼 */}
-        {viewMode === 'comments' && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => difficultyReasonCount > 0 && setShowDifficultyReason(!showDifficultyReason)}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                difficultyReasonCount === 0
+        </div>
+      )}
+
+      {/* 탭 네비게이션 (내보내기 시 숨김) */}
+      {!isExport && (
+        <div className="mb-6 flex items-center justify-between">
+          <TabGroup
+            tabs={tabs}
+            activeTab={viewMode}
+            onTabChange={handleTabChange}
+            variant="bordered"
+          />
+          {/* 기본 분석 탭 차트 형태 토글 */}
+          {viewMode === 'basic' && (
+            <div className="flex items-center gap-1 bg-gray-100 rounded-md p-0.5">
+              <button
+                onClick={() => setInternalChartType('bar')}
+                className={`px-2.5 py-1 text-xs rounded transition-colors ${chartType === 'bar'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                막대
+              </button>
+              <button
+                onClick={() => setInternalChartType('donut')}
+                className={`px-2.5 py-1 text-xs rounded transition-colors ${chartType === 'donut'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                도넛
+              </button>
+            </div>
+          )}
+          {/* AI 코멘트 탭 토글 버튼 */}
+          {viewMode === 'comments' && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => difficultyReasonCount > 0 && setShowDifficultyReason(!showDifficultyReason)}
+                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${difficultyReasonCount === 0
                   ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
                   : showDifficultyReason
                     ? 'bg-indigo-100 text-indigo-700'
                     : 'bg-gray-100 text-gray-500'
-              }`}
-              title={difficultyReasonCount === 0 ? '난이도 분석 데이터 없음' : `${difficultyReasonCount}개 문항`}
-            >
-              난이도 분석 {difficultyReasonCount > 0 && `(${difficultyReasonCount})`}
-            </button>
-            <button
-              onClick={() => setShowAiComment(!showAiComment)}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                showAiComment
+                  }`}
+                title={difficultyReasonCount === 0 ? '난이도 분석 데이터 없음' : `${difficultyReasonCount}개 문항`}
+              >
+                난이도 분석 {difficultyReasonCount > 0 && `(${difficultyReasonCount})`}
+              </button>
+              <button
+                onClick={() => setShowAiComment(!showAiComment)}
+                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${showAiComment
                   ? 'bg-indigo-100 text-indigo-700'
                   : 'bg-gray-100 text-gray-500'
-              }`}
-            >
-              코멘트
-            </button>
-          </div>
-        )}
-      </div>
+                  }`}
+              >
+                코멘트
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
-      {viewMode === 'basic' && (
-        <>
-          {/* 신뢰도 설명 패널 */}
-          {avgConfidence != null && (
+      {showBasic && (
+        <div className={isExport ? 'mb-8' : ''}>
+          {/* 신뢰도 설명 패널 (내보내기 시 숨김) */}
+          {!isExport && avgConfidence != null && (
             <ConfidenceExplanation avgConfidence={avgConfidence} />
           )}
 
           {/* 분포 차트 - 1행: 난이도, 유형 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            <DifficultyPieChart distribution={summary.difficulty_distribution} chartMode={chartType} />
-            <TypePieChart distribution={summary.type_distribution} chartMode={chartType} />
-          </div>
+          {(isSectionVisible('showDifficulty') || isSectionVisible('showType')) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+              {isSectionVisible('showDifficulty') && (
+                <DifficultyPieChart distribution={summary.difficulty_distribution} chartMode={chartType} />
+              )}
+              {isSectionVisible('showType') && (
+                <TypePieChart distribution={summary.type_distribution} chartMode={chartType} />
+              )}
+            </div>
+          )}
 
           {/* 분포 차트 - 2행: 문항 형식, 단원 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            <FormatDistributionChart formats={questions.map((q) => q.question_format)} chartMode={chartType} />
-            <TopicDistributionChart topics={questions.map((q) => q.topic || '')} chartMode={chartType} />
-          </div>
+          {(isSectionVisible('showSummary') || isSectionVisible('showTopic')) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+              {isSectionVisible('showSummary') && (
+                <FormatDistributionChart formats={questions.map((q) => q.question_format)} chartMode={chartType} />
+              )}
+              {isSectionVisible('showTopic') && (
+                <TopicDistributionChart topics={questions.map((q) => q.topic || '')} chartMode={chartType} />
+              )}
+            </div>
+          )}
 
-          {/* 분포 차트 - 3행: 배점 */}
-          <div className="mb-4">
-            <PointsDistributionChart questions={questions} chartMode={chartType} />
-          </div>
+          {/* 분포 차트 - 3행: 배점 (요약 통계에 포함) */}
+          {isSectionVisible('showSummary') && (
+            <div className="mb-4">
+              <PointsDistributionChart questions={questions} chartMode={chartType} />
+            </div>
+          )}
 
-          {/* 과목별/단원별 출제현황 */}
-          <div className="mb-4">
-            <TopicAnalysisChart questions={questions} chartMode={chartType} />
-          </div>
+          {/* 과목별/단원별 출제현황 (단원 분포에 포함) */}
+          {isSectionVisible('showTopic') && (
+            <div className="mb-4">
+              <TopicAnalysisChart questions={questions} chartMode={chartType} />
+            </div>
+          )}
 
           {/* Question List - 테이블 형식 (형식별 그룹) */}
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200">
-              <h3 className="text-base font-semibold text-gray-900">
-                문항별 상세 분석
-              </h3>
+          {isSectionVisible('showQuestions') && (
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-200">
+                <h3 className="text-base font-semibold text-gray-900">
+                  문항별 상세 분석
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 text-xs text-gray-500 whitespace-nowrap">
+                    <tr>
+                      <th className="px-3 py-2 text-center w-16">번호</th>
+                      <th className="px-3 py-2 text-center w-16">난이도</th>
+                      <th className="px-3 py-2 text-left w-28">유형</th>
+                      <th className="px-3 py-2 text-left">단원</th>
+                      <th className="px-3 py-2 text-right w-16">배점</th>
+                      {/* 내보내기 시 신뢰도와 피드백 숨김 */}
+                      {!isExport && <th className="px-3 py-2 text-center w-20">신뢰도</th>}
+                      {!isExport && <th className="px-3 py-2 text-center w-20">피드백</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm">
+                    {/* 객관식 그룹 */}
+                    {groupedQuestions.objective.length > 0 && (
+                      <>
+                        <tr className="bg-sky-50 border-y border-sky-200">
+                          <td colSpan={isExport ? 5 : 7} className="px-3 py-2">
+                            <span className="text-sm font-semibold text-sky-700">
+                              객관식
+                            </span>
+                            <span className="ml-2 text-xs text-sky-500">
+                              {groupedQuestions.objective.length}문항
+                            </span>
+                          </td>
+                        </tr>
+                        {groupedQuestions.objective.map((q) => (
+                          <QuestionCard key={q.id} question={q} analysisId={analysisId} isExport={isExport} />
+                        ))}
+                      </>
+                    )}
+                    {/* 서술형 그룹 */}
+                    {groupedQuestions.subjective.length > 0 && (
+                      <>
+                        <tr className="bg-amber-50 border-y border-amber-200">
+                          <td colSpan={isExport ? 5 : 7} className="px-3 py-2">
+                            <span className="text-sm font-semibold text-amber-700">
+                              서술형
+                            </span>
+                            <span className="ml-2 text-xs text-amber-500">
+                              {groupedQuestions.subjective.length}문항
+                            </span>
+                          </td>
+                        </tr>
+                        {groupedQuestions.subjective.map((q) => (
+                          <QuestionCard key={q.id} question={q} analysisId={analysisId} isExport={isExport} />
+                        ))}
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 text-xs text-gray-500 whitespace-nowrap">
-                  <tr>
-                    <th className="px-3 py-2 text-center w-16">번호</th>
-                    <th className="px-3 py-2 text-center w-16">난이도</th>
-                    <th className="px-3 py-2 text-left w-28">유형</th>
-                    <th className="px-3 py-2 text-left">단원</th>
-                    <th className="px-3 py-2 text-right w-16">배점</th>
-                    <th className="px-3 py-2 text-center w-20">신뢰도</th>
-                    <th className="px-3 py-2 text-center w-20">피드백</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
-                  {/* 객관식 그룹 */}
-                  {groupedQuestions.objective.length > 0 && (
-                    <>
-                      <tr className="bg-sky-50 border-y border-sky-200">
-                        <td colSpan={7} className="px-3 py-2">
-                          <span className="text-sm font-semibold text-sky-700">
-                            객관식
-                          </span>
-                          <span className="ml-2 text-xs text-sky-500">
-                            {groupedQuestions.objective.length}문항
-                          </span>
-                        </td>
-                      </tr>
-                      {groupedQuestions.objective.map((q) => (
-                        <QuestionCard key={q.id} question={q} analysisId={analysisId} />
-                      ))}
-                    </>
-                  )}
-                  {/* 서술형 그룹 */}
-                  {groupedQuestions.subjective.length > 0 && (
-                    <>
-                      <tr className="bg-amber-50 border-y border-amber-200">
-                        <td colSpan={7} className="px-3 py-2">
-                          <span className="text-sm font-semibold text-amber-700">
-                            서술형
-                          </span>
-                          <span className="ml-2 text-xs text-amber-500">
-                            {groupedQuestions.subjective.length}문항
-                          </span>
-                        </td>
-                      </tr>
-                      {groupedQuestions.subjective.map((q) => (
-                        <QuestionCard key={q.id} question={q} analysisId={analysisId} />
-                      ))}
-                    </>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
+          )}
+        </div>
       )}
 
-      {viewMode === 'comments' && (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+      {showComments && isSectionVisible('showComments') && (
+        <div className={`bg-white shadow rounded-lg overflow-hidden ${isExport ? 'mb-8 break-before-page' : ''}`}>
           <div className="px-4 py-3 border-b border-gray-200">
             <h3 className="text-base font-semibold text-gray-900">
               AI 분석 코멘트
@@ -275,7 +339,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
                     <th className="px-3 py-2 text-left w-16">유형</th>
                     <th className="px-3 py-2 text-left w-32">단원</th>
                     <th className="px-3 py-2 text-left">AI 코멘트</th>
-                    <th className="px-3 py-2 text-center w-20">피드백</th>
+                    {!isExport && <th className="px-3 py-2 text-center w-20">피드백</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-sm">
@@ -285,11 +349,10 @@ export const DetailedTemplate = memo(function DetailedTemplate({
                         <span className="font-semibold text-gray-700">{q.question_number}</span>
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white ${
-                          q.difficulty === 'high' ? 'bg-red-500' :
+                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white ${q.difficulty === 'high' ? 'bg-red-500' :
                           q.difficulty === 'medium' ? 'bg-yellow-500' :
-                          'bg-green-500'
-                        }`}>
+                            'bg-green-500'
+                          }`}>
                           {q.difficulty === 'high' ? '상' : q.difficulty === 'medium' ? '중' : '하'}
                         </span>
                       </td>
@@ -302,11 +365,10 @@ export const DetailedTemplate = memo(function DetailedTemplate({
                       <td className="px-3 py-2">
                         {showDifficultyReason && q.difficulty_reason && (
                           <p className="text-xs text-gray-500 mb-1">
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1 ${
-                              q.difficulty === 'high' ? 'bg-red-100 text-red-700' :
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1 ${q.difficulty === 'high' ? 'bg-red-100 text-red-700' :
                               q.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-green-100 text-green-700'
-                            }`}>
+                                'bg-green-100 text-green-700'
+                              }`}>
                               {q.difficulty === 'high' ? '상' : q.difficulty === 'medium' ? '중' : '하'}
                             </span>
                             {q.difficulty_reason}
@@ -316,9 +378,11 @@ export const DetailedTemplate = memo(function DetailedTemplate({
                           <p className="text-gray-700">{q.ai_comment}</p>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-center">
-                        <CommentFeedbackButton analysisId={analysisId} questionId={q.id} />
-                      </td>
+                      {!isExport && (
+                        <td className="px-3 py-2 text-center">
+                          <CommentFeedbackButton analysisId={analysisId} questionId={q.id} />
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -332,7 +396,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
         </div>
       )}
 
-      {viewMode === 'answers' && isStudentExam && (
+      {showAnswers && isStudentExam && (
         FEATURE_FLAGS.ANSWER_ANALYSIS || hasAnswerAnalysis ? (
           <AnswerAnalysis questions={questions} analysisId={analysisId} />
         ) : (
@@ -404,11 +468,11 @@ export const DetailedTemplate = memo(function DetailedTemplate({
         )
       )}
 
-      {viewMode === 'extended' && (
+      {showExtended && (
         FEATURE_FLAGS.EXTENDED_ANALYSIS ? (
           <ExtendedReport
             extension={extension ?? null}
-            onGenerate={onGenerateExtended || (async () => {})}
+            onGenerate={onGenerateExtended || (async () => { })}
             isGenerating={isGenerating || false}
           />
         ) : (

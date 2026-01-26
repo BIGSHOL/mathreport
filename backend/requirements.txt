@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-pydantic
+pydantic[email]
 pydantic-settings
 python-dotenv
 sqlalchemy[asyncio]
@@ -10,3 +10,4 @@ pgvector
 python-jose[cryptography]
 passlib[bcrypt]
 google-genai
+python-multipart

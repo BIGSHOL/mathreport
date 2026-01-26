@@ -15,4 +15,21 @@ export interface TemplateProps {
   hasAnswerAnalysis?: boolean;
   onRequestAnswerAnalysis?: () => Promise<void>;
   isRequestingAnswerAnalysis?: boolean;
+  // Export mode
+  isExport?: boolean;
+  exportMetadata?: {
+    examTitle: string;
+    examSubject?: string;
+    examGrade?: string;
+  };
+  exportOptions?: {
+    showSummary: boolean;
+    showDifficulty: boolean;
+    showType: boolean;
+    showTopic: boolean;
+    showQuestions: boolean;
+    showComments: boolean;
+  };
+  preferredChartType?: 'bar' | 'donut';
+  selectedCommentIds?: Set<string>;
 }

@@ -7,7 +7,7 @@ def get_env_file() -> str | None:
     """Railway 환경에서는 환경 변수만 사용, 로컬에서는 .env 파일 사용"""
     if os.getenv("RAILWAY_ENVIRONMENT"):
         return None
-    env_path = Path(__file__).resolve().parents[3] / ".env"
+    env_path = Path(__file__).resolve().parents[2] / ".env"
     return str(env_path) if env_path.exists() else None
 
 
