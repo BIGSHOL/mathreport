@@ -133,7 +133,7 @@ export function AdminUsersPage() {
     loadUsers();
   };
 
-  // 크레딧 수정
+  // 크레딧 수정 (Optimistic update for instant UI feedback)
   const handleCreditSubmit = async () => {
     if (!creditModal.user) return;
 
@@ -143,14 +143,36 @@ export function AdminUsersPage() {
       return;
     }
 
+    // Optimistic update: 즉시 UI 업데이트
+    const updatedUser = creditModal.user;
+    const previousCredits = updatedUser.credits;
+    const optimisticCredits = Math.max(0, previousCredits + amount);
+
+    setUsers((prevUsers) =>
+      prevUsers.map((u) =>
+        u.id === updatedUser.id ? { ...u, credits: optimisticCredits } : u
+      )
+    );
+    setCreditModal({ isOpen: false, user: null, amount: '', reason: '' });
+
     try {
-      await adminService.updateCredits(creditModal.user.id, {
+      const response = await adminService.updateCredits(updatedUser.id, {
         amount,
         reason: creditModal.reason,
       });
-      setCreditModal({ isOpen: false, user: null, amount: '', reason: '' });
-      loadUsers();
+      // API 응답으로 정확한 값 업데이트
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u.id === updatedUser.id ? { ...u, credits: response.new_credits } : u
+        )
+      );
     } catch (err) {
+      // 실패 시 이전 값으로 롤백
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u.id === updatedUser.id ? { ...u, credits: previousCredits } : u
+        )
+      );
       alert('크레딧 수정에 실패했습니다.');
       console.error(err);
     }

@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision: str = '20260126_update_credits_default'
-down_revision: Union[str, None] = '20260125_add_user_subscription_fields'
+down_revision: Union[str, None] = '20260126_add_user_template'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
