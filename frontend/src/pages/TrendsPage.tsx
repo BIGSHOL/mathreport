@@ -336,6 +336,176 @@ const TrendsPage: React.FC = () => {
         </section>
       )}
 
+      {/* 출제 특징 인사이트 */}
+      <section style={{ marginBottom: '32px' }}>
+        <h2 style={{ fontSize: '20px', marginBottom: '16px' }}>출제 특징 인사이트</h2>
+        <div style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '24px',
+          borderRadius: '12px',
+          color: 'white'
+        }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+            {/* 통합형 문제 비율 */}
+            {(() => {
+              return (
+                <div style={{
+                  background: 'rgba(255,255,255,0.15)',
+                  padding: '16px',
+                  borderRadius: '8px',
+                  backdropFilter: 'blur(10px)'
+                }}>
+                  <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>📚 교과서 연계성</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '4px' }}>
+                    {textbooks.length > 0 ? `${textbooks.length}개` : '분석중'}
+                  </div>
+                  <div style={{ fontSize: '12px', opacity: 0.8 }}>
+                    {textbooks.length > 0
+                      ? `${textbooks.slice(0, 2).map(t => t.textbook).join(', ')} 등`
+                      : '교과서 정보가 충분하지 않습니다'}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 변별력 지수 */}
+            {(() => {
+              // 난이도 분포 균형도 계산 (엔트로피 기반)
+              const total = difficulty.reduce((sum, d) => sum + d.count, 0);
+              if (total === 0) return null;
+
+              const entropy = difficulty.reduce((ent, d) => {
+                const p = d.count / total;
+                return p > 0 ? ent - p * Math.log2(p) : ent;
+              }, 0);
+
+              // 최대 엔트로피 (균등 분포일 때)
+              const maxEntropy = Math.log2(difficulty.length);
+              const balance = ((entropy / maxEntropy) * 100).toFixed(0);
+
+              return (
+                <div style={{
+                  background: 'rgba(255,255,255,0.15)',
+                  padding: '16px',
+                  borderRadius: '8px',
+                  backdropFilter: 'blur(10px)'
+                }}>
+                  <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>⚖️ 난이도 균형도</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '4px' }}>
+                    {balance}%
+                  </div>
+                  <div style={{ fontSize: '12px', opacity: 0.8 }}>
+                    {parseInt(balance) >= 80 ? '매우 균형잡힌 출제' :
+                     parseInt(balance) >= 60 ? '양호한 분포' :
+                     '특정 난이도 편중'}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 문항 유형 다양성 */}
+            {(() => {
+              const dominantType = question_types.reduce((max, qt) =>
+                qt.count > max.count ? qt : max, question_types[0]);
+
+              return (
+                <div style={{
+                  background: 'rgba(255,255,255,0.15)',
+                  padding: '16px',
+                  borderRadius: '8px',
+                  backdropFilter: 'blur(10px)'
+                }}>
+                  <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>🎯 주요 문항 유형</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '4px' }}>
+                    {dominantType ? (
+                      dominantType.question_type === 'calculation' ? '계산' :
+                      dominantType.question_type === 'geometry' ? '도형' :
+                      dominantType.question_type === 'application' ? '응용' :
+                      dominantType.question_type === 'proof' ? '증명' :
+                      dominantType.question_type === 'graph' ? '그래프' : '통계'
+                    ) : '-'}
+                  </div>
+                  <div style={{ fontSize: '12px', opacity: 0.8 }}>
+                    {dominantType ? `전체의 ${dominantType.percentage.toFixed(0)}% 차지` : '-'}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 서술형 비중 (변별력 핵심) */}
+            {(() => {
+              const essayFormat = question_formats.find(qf => qf.question_format === 'essay');
+              const essayPercentage = essayFormat ? essayFormat.percentage : 0;
+
+              return (
+                <div style={{
+                  background: 'rgba(255,255,255,0.15)',
+                  padding: '16px',
+                  borderRadius: '8px',
+                  backdropFilter: 'blur(10px)'
+                }}>
+                  <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>✍️ 서술형 비중</div>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '4px' }}>
+                    {essayPercentage.toFixed(0)}%
+                  </div>
+                  <div style={{ fontSize: '12px', opacity: 0.8 }}>
+                    {essayPercentage >= 40 ? '고변별력 구성' :
+                     essayPercentage >= 25 ? '적정 비율' :
+                     '객관식 중심'}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* 인사이트 메시지 */}
+          <div style={{
+            marginTop: '20px',
+            padding: '16px',
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: '8px',
+            borderLeft: '4px solid rgba(255,255,255,0.5)'
+          }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
+              💡 AI 분석 인사이트
+            </div>
+            <div style={{ fontSize: '13px', lineHeight: '1.6', opacity: 0.95 }}>
+              {(() => {
+                const insights = [];
+
+                // 교과서 연계성 분석
+                if (textbooks.length >= 2) {
+                  insights.push(`복수 교과서(${textbooks.length}종)의 내용이 통합 출제되어 교육과정 전반에 대한 이해가 필요합니다.`);
+                }
+
+                // 변별력 분석
+                const essayFormat = question_formats.find(qf => qf.question_format === 'essay');
+                if (essayFormat && essayFormat.percentage >= 40) {
+                  insights.push(`서술형 비중이 ${essayFormat.percentage.toFixed(0)}%로 높아 논리적 서술 능력이 성적에 결정적 영향을 미칩니다.`);
+                }
+
+                // 문항 유형 편중 분석
+                const dominantType = question_types.reduce((max, qt) =>
+                  qt.count > max.count ? qt : max, question_types[0]);
+                if (dominantType && dominantType.percentage >= 40) {
+                  const typeLabel =
+                    dominantType.question_type === 'calculation' ? '계산' :
+                    dominantType.question_type === 'geometry' ? '도형' :
+                    dominantType.question_type === 'application' ? '응용' :
+                    dominantType.question_type === 'proof' ? '증명' :
+                    dominantType.question_type === 'graph' ? '그래프' : '통계';
+                  insights.push(`${typeLabel} 문항이 ${dominantType.percentage.toFixed(0)}%로 집중 출제되고 있습니다.`);
+                }
+
+                return insights.length > 0
+                  ? insights.join(' ')
+                  : '다양한 유형과 난이도가 균형있게 출제되고 있습니다.';
+              })()}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 단원별 출제 빈도 TOP 10 */}
       {topics.length > 0 && (
         <section style={{ marginBottom: '32px' }}>
