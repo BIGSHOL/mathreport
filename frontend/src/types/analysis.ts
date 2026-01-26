@@ -13,9 +13,16 @@
 // ============================================
 
 /**
- * 문항 난이도
+ * 문항 난이도 (4단계 교육 단계 기반 시스템)
  */
 export enum QuestionDifficulty {
+  // 4단계 시스템 (신규 - 권장)
+  CONCEPT = "concept",      // 개념 - 기본 개념 확인
+  PATTERN = "pattern",      // 유형 - 일반적인 유형 문제
+  REASONING = "reasoning",  // 사고력 - 복합 사고력 요구
+  CREATIVE = "creative",    // 창의 - 창의적 문제해결
+
+  // 3단계 시스템 (하위 호환)
   HIGH = "high",
   MEDIUM = "medium",
   LOW = "low",
@@ -63,9 +70,16 @@ export interface QuestionAnalysis {
 }
 
 /**
- * 난이도 분포
+ * 난이도 분포 (4단계 시스템 + 3단계 하위 호환)
  */
 export interface DifficultyDistribution {
+  // 4단계 시스템 (신규 - 권장)
+  concept: number;    // 개념 - 기본 개념 확인
+  pattern: number;    // 유형 - 일반 유형 문제
+  reasoning: number;  // 사고력 - 복합 사고력
+  creative: number;   // 창의 - 창의적 문제해결
+
+  // 3단계 시스템 (하위 호환)
   high: number;
   medium: number;
   low: number;

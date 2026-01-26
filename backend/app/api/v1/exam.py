@@ -186,7 +186,14 @@ async def get_exams(
                         # 50점 미만 또는 150점 초과: 80% 감소 (거의 확실한 오분석)
                         avg_confidence *= 0.2
 
-                # Calculate difficulty distribution
+                # Calculate difficulty distribution (4단계 + 3단계 하위호환)
+                # 4단계 시스템
+                diff_concept = sum(1 for q in questions if q.get("difficulty") == "concept")
+                diff_pattern = sum(1 for q in questions if q.get("difficulty") == "pattern")
+                diff_reasoning = sum(1 for q in questions if q.get("difficulty") == "reasoning")
+                diff_creative = sum(1 for q in questions if q.get("difficulty") == "creative")
+
+                # 3단계 시스템 (하위 호환)
                 diff_high = sum(1 for q in questions if q.get("difficulty") == "high")
                 diff_medium = sum(1 for q in questions if q.get("difficulty") == "medium")
                 diff_low = sum(1 for q in questions if q.get("difficulty") == "low")
@@ -198,6 +205,10 @@ async def get_exams(
                     total_questions=total_questions,
                     total_points=total_points,
                     avg_confidence=avg_confidence,
+                    difficulty_concept=diff_concept,
+                    difficulty_pattern=diff_pattern,
+                    difficulty_reasoning=diff_reasoning,
+                    difficulty_creative=diff_creative,
                     difficulty_high=diff_high,
                     difficulty_medium=diff_medium,
                     difficulty_low=diff_low,

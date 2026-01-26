@@ -422,25 +422,25 @@ class PromptBuilder:
         }
     },
     "summary": {
-        "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+        "difficulty_distribution": {"concept": 0, "pattern": 0, "reasoning": 0, "creative": 0},
         "type_distribution": {
             "calculation": 0, "geometry": 0, "application": 0,
             "proof": 0, "graph": 0, "statistics": 0
         },
-        "average_difficulty": "medium",
+        "average_difficulty": "pattern",
         "dominant_type": "calculation"
     },
     "questions": [
         {
             "question_number": 1,
             "question_format": "objective",
-            "difficulty": "low",
+            "difficulty": "concept",
             "question_type": "calculation",
             "points": 3,
             "topic": "공통수학1 > 다항식 > 다항식의 연산",
             "ai_comment": "핵심 개념. 주의사항.",
             "confidence": 0.95,
-            "difficulty_reason": "단순 공식 대입"
+            "difficulty_reason": "기본 개념 확인"
 """
 
         # 학생 답안이 있는 경우 추가 필드
@@ -604,7 +604,7 @@ class PromptBuilder:
 
 1. 모든 텍스트(topic, ai_comment)는 한국어로 작성
 2. question_format: objective(객관식), short_answer(단답형), essay(서술형/서답형) 중 하나
-3. difficulty: high(상), medium(중), low(하) 중 하나
+3. difficulty: concept(개념), pattern(유형), reasoning(사고력), creative(창의) 중 하나 (4단계 시스템)
 4. question_type: calculation(계산), geometry(도형), application(응용), proof(증명), graph(그래프), statistics(통계) 중 하나
 5. points: 숫자 (소수점 허용)
 6. **topic 형식 (필수)**: "과목명 > 대단원 > 소단원"
@@ -620,41 +620,66 @@ class PromptBuilder:
 7. ai_comment: 정확히 2문장, 총 50자 이내
 8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
 9. question_number: 숫자 또는 "서술형 1", "서답형 2" 형식
-10. difficulty_reason: 난이도 판단 근거 (특히 high일 때 필수, 15자 이내)
-    - high: "3개 대단원 복합", "6단계 이상 풀이", "창의적 통찰", "논리 증명 필수" 등
-    - medium: "2-4단계 풀이", "공식 변형", "개념 연결" 등 (기본값, 애매하면 중으로)
-    - low: "1-2단계 해결", "공식 직접 대입", "단순 계산" 등
+10. difficulty_reason: 난이도 판단 근거 (15자 이내)
+    - concept: "기본 개념 확인", "공식 직접 대입", "1단계 해결" 등
+    - pattern: "일반 유형", "2-3단계 풀이", "교과서 연습문제" 등
+    - reasoning: "2개 대단원 복합", "5-6단계 풀이", "논리적 추론" 등
+    - creative: "3개 대단원 복합", "창의적 통찰", "7단계 이상 풀이" 등
 
-🚨 **극도로 보수적 난이도 판정 (절대 원칙)**:
+🚨 **4단계 난이도 시스템 (엄격 적용)**:
 
-### 상(high) - "킬러 문제" 수준만 (극히 제한적)
-**반드시 다음 조건을 모두 충족:**
-1. 특징 4개 이상 + 시험에서 **가장 어려운 1문제만**
-2. 배점 10점 이상 서술형 (단, 배점만으로 상 판단 금지!)
-3. **수능/모의고사 최고난도 킬러 문제 수준**의 난이도
-4. 학생 정답률 30% 이하 예상
-
-**절대 상이 아닌 경우 (강력 금지):**
-- ❌ 교과서 예제/유제 수준 → 무조건 중
-- ❌ 기출 문제 유형 (변형 포함) → 무조건 중
-- ❌ 계산이 복잡한 것 (개념은 단순) → 무조건 중
-- ❌ 단순 서술형 (배점 높아도) → 무조건 중
-- ❌ 일반적인 고난도 문제 → 무조건 중
-- ❌ "어렵다"고 느껴지는 정도 → 무조건 중
-- ❌ 단순히 계산 과정이 긴 문제 → 무조건 중
+### concept (개념) - 기본 개념 확인 문제
+**특징:**
+- 교과서 기본 예제 수준
+- 공식 직접 대입, 1-2단계 해결
+- 개념 이해 확인용
+- 정답률 80% 이상 예상
 
 **예시:**
-- "연립방정식의 정수해를 구하시오 (8점)" → 중 (교과서 유형)
-- "이차함수 그래프 그리고 최댓값 구하기 (10점)" → 중 (전형적 서술형)
-- "복잡한 인수분해 (12점)" → 중 (계산만 복잡)
-- "두 조건을 동시에 만족하는 n의 범위 구하기 (창의적 접근 필수, 3개 대단원 복합, 교과서 범위 밖)" → 상 후보
+- "이차방정식 ax² + bx + c = 0의 해를 구하시오" (근의 공식 직접 대입)
+- "다항식 (x+2)(x-3) 전개하시오" (기본 전개 공식)
 
-**원칙:**
-- 시험당 상은 **절대 최대 1문제** (전체 문제 수와 무관, 극히 예외적)
-- 시험 20문제 중 19문제가 쉬워도 상은 1문제만!
-- **배점이 높다고, 서술형이라고, 복잡하다고 자동으로 상이 아님!**
-- **조금이라도 의심스러우면 무조건 중(medium)!**
-- 상 판정 시 "이게 정말 전국 최고난도 킬러인가?" 자문 필수
+### pattern (유형) - 일반적인 유형 문제
+**특징:**
+- 교과서 연습문제, 기출 유형
+- 2-4단계 풀이, 공식 변형
+- 학습한 유형 적용
+- 정답률 50-80% 예상
+
+**예시:**
+- "이차방정식의 판별식으로 근의 개수 판정"
+- "이차함수 그래프 그리고 최댓값 구하기"
+- 일반적인 서술형 문제
+
+### reasoning (사고력) - 복합 사고력 요구
+**특징:**
+- 2개 대단원 복합, 5-6단계 풀이
+- 개념 연결, 논리적 추론 필요
+- 단순 암기로 해결 불가
+- 정답률 30-50% 예상
+
+**예시:**
+- "이차방정식과 부등식을 결합한 조건 문제"
+- "함수와 도형의 성질을 동시에 활용"
+- 복합 개념 응용 문제
+
+### creative (창의) - 창의적 문제해결
+**특징:**
+- 3개 이상 대단원 복합, 7단계 이상 풀이
+- 창의적 통찰, 독창적 접근 필요
+- 수능 최고난도 문제 수준
+- 교과서에 없는 새로운 상황
+- 정답률 30% 이하 예상
+
+**예시:**
+- "여러 조건을 동시에 만족하는 n의 범위 구하기 (창의적 접근 필수, 3개 대단원 복합)"
+- "수학적 귀납법과 부등식을 결합한 증명 (독창적 논리 전개)"
+
+**주의사항:**
+- 배점이 높다고 자동으로 높은 난이도가 아님!
+- 서술형이라고 자동으로 reasoning/creative가 아님!
+- 의심스러우면 한 단계 낮춰서 판정!
+- 대부분의 문제는 concept/pattern에 속함
 
 ⚠️ 중요 - 소문제 처리:
 - (1), (2), (3) 또는 (가), (나), (다)가 있으면 하나의 문제로 취급
@@ -733,21 +758,21 @@ class PromptBuilder:
         }
     },
     "summary": {
-        "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+        "difficulty_distribution": {"concept": 0, "pattern": 0, "reasoning": 0, "creative": 0},
         "type_distribution": {
             "vocabulary": 0, "grammar": 0, "reading_main_idea": 0,
             "reading_detail": 0, "reading_inference": 0,
             "listening": 0, "writing": 0, "sentence_completion": 0,
             "conversation": 0
         },
-        "average_difficulty": "medium",
+        "average_difficulty": "pattern",
         "dominant_type": "grammar"
     },
     "questions": [
         {
             "question_number": 1,
             "question_format": "objective",
-            "difficulty": "low",
+            "difficulty": "concept",
             "question_type": "grammar",
             "points": 3,
             "topic": "중2 영어 > 문법 > to부정사",
@@ -818,33 +843,41 @@ class PromptBuilder:
 
 1. 모든 텍스트(topic, ai_comment)는 한국어로 작성
 2. question_format: objective(객관식), short_answer(단답형), essay(서술형/서답형) 중 하나
-3. difficulty: high(상), medium(중), low(하) 중 하나
+3. difficulty: concept(개념), pattern(유형), reasoning(사고력), creative(창의) 중 하나 (4단계 시스템)
 4. question_type: vocabulary(어휘), grammar(문법), reading_main_idea(대의파악), reading_detail(세부정보), reading_inference(추론), listening(듣기), writing(영작), sentence_completion(문장완성), conversation(대화문) 중 하나
 5. points: 숫자 (소수점 허용)
 6. topic 형식: "학년 영어 > 대영역 > 세부영역"
 7. ai_comment: 정확히 2문장, 총 50자 이내
 8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
 9. question_number: 숫자 또는 "서술형 1" 형식
-10. difficulty_reason: 난이도 판단 근거 (특히 high일 때 필수, 15자 이내)
-    - high: "복합 구문+고난도 추론", "긴 지문+다층 추론", "창의적 해석" 등
-    - medium: "중급 문법", "일반 어휘", "2-3단계 추론" 등 (기본값, 애매하면 중으로)
-    - low: "기초 문법", "쉬운 어휘", "명시적 정보" 등
+10. difficulty_reason: 난이도 판단 근거 (15자 이내)
+    - concept: "기초 문법", "쉬운 어휘", "명시적 정보" 등
+    - pattern: "중급 문법", "일반 어휘", "2-3단계 추론" 등
+    - reasoning: "복합 구문", "다층 추론", "암시적 정보" 등
+    - creative: "복합 구문+고난도 추론", "긴 지문+다층 추론", "창의적 해석" 등
 
-🚨 **극도로 보수적 난이도 판정 (절대 원칙)**:
+🚨 **4단계 난이도 시스템 (영어 과목)**:
 
-### 상(high) - 수능 고난도 문제 수준만
-**반드시 다음 조건을 모두 충족:**
-1. 시험에서 **가장 어려운 1문제** (예외적으로 2문제)
-2. 고배점 + 수능 킬러 문제 수준
+### concept (개념) - 기초 개념 확인
+- 기초 문법 적용, 쉬운 어휘
+- 명시적 정보 찾기
 
-**절대 상이 아닌 경우:**
-- ❌ 교과서 예제 수준
-- ❌ 평범한 독해/문법 문제
-- ❌ 긴 지문이지만 내용은 평이
+### pattern (유형) - 일반 유형 문제
+- 중급 문법, 일반 어휘
+- 2-3단계 추론, 교과서 유형
 
-**원칙:**
-- 시험당 상은 **최대 1문제** (20문제 기준)
-- 의심스러우면 무조건 중(medium)!
+### reasoning (사고력) - 복합 사고력
+- 복합 구문, 다층 추론
+- 암시적 정보 추론
+
+### creative (창의) - 창의적 해석
+- 고난도 구문+추론
+- 수능 고난도 수준
+- 창의적 해석 필요
+
+**주의사항:**
+- 긴 지문이라고 자동으로 높은 난이도가 아님!
+- 의심스러우면 한 단계 낮춰서 판정!
 
 ⚠️ 중요 - 듣기 문항 처리:
 - 듣기 문항은 음성 없이 문항 유형과 난이도만 분석

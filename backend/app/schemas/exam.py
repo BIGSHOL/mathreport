@@ -133,9 +133,18 @@ class AnalysisBrief(BaseModel):
     total_questions: int = Field(ge=0, description="총 문항 수")
     total_points: float = Field(ge=0, description="총 배점")
     avg_confidence: float | None = Field(None, ge=0, le=1, description="평균 신뢰도")
-    difficulty_high: int = Field(ge=0, description="상 난이도 문항 수")
-    difficulty_medium: int = Field(ge=0, description="중 난이도 문항 수")
-    difficulty_low: int = Field(ge=0, description="하 난이도 문항 수")
+
+    # 4단계 난이도 시스템 (신규 - 권장)
+    difficulty_concept: int = Field(default=0, ge=0, description="개념 난이도 문항 수")
+    difficulty_pattern: int = Field(default=0, ge=0, description="유형 난이도 문항 수")
+    difficulty_reasoning: int = Field(default=0, ge=0, description="사고력 난이도 문항 수")
+    difficulty_creative: int = Field(default=0, ge=0, description="창의 난이도 문항 수")
+
+    # 3단계 난이도 시스템 (하위 호환)
+    difficulty_high: int = Field(default=0, ge=0, description="상 난이도 문항 수 (3단계 하위호환)")
+    difficulty_medium: int = Field(default=0, ge=0, description="중 난이도 문항 수 (3단계 하위호환)")
+    difficulty_low: int = Field(default=0, ge=0, description="하 난이도 문항 수 (3단계 하위호환)")
+
     format_essay: int = Field(default=0, ge=0, description="서술형 문항 수")
 
 

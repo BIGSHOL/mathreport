@@ -19,13 +19,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class QuestionDifficulty(str, Enum):
-    """문항 난이도 (4단계 시스템 권장)"""
+    """문항 난이도 (4단계 교육 단계 기반 시스템)"""
 
-    # 4단계 시스템 (신규)
-    BASIC = "basic"          # 기초 - 기본 개념 확인
-    STANDARD = "standard"    # 표준 - 일반적인 문제 해결
-    CHALLENGE = "challenge"  # 도전 - 복합 개념 응용
-    ADVANCED = "advanced"    # 최고 - 창의적 사고 필요
+    # 4단계 시스템 (신규 - 권장)
+    CONCEPT = "concept"        # 개념 - 기본 개념 확인 문제
+    PATTERN = "pattern"        # 유형 - 일반적인 유형 문제
+    REASONING = "reasoning"    # 사고력 - 복합 사고력 요구
+    CREATIVE = "creative"      # 창의 - 창의적 문제해결
 
     # 3단계 시스템 (하위 호환)
     HIGH = "high"
@@ -135,11 +135,18 @@ class QuestionAnalysis(BaseModel):
 
 
 class DifficultyDistribution(BaseModel):
-    """난이도 분포"""
+    """난이도 분포 (4단계 시스템 + 3단계 하위 호환)"""
 
-    high: int = Field(default=0, ge=0)
-    medium: int = Field(default=0, ge=0)
-    low: int = Field(default=0, ge=0)
+    # 4단계 시스템 (신규 - 권장)
+    concept: int = Field(default=0, ge=0, description="개념 - 기본 개념 확인")
+    pattern: int = Field(default=0, ge=0, description="유형 - 일반 유형 문제")
+    reasoning: int = Field(default=0, ge=0, description="사고력 - 복합 사고력")
+    creative: int = Field(default=0, ge=0, description="창의 - 창의적 문제해결")
+
+    # 3단계 시스템 (하위 호환)
+    high: int = Field(default=0, ge=0, description="상 (3단계 하위호환)")
+    medium: int = Field(default=0, ge=0, description="중 (3단계 하위호환)")
+    low: int = Field(default=0, ge=0, description="하 (3단계 하위호환)")
 
 
 class TypeDistribution(BaseModel):
