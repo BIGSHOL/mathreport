@@ -18,6 +18,7 @@ from app.schemas.analysis import (
     ExportResponse,
     ExamCommentary,
     TopicStrategiesResponse,
+    ScoreLevelPlanResponse,
 )
 from app.schemas.feedback import FeedbackCreate, FeedbackResponse, BadgeEarned
 from app.services.analysis import get_analysis_service
@@ -402,6 +403,88 @@ async def generate_topic_strategies(
         strategies=strategies_data["strategies"],
         overall_guidance=strategies_data["overall_guidance"],
         study_sequence=strategies_data["study_sequence"],
+        generated_at=datetime.utcnow().isoformat()
+    )
+
+
+@router.post(
+    "/analysis/{analysis_id}/score-level-plan",
+    response_model=ScoreLevelPlanResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="점수대별 맞춤 학습 계획 생성"
+)
+async def generate_score_level_plan(
+    analysis_id: str,
+    current_user: CurrentUser,
+    db: DbDep,
+) -> ScoreLevelPlanResponse:
+    """학생의 현재 점수를 분석하여 점수대별 맞춤 학습 계획을 생성합니다.
+
+    - 현재 점수대 특성 분석 (강점, 약점, 전형적 실수)
+    - 향상 목표 및 예상 기간 제시
+    - 단계별 학습 계획 (기초 다지기 → 실력 향상 등)
+    - 일일 학습 루틴 권장
+    - 격려 메시지 포함
+    - 답안지 분석에만 적용 가능 (빈 시험지는 불가)
+    - 크레딧 소모 없음 (기존 분석 결과 활용)
+    """
+    from app.services.agents.score_level_plan_agent import get_score_level_plan_agent
+
+    # 분석 결과 조회 및 권한 확인
+    analysis_service = get_analysis_service(db)
+    analysis = await analysis_service.get_analysis(analysis_id)
+
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis not found"
+        )
+
+    # 시험지 유형 확인
+    exam_service = get_exam_service(db)
+    exam = await exam_service.get_exam(analysis["exam_id"])
+    exam_type = exam.get("exam_type", "blank") if exam else "blank"
+
+    if exam_type == "blank":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Score level plan is only available for answered exams (학생 답안지만 가능)"
+        )
+
+    # 현재 점수 계산
+    questions = analysis.get("questions", [])
+    current_score = sum(q.get("earned_points", 0) for q in questions if q.get("earned_points") is not None)
+    total_score = sum(q.get("points", 0) for q in questions if q.get("points") is not None and q.get("points", 0) > 0)
+
+    if total_score == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot generate score level plan: total score is 0"
+        )
+
+    # 점수대별 학습 계획 생성
+    plan_agent = get_score_level_plan_agent()
+    plan_data = plan_agent.generate(
+        analysis_data={
+            "current_score": current_score,
+            "total_score": total_score,
+            "questions": questions,
+            "summary": analysis.get("summary"),
+        }
+    )
+
+    # 응답 구성
+    from datetime import datetime
+    return ScoreLevelPlanResponse(
+        analysis_id=analysis_id,
+        current_score=plan_data["current_score"],
+        total_score=plan_data["total_score"],
+        score_percentage=plan_data["score_percentage"],
+        characteristics=plan_data["characteristics"],
+        improvement_goal=plan_data["improvement_goal"],
+        study_phases=plan_data["study_phases"],
+        daily_routine=plan_data["daily_routine"],
+        motivational_message=plan_data["motivational_message"],
         generated_at=datetime.utcnow().isoformat()
     )
 

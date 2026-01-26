@@ -28,10 +28,11 @@ import { ExportModal } from '../components/analysis/ExportModal';
 import { AnswerEditor } from '../components/analysis/AnswerEditor';
 import { ExamCommentarySection } from '../components/analysis/ExamCommentarySection';
 import { TopicStrategiesSection } from '../components/analysis/TopicStrategiesSection';
+import { ScoreLevelPlanSection } from '../components/analysis/ScoreLevelPlanSection';
 import { ToastContainer, useToast } from '../components/Toast';
 import { getConfidenceLevel, CONFIDENCE_COLORS, DIFFICULTY_COLORS, calculateDifficultyGrade } from '../styles/tokens';
 import examService, { type ExamType, type Exam } from '../services/exam';
-import analysisService, { type ExamCommentary, type TopicStrategiesResponse } from '../services/analysis';
+import analysisService, { type ExamCommentary, type TopicStrategiesResponse, type ScoreLevelPlanResponse } from '../services/analysis';
 
 // Hoisted static elements (rendering-hoist-jsx)
 const loadingState = <div className="p-8">로딩 중...</div>;
@@ -56,6 +57,8 @@ export function AnalysisResultPage() {
   const [isGeneratingCommentary, setIsGeneratingCommentary] = useState(false);
   const [topicStrategies, setTopicStrategies] = useState<TopicStrategiesResponse | null>(null);
   const [isGeneratingStrategies, setIsGeneratingStrategies] = useState(false);
+  const [scoreLevelPlan, setScoreLevelPlan] = useState<ScoreLevelPlanResponse | null>(null);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
   // 토스트 알림
   const toast = useToast();
@@ -160,6 +163,27 @@ export function AnalysisResultPage() {
       }
     } finally {
       setIsGeneratingStrategies(false);
+    }
+  }, [id, toast]);
+
+  // 점수대별 학습 계획 생성 핸들러
+  const handleGenerateScoreLevelPlan = useCallback(async () => {
+    if (!id) return;
+
+    setIsGeneratingPlan(true);
+    try {
+      const plan = await analysisService.generateScoreLevelPlan(id);
+      setScoreLevelPlan(plan);
+      toast.success('점수대별 학습 계획이 생성되었습니다');
+    } catch (error: any) {
+      console.error('Failed to generate score level plan:', error);
+      if (error.response?.status === 400) {
+        toast.error('점수대별 학습 계획은 답안지 분석에만 사용 가능합니다');
+      } else {
+        toast.error('학습 계획 생성에 실패했습니다. 다시 시도해주세요.');
+      }
+    } finally {
+      setIsGeneratingPlan(false);
     }
   }, [id, toast]);
 
@@ -558,6 +582,40 @@ export function AnalysisResultPage() {
             strategies={topicStrategies!}
             isLoading={isGeneratingStrategies}
             onRegenerate={handleGenerateTopicStrategies}
+          />
+        </div>
+      )}
+
+      {/* 점수대별 학습 계획 섹션 (답안지만) */}
+      {hasAnswerAnalysis && !scoreLevelPlan && !isGeneratingPlan && id && (
+        <div className="mb-6">
+          <div className="bg-gradient-to-r from-sky-50 to-blue-50 rounded-lg border border-sky-200 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-sky-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">점수대별 맞춤 학습 계획</h3>
+                <p className="text-xs text-gray-600">현재 점수를 분석하여 목표 달성을 위한 단계별 계획을 제공합니다</p>
+              </div>
+            </div>
+            <button
+              onClick={handleGenerateScoreLevelPlan}
+              className="px-4 py-2 bg-sky-600 text-white text-sm font-medium rounded-lg hover:bg-sky-700 transition-colors"
+            >
+              계획 생성
+            </button>
+          </div>
+        </div>
+      )}
+      {(scoreLevelPlan || isGeneratingPlan) && (
+        <div className="mb-6">
+          <ScoreLevelPlanSection
+            plan={scoreLevelPlan!}
+            isLoading={isGeneratingPlan}
+            onRegenerate={handleGenerateScoreLevelPlan}
           />
         </div>
       )}

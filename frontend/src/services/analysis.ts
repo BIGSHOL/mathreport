@@ -102,6 +102,47 @@ export interface TopicStrategiesResponse {
     generated_at: string;
 }
 
+// ============================================
+// Score Level Plan Types (점수대별 학습 계획)
+// ============================================
+
+export interface ScoreLevelCharacteristics {
+    score_range: string;           // 점수 범위 (예: "60-70점")
+    level_name: string;            // 레벨 명칭 (예: "중급", "고급")
+    strengths: string[];           // 현재 점수대의 강점 2-5개
+    weaknesses: string[];          // 현재 점수대의 약점 2-5개
+    typical_mistakes: string[];    // 이 점수대 학생들의 전형적인 실수 2-4개
+}
+
+export interface ImprovementGoal {
+    target_score_range: string;    // 목표 점수 범위
+    estimated_duration: string;    // 예상 소요 기간
+    key_focus_areas: string[];     // 집중 학습 영역 3-5개
+    success_criteria: string[];    // 목표 달성 기준 2-4개
+}
+
+export interface StudyPhase {
+    phase_name: string;            // 단계명
+    duration: string;              // 기간
+    objectives: string[];          // 단계별 목표 2-4개
+    activities: string[];          // 구체적인 활동 3-6개
+    study_hours_per_week: number;  // 주당 학습 시간
+    milestone: string;             // 중간 점검 기준
+}
+
+export interface ScoreLevelPlanResponse {
+    analysis_id: string;
+    current_score: number;
+    total_score: number;
+    score_percentage: number;
+    characteristics: ScoreLevelCharacteristics;
+    improvement_goal: ImprovementGoal;
+    study_phases: StudyPhase[];
+    daily_routine: string[];
+    motivational_message: string;
+    generated_at: string;
+}
+
 export interface AnalysisResult {
     id: string;
     exam_id: string;
@@ -458,6 +499,21 @@ export const analysisService = {
     ): Promise<TopicStrategiesResponse> {
         const response = await api.post<TopicStrategiesResponse>(
             `/api/v1/analysis/${analysisId}/topic-strategies`
+        );
+        return response.data;
+    },
+
+    /**
+     * Generate score level plan (점수대별 맞춤 학습 계획 생성).
+     * Only available for answered exams (student answer sheets).
+     * @param analysisId 분석 결과 ID
+     * @returns ScoreLevelPlanResponse
+     */
+    async generateScoreLevelPlan(
+        analysisId: string
+    ): Promise<ScoreLevelPlanResponse> {
+        const response = await api.post<ScoreLevelPlanResponse>(
+            `/api/v1/analysis/${analysisId}/score-level-plan`
         );
         return response.data;
     },

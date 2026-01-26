@@ -480,6 +480,85 @@ class TopicStrategiesResponse(BaseModel):
     generated_at: datetime | str
 
 
+# --- 점수대별 학습 계획 ---
+
+class ScoreLevelCharacteristics(BaseModel):
+    """점수대별 특성 분석"""
+    score_range: str = Field(description="점수 범위 (예: '60-70점')")
+    level_name: str = Field(description="레벨 명칭 (예: '중급', '고급')")
+    strengths: list[str] = Field(
+        min_length=2,
+        max_length=5,
+        description="현재 점수대의 강점 2-5개"
+    )
+    weaknesses: list[str] = Field(
+        min_length=2,
+        max_length=5,
+        description="현재 점수대의 약점 2-5개"
+    )
+    typical_mistakes: list[str] = Field(
+        min_length=2,
+        max_length=4,
+        description="이 점수대 학생들의 전형적인 실수 2-4개"
+    )
+
+
+class ImprovementGoal(BaseModel):
+    """향상 목표"""
+    target_score_range: str = Field(description="목표 점수 범위 (예: '80-90점')")
+    estimated_duration: str = Field(description="예상 소요 기간 (예: '6주', '2개월')")
+    key_focus_areas: list[str] = Field(
+        min_length=3,
+        max_length=5,
+        description="집중 학습 영역 3-5개"
+    )
+    success_criteria: list[str] = Field(
+        min_length=2,
+        max_length=4,
+        description="목표 달성 기준 2-4개"
+    )
+
+
+class StudyPhase(BaseModel):
+    """학습 단계별 계획"""
+    phase_name: str = Field(description="단계명 (예: '기초 다지기', '실력 향상', '고득점 도전')")
+    duration: str = Field(description="기간 (예: '2주', '1개월')")
+    objectives: list[str] = Field(
+        min_length=2,
+        max_length=4,
+        description="단계별 목표 2-4개"
+    )
+    activities: list[str] = Field(
+        min_length=3,
+        max_length=6,
+        description="구체적인 활동 3-6개"
+    )
+    study_hours_per_week: int = Field(ge=0, description="주당 학습 시간")
+    milestone: str = Field(description="중간 점검 기준")
+
+
+class ScoreLevelPlanResponse(BaseModel):
+    """점수대별 맞춤 학습 계획 응답"""
+    analysis_id: str | UUID
+    current_score: int = Field(ge=0, le=100, description="현재 점수")
+    total_score: int = Field(ge=0, description="만점")
+    score_percentage: int = Field(ge=0, le=100, description="득점률 (%)")
+    characteristics: ScoreLevelCharacteristics = Field(description="현재 점수대 특성")
+    improvement_goal: ImprovementGoal = Field(description="향상 목표")
+    study_phases: list[StudyPhase] = Field(
+        min_length=2,
+        max_length=4,
+        description="단계별 학습 계획 2-4개"
+    )
+    daily_routine: list[str] = Field(
+        min_length=3,
+        max_length=7,
+        description="일일 학습 루틴 권장사항 3-7개"
+    )
+    motivational_message: str = Field(description="격려 메시지")
+    generated_at: datetime | str
+
+
 # --- 성과 예측 ---
 
 class DifficultyHandling(BaseModel):
