@@ -2,6 +2,17 @@
  * Authentication type definitions.
  */
 
+// 템플릿 타입 정의
+export type TemplateType = 'detailed' | 'summary' | 'parent' | 'print';
+
+export interface TemplateInfo {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  features: string[];
+}
+
 export interface User {
   id: string;
   email: string;
@@ -11,6 +22,7 @@ export interface User {
   data_consent: boolean;  // AI 개선 데이터 활용 동의
   subscription_tier: 'free' | 'basic' | 'pro';  // 구독 티어
   credits: number;  // 보유 크레딧
+  preferred_template: TemplateType;  // 선호 템플릿
   created_at: string;
   updated_at?: string;
 }

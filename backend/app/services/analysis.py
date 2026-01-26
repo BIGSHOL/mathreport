@@ -32,10 +32,24 @@ class AnalysisService:
     def __init__(self, db: SupabaseClient):
         self.db = db
 
-    async def request_analysis(self, exam_id: str, user_id: str, force_reanalyze: bool = False):
+    async def request_analysis(
+        self,
+        exam_id: str,
+        user_id: str,
+        force_reanalyze: bool = False,
+        analysis_mode: str = "full"
+    ):
         """Request exam analysis.
 
         Performs AI analysis and saves the results.
+
+        Args:
+            exam_id: 시험지 ID
+            user_id: 사용자 ID
+            force_reanalyze: 재분석 강제 여부
+            analysis_mode: 분석 모드
+                - "questions_only": 문항 분석만 (정오답 제외, 빠른 분석)
+                - "full": 전체 분석 (문항 + 정오답)
         """
         # 1. Check exam existence
         result = await self.db.table("exams").select("*").eq("id", exam_id).eq("user_id", user_id).maybe_single().execute()
@@ -66,7 +80,9 @@ class AnalysisService:
             return {
                 "analysis_id": existing["id"],
                 "status": "completed",
-                "message": "기존 분석 결과를 반환합니다."
+                "message": "기존 분석 결과를 반환합니다.",
+                "cache_hit": True,
+                "analyzed_at": existing.get("analyzed_at"),
             }
 
         # 3. Update status to ANALYZING
@@ -90,6 +106,7 @@ class AnalysisService:
                 unit=exam.get("unit"),
                 auto_classify=True,  # 시험지 유형 자동 분류
                 exam_id=exam_id,  # 진행 단계 업데이트용
+                analysis_mode=analysis_mode,  # 분석 모드 (questions_only/full)
             )
 
             # 5. Process & Save Result
@@ -138,6 +155,10 @@ class AnalysisService:
                 "updated_at": datetime.utcnow().isoformat()
             }
 
+            # 정오답 분석 완료 여부 (full 모드에서만)
+            if analysis_mode == "full":
+                exam_update["has_answer_analysis"] = True
+
             # 분석 결과에서 _classification 정보 추출하여 exam에 저장
             classification = ai_result.get("_classification", {})
             if classification:
@@ -182,7 +203,8 @@ class AnalysisService:
             return {
                 "analysis_id": analysis_id,
                 "status": "completed",
-                "message": "분석이 완료되었습니다."
+                "message": "분석이 완료되었습니다.",
+                "cache_hit": False,
             }
 
         except Exception as e:
@@ -201,6 +223,130 @@ class AnalysisService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"분석 실패: {str(e)}"
             )
+
+    async def request_answer_analysis(
+        self,
+        exam_id: str,
+        user_id: str,
+        existing_analysis_id: str
+    ):
+        """기존 분석에 정오답 분석 추가.
+
+        Args:
+            exam_id: 시험지 ID
+            user_id: 사용자 ID
+            existing_analysis_id: 기존 분석 결과 ID
+        """
+        # 1. 시험지 조회
+        result = await self.db.table("exams").select("*").eq("id", exam_id).eq("user_id", user_id).maybe_single().execute()
+
+        if result.error or result.data is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "EXAM_NOT_FOUND", "message": "시험지를 찾을 수 없습니다."}
+            )
+
+        exam = result.data
+
+        # 2. 기존 분석 결과 조회
+        analysis_result = await self.db.table("analysis_results").select("*").eq("id", existing_analysis_id).maybe_single().execute()
+
+        if analysis_result.error or analysis_result.data is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "ANALYSIS_NOT_FOUND", "message": "분석 결과를 찾을 수 없습니다."}
+            )
+
+        existing_analysis = analysis_result.data
+
+        # 3. 정오답 분석 수행 (answers_only 모드)
+        from app.services.ai_engine import ai_engine
+
+        try:
+            # 상태 업데이트
+            await self.db.table("exams").eq("id", exam_id).update({
+                "status": "analyzing",
+                "updated_at": datetime.utcnow().isoformat()
+            }).execute()
+
+            # 정오답 분석 전용 호출
+            ai_result = await ai_engine.analyze_answers_only(
+                db=self.db,
+                file_path=exam["file_path"],
+                existing_questions=existing_analysis.get("questions", []),
+                exam_id=exam_id,
+            )
+
+            # 4. 기존 문항에 정오답 정보 병합
+            updated_questions = self._merge_answer_results(
+                existing_analysis.get("questions", []),
+                ai_result.get("questions", [])
+            )
+
+            # 5. 분석 결과 업데이트
+            now = datetime.utcnow().isoformat()
+            await self.db.table("analysis_results").eq("id", existing_analysis_id).update({
+                "questions": updated_questions,
+                "analyzed_at": now,
+            }).execute()
+
+            # 6. 시험지 상태 업데이트
+            await self.db.table("exams").eq("id", exam_id).update({
+                "status": "completed",
+                "has_answer_analysis": True,
+                "updated_at": now
+            }).execute()
+
+            return {
+                "analysis_id": existing_analysis_id,
+                "status": "completed",
+                "message": "정오답 분석이 완료되었습니다."
+            }
+
+        except Exception as e:
+            error_msg = str(e)[:500] if str(e) else "알 수 없는 오류"
+            await self.db.table("exams").eq("id", exam_id).update({
+                "status": "completed",  # 정오답 분석 실패해도 기존 분석은 유지
+                "error_message": f"정오답 분석 실패: {error_msg}",
+                "updated_at": datetime.utcnow().isoformat()
+            }).execute()
+
+            import traceback
+            print(f"Answer analysis failed: {e}")
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"정오답 분석 실패: {str(e)}"
+            )
+
+    def _merge_answer_results(
+        self,
+        existing_questions: list[dict],
+        answer_results: list[dict]
+    ) -> list[dict]:
+        """기존 문항에 정오답 분석 결과 병합."""
+        # 문항 번호로 매핑
+        answer_map = {
+            str(q.get("question_number")): q
+            for q in answer_results
+        }
+
+        merged = []
+        for q in existing_questions:
+            q_num = str(q.get("question_number"))
+            answer_info = answer_map.get(q_num, {})
+
+            # 정오답 관련 필드만 업데이트
+            if answer_info:
+                q["is_correct"] = answer_info.get("is_correct")
+                q["student_answer"] = answer_info.get("student_answer")
+                q["earned_points"] = answer_info.get("earned_points")
+                q["error_type"] = answer_info.get("error_type")
+                q["grading_rationale"] = answer_info.get("grading_rationale")
+
+            merged.append(q)
+
+        return merged
 
     async def _collect_question_references(
         self,

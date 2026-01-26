@@ -41,7 +41,8 @@ async def request_analysis(
     """시험지 분석을 요청합니다.
 
     - 사용량 한도를 체크하고 소비합니다.
-    - 빈 시험지(blank): 1크레딧, 학생 답안지(student): 2크레딧
+    - questions_only: 1크레딧 (문항 분석만)
+    - full: 2크레딧 (문항 + 정오답 분석)
     - 한도 초과 시 402 Payment Required 반환
     """
     # 시험지 조회하여 exam_type 확인
@@ -57,15 +58,19 @@ async def request_analysis(
             }
         )
 
-    # 사용량 체크 및 소비 (exam_type에 따라 차등)
+    # 사용량 체크 및 소비 (분석 모드에 따라 차등)
+    # questions_only: 1크레딧, full: 2크레딧
+    analysis_mode = request.analysis_mode
+    effective_exam_type = "blank" if analysis_mode == "questions_only" else "student"
+
     subscription_service = get_subscription_service(db)
     can_analyze = await subscription_service.consume_analysis(
         current_user["id"],
-        exam_type=exam["exam_type"]
+        exam_type=effective_exam_type
     )
 
     if not can_analyze:
-        credit_cost = 2 if exam["exam_type"] == "student" else 1
+        credit_cost = 2 if analysis_mode == "full" else 1
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
@@ -78,7 +83,87 @@ async def request_analysis(
     result = await analysis_service.request_analysis(
         exam_id=exam_id,
         user_id=current_user["id"],
-        force_reanalyze=request.force_reanalyze
+        force_reanalyze=request.force_reanalyze,
+        analysis_mode=analysis_mode
+    )
+
+    return AnalysisCreateResponse(data=result)
+
+
+@router.post(
+    "/exams/{exam_id}/analyze-answers",
+    response_model=AnalysisCreateResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="정오답 분석 추가 요청"
+)
+async def request_answer_analysis(
+    exam_id: str,
+    current_user: CurrentUser,
+    db: DbDep,
+) -> AnalysisCreateResponse:
+    """기존 문항 분석에 정오답 분석을 추가합니다.
+
+    - 기존 분석(questions_only)이 있어야 합니다.
+    - 추가 1크레딧 소비
+    - 학생 답안지(answered/mixed)에서만 의미있음
+    """
+    # 시험지 조회
+    exam_service = get_exam_service(db)
+    exam = await exam_service.get_exam(exam_id, current_user["id"])
+
+    if not exam:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "EXAM_NOT_FOUND",
+                "message": "시험지를 찾을 수 없습니다."
+            }
+        )
+
+    # 이미 정오답 분석이 완료된 경우
+    if exam.get("has_answer_analysis"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "ALREADY_ANALYZED",
+                "message": "이미 정오답 분석이 완료되었습니다."
+            }
+        )
+
+    # 기존 분석 결과 확인
+    analysis_service = get_analysis_service(db)
+    existing = await analysis_service.get_analysis_by_exam(exam_id)
+
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "NO_BASE_ANALYSIS",
+                "message": "먼저 문항 분석을 수행해주세요."
+            }
+        )
+
+    # 사용량 체크 및 소비 (정오답 분석 = 1크레딧 추가)
+    subscription_service = get_subscription_service(db)
+    can_analyze = await subscription_service.consume_analysis(
+        current_user["id"],
+        exam_type="blank"  # 1크레딧
+    )
+
+    if not can_analyze:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "USAGE_LIMIT_EXCEEDED",
+                "message": "이번 달 분석 한도를 초과했습니다. (필요: 1크레딧) 구독을 업그레이드하거나 크레딧을 구매해주세요."
+            }
+        )
+
+    # 정오답 분석 수행 (answers_only 모드)
+    result = await analysis_service.request_answer_analysis(
+        exam_id=exam_id,
+        user_id=current_user["id"],
+        existing_analysis_id=existing["id"]
     )
 
     return AnalysisCreateResponse(data=result)

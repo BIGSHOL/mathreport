@@ -113,6 +113,10 @@ class ExamBase(BaseModel):
     extracted_grade: str | None = None  # 추출된 학년 정보
     # 분석 실패 시 에러 메시지
     error_message: str | None = None
+    # 분석 진행 단계 (1: 파일 준비, 2: 유형 분석, 3: AI 분석, 4: 결과 저장)
+    analysis_step: int | None = Field(default=0, ge=0, le=4, description="분석 진행 단계 (0-4)")
+    # 정오답 분석 완료 여부 (2단계 분석)
+    has_answer_analysis: bool = Field(default=False, description="정오답 분석 완료 여부")
 
     model_config = ConfigDict(from_attributes=True)
 

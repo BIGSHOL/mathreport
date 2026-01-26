@@ -155,6 +155,7 @@ class UserResponse(UserBase):
     data_consent: bool = Field(default=False, description="AI 데이터 활용 동의")
     subscription_tier: str = Field(default="free", description="구독 티어")
     credits: int = Field(default=0, description="보유 크레딧")
+    preferred_template: str = Field(default="detailed", description="선호 템플릿")
 
     model_config = {
         "from_attributes": True,
@@ -168,7 +169,8 @@ class UserResponse(UserBase):
                 "updated_at": "2024-01-23T10:00:00Z",
                 "data_consent": False,
                 "subscription_tier": "free",
-                "credits": 0
+                "credits": 0,
+                "preferred_template": "detailed"
             }
         }
     }

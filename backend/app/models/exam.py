@@ -69,3 +69,5 @@ class Exam(Base):
     extracted_grade: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # 분석 실패 시 에러 메시지
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # 정오답 분석 완료 여부 (2단계 분석)
+    has_answer_analysis: Mapped[bool] = mapped_column(nullable=False, default=False)

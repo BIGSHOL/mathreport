@@ -113,7 +113,9 @@ export function ExamDashboardPage() {
 
       try {
         const result = await requestAnalysis({ examId });
-        navigate(`/analysis/${result.analysis_id}`);
+        // 캐시 히트 여부를 쿼리 파라미터로 전달
+        const queryParams = result.cache_hit ? '?cached=true' : '';
+        navigate(`/analysis/${result.analysis_id}${queryParams}`);
       } catch (error: unknown) {
         const axiosError = error as { response?: { status?: number }; code?: string };
         const status = axiosError?.response?.status;

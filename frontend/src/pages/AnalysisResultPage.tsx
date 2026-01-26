@@ -8,89 +8,83 @@
  * - rendering-conditional-render: Explicit ternary operators
  * - js-early-exit: Early return for loading/error states
  * - ui-components: TabGroup 재사용 컴포넌트 활용
+ *
+ * Note: 베타 기간 중 상세 분석 템플릿만 사용
+ * 추후 SummaryTemplate, ParentTemplate, PrintTemplate 활성화 예정
  */
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useCallback, useEffect } from 'react';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   useAnalysisResult,
   useExtendedAnalysis,
   useGenerateExtendedAnalysis,
+  useRequestAnswerAnalysis,
 } from '../hooks/useAnalysis';
-import { QuestionCard } from '../components/analysis/QuestionCard';
-import { ExtendedReport } from '../components/analysis/ExtendedReport';
-import { AnswerAnalysis } from '../components/analysis/AnswerAnalysis';
-// Direct imports avoid barrel file overhead (bundle-barrel-imports)
-import { DifficultyPieChart, TypePieChart, TopicDistributionChart, PointsDistributionChart, FormatDistributionChart } from '../components/analysis/charts/DifficultyPieChart';
-import { TopicAnalysisChart } from '../components/analysis/charts/TopicAnalysisChart';
-import { ExamScopeView } from '../components/analysis/charts/ExamScopeView';
-import { ConfidenceExplanation } from '../components/analysis/ConfidenceBadge';
-import { TabGroup, type Tab } from '../components/ui/TabGroup';
-import { getConfidenceLevel, CONFIDENCE_COLORS } from '../styles/tokens';
-import examService, { type ExamType } from '../services/exam';
+import { DetailedTemplate } from '../components/analysis/templates';
+import { CacheHitBanner } from '../components/analysis/CacheHitBanner';
+import { getConfidenceLevel, CONFIDENCE_COLORS, DIFFICULTY_COLORS } from '../styles/tokens';
+import examService, { type ExamType, type Exam } from '../services/exam';
 
 // Hoisted static elements (rendering-hoist-jsx)
 const loadingState = <div className="p-8">로딩 중...</div>;
 const notFoundState = <div className="p-8">결과를 찾을 수 없습니다</div>;
 
-type ViewMode = 'basic' | 'scope' | 'answers' | 'extended';
-
 export function AnalysisResultPage() {
   const { id } = useParams<{ id: string }>();
-  const { result, isLoading, error } = useAnalysisResult(id);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { result, isLoading, error, mutate: mutateResult } = useAnalysisResult(id);
   const { extension, mutate: mutateExtension } = useExtendedAnalysis(id);
   const { generateExtended, isGenerating } = useGenerateExtendedAnalysis();
+  const { requestAnswerAnalysis, isRequesting: isRequestingAnswerAnalysis } = useRequestAnswerAnalysis();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('basic');
-  const [examType, setExamType] = useState<ExamType>('blank');
+  const [exam, setExam] = useState<Exam | null>(null);
+  const [hasAnswerAnalysis, setHasAnswerAnalysis] = useState(false);
 
-  // exam_type 조회
+  // 캐시 히트 여부 (쿼리 파라미터에서 확인)
+  const isCacheHit = searchParams.get('cached') === 'true';
+
+  // 배너 닫기 핸들러
+  const handleBannerDismiss = useCallback(() => {
+    searchParams.delete('cached');
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  // exam 정보 조회
   useEffect(() => {
     if (result?.exam_id) {
-      examService.getDetail(result.exam_id).then(exam => {
-        setExamType(exam.exam_type);
+      examService.getDetail(result.exam_id).then(examData => {
+        setExam(examData);
+        setHasAnswerAnalysis(examData.has_answer_analysis || false);
       }).catch(() => {
         // 실패 시 기본값 유지
       });
     }
   }, [result?.exam_id]);
 
-  // 학생 답안지 여부
-  const isStudentExam = examType === 'student';
-
-  // 탭 구성 (useMemo로 메모이제이션)
-  const tabs: Tab[] = useMemo(() => {
-    const baseTabs: Tab[] = [
-      { id: 'basic', label: '기본 분석' },
-      { id: 'scope', label: '출제현황' },
-    ];
-    if (isStudentExam) {
-      baseTabs.push(
-        { id: 'answers', label: '정오답 분석' },
-        { id: 'extended', label: '확장 분석' }
-      );
-    }
-    return baseTabs;
-  }, [isStudentExam]);
-
-  // 탭 변경 핸들러
-  const handleTabChange = useCallback((tabId: string) => {
-    setViewMode(tabId as ViewMode);
-  }, []);
+  const examType: ExamType = exam?.exam_type || 'blank';
 
   const handleGenerateExtended = useCallback(async () => {
     if (!id) return;
     const ext = await generateExtended({ analysisId: id });
     if (ext) {
       mutateExtension(ext);
-      setViewMode('extended');
     }
   }, [id, generateExtended, mutateExtension]);
+
+  // 정오답 분석 요청 핸들러
+  const handleRequestAnswerAnalysis = useCallback(async () => {
+    if (!result?.exam_id) return;
+    await requestAnswerAnalysis({ examId: result.exam_id });
+    setHasAnswerAnalysis(true);
+    // 분석 결과 다시 조회
+    mutateResult();
+  }, [result?.exam_id, requestAnswerAnalysis, mutateResult]);
 
   // Early return for loading/error states (js-early-exit)
   if (isLoading) return loadingState;
   if (error || !result) return notFoundState;
 
-  const { summary, questions, total_questions } = result;
+  const { questions, total_questions } = result;
 
   // 총 배점 계산 (부동소수점 오류 방지를 위해 반올림)
   const totalPoints = Math.round(questions.reduce((sum, q) => sum + (q.points || 0), 0) * 10) / 10;
@@ -100,125 +94,145 @@ export function AnalysisResultPage() {
   const avgConfidence =
     questionsWithConfidence.length > 0
       ? questionsWithConfidence.reduce((sum, q) => sum + (q.confidence || 0), 0) /
-      questionsWithConfidence.length
+        questionsWithConfidence.length
       : null;
+
+  // 템플릿 Props
+  const templateProps = {
+    result,
+    extension,
+    examType,
+    analysisId: id || '',
+    onGenerateExtended: handleGenerateExtended,
+    isGenerating,
+    hasAnswerAnalysis,
+    onRequestAnswerAnalysis: handleRequestAnswerAnalysis,
+    isRequestingAnswerAnalysis,
+  };
+
+  // 난이도 분포 계산
+  const difficultyDist = {
+    high: questions.filter(q => q.difficulty === 'high').length,
+    medium: questions.filter(q => q.difficulty === 'medium').length,
+    low: questions.filter(q => q.difficulty === 'low').length,
+  };
+  const totalDiff = difficultyDist.high + difficultyDist.medium + difficultyDist.low;
+
+  // 종합 난이도 등급 계산 (A+~D-)
+  const calculateDifficultyGrade = () => {
+    if (totalDiff === 0) return null;
+    // 가중 평균: high=3, medium=2, low=1
+    const weightedScore = (difficultyDist.high * 3 + difficultyDist.medium * 2 + difficultyDist.low * 1) / totalDiff;
+
+    // 등급 매핑 (점수가 높을수록 어려운 시험)
+    if (weightedScore >= 2.83) return { grade: 'A+', label: '최상', color: 'bg-red-600', text: 'text-white' };
+    if (weightedScore >= 2.67) return { grade: 'A', label: '상', color: 'bg-red-500', text: 'text-white' };
+    if (weightedScore >= 2.50) return { grade: 'A-', label: '상', color: 'bg-red-400', text: 'text-white' };
+    if (weightedScore >= 2.33) return { grade: 'B+', label: '중상', color: 'bg-orange-500', text: 'text-white' };
+    if (weightedScore >= 2.17) return { grade: 'B', label: '중상', color: 'bg-orange-400', text: 'text-white' };
+    if (weightedScore >= 2.00) return { grade: 'B-', label: '중상', color: 'bg-amber-500', text: 'text-white' };
+    if (weightedScore >= 1.83) return { grade: 'C+', label: '중', color: 'bg-yellow-500', text: 'text-gray-900' };
+    if (weightedScore >= 1.67) return { grade: 'C', label: '중', color: 'bg-yellow-400', text: 'text-gray-900' };
+    if (weightedScore >= 1.50) return { grade: 'C-', label: '중하', color: 'bg-lime-500', text: 'text-white' };
+    if (weightedScore >= 1.33) return { grade: 'D+', label: '하', color: 'bg-green-500', text: 'text-white' };
+    if (weightedScore >= 1.17) return { grade: 'D', label: '하', color: 'bg-green-400', text: 'text-white' };
+    return { grade: 'D-', label: '최하', color: 'bg-emerald-400', text: 'text-white' };
+  };
+  const difficultyGrade = calculateDifficultyGrade();
+
+  // 시험지 표시 제목 (AI 추출 제목 우선)
+  const displayTitle = exam?.suggested_title || exam?.title || '시험지';
+  // 학년 (AI 추출 학년 우선)
+  const displayGrade = exam?.extracted_grade || exam?.grade;
+  // 과목
+  const displaySubject = exam?.detected_subject || exam?.subject || '수학';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
+      <div className="mb-6">
         <Link
           to="/exams"
           className="text-indigo-600 hover:text-indigo-900 mb-4 inline-block"
         >
           &larr; 목록으로 돌아가기
         </Link>
-        <div className="flex justify-between items-start flex-wrap gap-4">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">분석 결과</h2>
-            <p className="text-gray-500 mt-2">
-              총 {total_questions}문항 · {totalPoints}점 만점
-              {avgConfidence != null && (() => {
-                const level = getConfidenceLevel(avgConfidence);
-                const config = CONFIDENCE_COLORS[level];
-                return (
-                  <span
-                    className={`ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}
-                    title="AI 분석 신뢰도"
-                  >
-                    신뢰도 {Math.round(avgConfidence * 100)}%
-                  </span>
-                );
-              })()}
-            </p>
-          </div>
-          {/* View Mode Toggle - TabGroup 컴포넌트 활용 */}
-          <TabGroup
-            tabs={tabs}
-            activeTab={viewMode}
-            onTabChange={handleTabChange}
-            variant="bordered"
+
+        {/* 캐시 히트 알림 배너 */}
+        {isCacheHit && result?.exam_id && (
+          <CacheHitBanner
+            examId={result.exam_id}
+            analyzedAt={result.analyzed_at}
+            onReanalyze={handleBannerDismiss}
           />
+        )}
+
+        {/* 시험지 정보 카드 */}
+        <div className="bg-white rounded-lg shadow p-5 mt-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* 좌측: 제목 및 기본 정보 */}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-2xl font-bold text-gray-900 truncate" title={displayTitle}>
+                {displayTitle}
+              </h2>
+              <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
+                {displayGrade && (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 font-medium">
+                    {displayGrade}
+                  </span>
+                )}
+                <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 font-medium">
+                  {displaySubject}
+                </span>
+                <span className="text-gray-500">
+                  총 {total_questions}문항 · {totalPoints}점 만점
+                </span>
+                {avgConfidence != null && (() => {
+                  const level = getConfidenceLevel(avgConfidence);
+                  const config = CONFIDENCE_COLORS[level];
+                  return (
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}
+                      title="AI 분석 신뢰도"
+                    >
+                      신뢰도 {Math.round(avgConfidence * 100)}%
+                    </span>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* 우측: 종합 난이도 등급 */}
+            {difficultyGrade && (
+              <div className="flex items-center gap-3">
+                <div className="text-xs text-gray-500">난이도</div>
+                <div
+                  className={`flex items-center justify-center w-12 h-12 rounded-lg ${difficultyGrade.color} ${difficultyGrade.text} font-bold text-lg shadow-sm`}
+                  title={`난이도 등급: ${difficultyGrade.grade} (${difficultyGrade.label})`}
+                >
+                  {difficultyGrade.grade}
+                </div>
+                <div className="text-xs text-gray-500">
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
+                    <span>상 {difficultyDist.high}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
+                    <span>중 {difficultyDist.medium}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
+                    <span>하 {difficultyDist.low}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {viewMode === 'basic' && (
-        <>
-          {/* 신뢰도 설명 패널 */}
-          {avgConfidence != null && (
-            <ConfidenceExplanation avgConfidence={avgConfidence} />
-          )}
-
-          {/* 분포 차트 - 1행: 난이도, 유형 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            <DifficultyPieChart distribution={summary.difficulty_distribution} />
-            <TypePieChart distribution={summary.type_distribution} />
-          </div>
-
-          {/* 분포 차트 - 2행: 문항 형식, 단원 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            <FormatDistributionChart formats={questions.map((q) => q.question_format)} />
-            <TopicDistributionChart topics={questions.map((q) => q.topic || '')} />
-          </div>
-
-          {/* 분포 차트 - 3행: 배점 (전체 너비) */}
-          <div className="mb-4">
-            <PointsDistributionChart questions={questions} />
-          </div>
-
-          {/* Question List - 테이블 형식 */}
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200">
-              <h3 className="text-base font-semibold text-gray-900">
-                문항별 상세 분석
-              </h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 text-xs text-gray-500 whitespace-nowrap">
-                  <tr>
-                    <th className="px-3 py-2 text-center w-20">번호</th>
-                    <th className="px-3 py-2 text-center w-16">난이도</th>
-                    <th className="px-3 py-2 text-left w-20">유형</th>
-                    <th className="px-3 py-2 text-left">단원</th>
-                    <th className="px-3 py-2 text-right w-14">배점</th>
-                    <th className="px-3 py-2 text-center w-16">신뢰도</th>
-                    <th className="px-3 py-2 text-center w-16">피드백</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-sm">
-                  {questions.map((q) => (
-                    <QuestionCard key={q.id} question={q} analysisId={result.id} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
-
-      {viewMode === 'scope' && (
-        <>
-          {/* 시험범위 분석 */}
-          <ExamScopeView questions={questions} />
-
-          {/* 단원별/과목별 출제현황 */}
-          <div className="mt-8">
-            <TopicAnalysisChart questions={questions} />
-          </div>
-        </>
-      )}
-
-      {viewMode === 'answers' && isStudentExam && (
-        <AnswerAnalysis questions={questions} analysisId={id} />
-      )}
-
-      {viewMode === 'extended' && (
-        <ExtendedReport
-          extension={extension ?? null}
-          onGenerate={handleGenerateExtended}
-          isGenerating={isGenerating}
-        />
-      )}
+      {/* 상세 분석 템플릿 (베타 기간 중 단일 템플릿 사용) */}
+      <DetailedTemplate {...templateProps} />
     </div>
   );
 }

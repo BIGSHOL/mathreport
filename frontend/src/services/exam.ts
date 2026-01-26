@@ -41,6 +41,8 @@ export interface Exam {
     error_message?: string | null;
     // 분석 진행 단계 (1: 유형분류, 2: 프롬프트생성, 3: AI분석, 4: 결과저장)
     analysis_step?: number | null;
+    // 정오답 분석 완료 여부 (2단계 분석)
+    has_answer_analysis?: boolean;
 }
 
 export interface ExamListResponse {

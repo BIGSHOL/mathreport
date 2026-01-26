@@ -5,6 +5,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 import authService from '../services/auth';
+import type { TemplateType } from '../types/auth';
+
+const TEMPLATE_OPTIONS: Array<{ id: TemplateType; name: string; icon: string; description: string }> = [
+  { id: 'detailed', name: '상세 분석', icon: '📊', description: '모든 정보를 표시하는 기본 레이아웃' },
+  { id: 'summary', name: '요약 카드', icon: '📋', description: '핵심 지표만 카드 형태로 표시' },
+  { id: 'parent', name: '부모용', icon: '👨‍👩‍👧', description: '쉬운 언어로 개선 방향 중심 표시' },
+  { id: 'print', name: '프린트', icon: '🖨️', description: '인쇄에 최적화된 흑백 레이아웃' },
+];
 
 export function ProfilePage() {
   const navigate = useNavigate();
@@ -25,11 +33,28 @@ export function ProfilePage() {
     confirmPassword: '',
   });
 
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('detailed');
+
   useEffect(() => {
     if (user) {
       setFormData({ nickname: user.nickname || '' });
+      setSelectedTemplate(user.preferred_template || 'detailed');
     }
   }, [user]);
+
+  const handleTemplateChange = async (template: TemplateType) => {
+    setIsLoading(true);
+    try {
+      await authService.updatePreferredTemplate(template);
+      setSelectedTemplate(template);
+      await fetchUser();
+      setMessage({ type: 'success', text: '기본 템플릿이 변경되었습니다' });
+    } catch {
+      setMessage({ type: 'error', text: '템플릿 변경 실패' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,6 +248,47 @@ export function ProfilePage() {
                 }`}
               />
             </button>
+          </div>
+        </div>
+
+        {/* Template Settings */}
+        <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">분석 결과 표시</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            분석 결과를 표시할 기본 템플릿을 선택하세요.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {TEMPLATE_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => handleTemplateChange(option.id)}
+                disabled={isLoading}
+                className={`flex items-start gap-3 p-4 rounded-lg border-2 transition-colors text-left ${
+                  selectedTemplate === option.id
+                    ? 'border-indigo-500 bg-indigo-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <span className="text-2xl flex-shrink-0">{option.icon}</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-medium ${
+                      selectedTemplate === option.id ? 'text-indigo-700' : 'text-gray-900'
+                    }`}>
+                      {option.name}
+                    </span>
+                    {selectedTemplate === option.id && (
+                      <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded">
+                        기본
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {option.description}
+                  </p>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 

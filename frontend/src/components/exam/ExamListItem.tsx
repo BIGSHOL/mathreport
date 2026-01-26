@@ -219,26 +219,16 @@ export const ExamListItem = memo(function ExamListItem({
                 추천명
               </span>
             )}
-            {/* 과목 배지 */}
-            {exam.subject && (
-              <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                  exam.subject.includes('영어')
-                    ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-200'
-                    : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
-                }`}
-              >
-                {exam.subject.includes('영어') ? '영어' : '수학'}
-              </span>
-            )}
-            {/* 시험지 유형 배지 - AI 감지 결과 우선 표시 */}
+            {/* 시험지 유형 배지 - AI 감지 결과가 있을 때만 tooltip 표시 */}
             <span
-              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold cursor-help ${
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                detectionExplanation ? 'cursor-help' : ''
+              } ${
                 isStudentType
                   ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-200'
                   : 'bg-sky-100 text-sky-700 ring-1 ring-sky-200'
               }`}
-              title={detectionExplanation || (isStudentType ? '학생이 푼 답안지' : '문제만 있는 시험지')}
+              title={detectionExplanation || undefined}
             >
               {isStudentType ? '답안지' : '시험지'}
             </span>

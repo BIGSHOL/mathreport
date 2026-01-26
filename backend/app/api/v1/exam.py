@@ -22,7 +22,6 @@ from app.schemas.exam import (
     PaginationMeta,
 )
 from app.services.exam import get_exam_service
-from app.services.ai_engine import ai_engine
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 
@@ -65,7 +64,8 @@ async def upload_exam(
         exam_type=ExamType(exam_type)
     )
 
-    # Create exam
+    # Create exam (AI 분류 없이 즉시 저장 - 속도 최적화)
+    # 시험지 유형 분류는 분석 요청 시 수행됨 (analyze_exam_with_patterns)
     exam_service = get_exam_service(db)
     exam = await exam_service.create_exam(
         user_id=current_user["id"],
@@ -73,77 +73,7 @@ async def upload_exam(
         files=files
     )
 
-    # 백그라운드에서 AI 자동 분류 실행 (동기식으로 변경 - 빠른 피드백)
-    try:
-        classification = await ai_engine.classify_exam_paper(exam["file_path"])
-
-        # 🎯 과목 자동 감지 및 검증
-        detected_subject = classification.detected_subject
-        subject_confidence = classification.subject_confidence
-
-        # 수학/영어가 아닌 과목은 차단
-        if detected_subject not in ["수학", "영어"]:
-            # 시험지 삭제 (스토리지 정리)
-            await exam_service.delete_exam(str(exam["id"]), current_user["id"])
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={
-                    "code": "UNSUPPORTED_SUBJECT",
-                    "message": f"현재 수학과 영어 시험지만 지원합니다. (감지된 과목: {detected_subject})",
-                    "details": [
-                        {"field": "subject", "reason": f"감지된 과목 '{detected_subject}'은(는) 지원되지 않습니다."}
-                    ]
-                }
-            )
-
-        print(f"[Subject Detection] {detected_subject} (confidence: {subject_confidence:.2f})")
-
-        # 분류 로직:
-        # 1. blank → blank (빈 시험지)
-        # 2. answered/mixed + 채점됨 → student (정오답 분석 가능)
-        # 3. answered/mixed + 미채점 → blank (정오답 분석 불가, 다운그레이드)
-        if classification.paper_type == "blank":
-            detected = "blank"
-            grading = "not_applicable"
-        elif classification.paper_type in ["answered", "mixed"]:
-            grading = classification.grading_status or "unknown"
-            # 미채점 답안지는 정오답 분석 불가 → blank로 다운그레이드
-            if grading == "not_graded":
-                detected = "blank"
-            else:
-                detected = "student"
-        else:
-            detected = "blank"
-            grading = "unknown"
-
-        # 메타데이터 추출
-        suggested_title = None
-        extracted_grade = None
-        if classification.extracted_metadata:
-            suggested_title = classification.extracted_metadata.get("suggested_title")
-            extracted_grade = classification.extracted_metadata.get("grade")
-            print(f"[Metadata Extracted] title={suggested_title}, grade={extracted_grade}")
-
-        updated_exam = await exam_service.update_detection_result(
-            exam_id=str(exam["id"]),
-            detected_type=detected,
-            confidence=classification.confidence,
-            grading_status=grading,
-            suggested_title=suggested_title,
-            extracted_grade=extracted_grade,
-            detected_subject=detected_subject,
-            subject_confidence=subject_confidence,
-        )
-
-        # Use updated exam data
-        if updated_exam:
-            exam = updated_exam
-
-        print(f"[Auto-Classification] Exam {exam['id']}: {detected} (subject={detected_subject}, grading={grading}, conf={classification.confidence:.2f})")
-    except HTTPException:
-        raise  # Re-raise HTTPException for unsupported subjects
-    except Exception as e:
-        print(f"[Auto-Classification Error] {e}")
+    print(f"[Upload] Exam {exam['id']} uploaded (AI classification deferred to analysis)")
 
     # Convert to response
     exam_base = ExamBase.model_validate(exam)
@@ -205,7 +135,8 @@ async def get_exams(
                 analysis = result.data
                 questions = analysis.get("questions") or []
                 total_questions = len(questions)
-                total_points = sum(q.get("points", 0) or 0 for q in questions)
+                # 부동소수점 오류 방지: 소수점 1자리까지 반올림
+                total_points = round(sum(q.get("points", 0) or 0 for q in questions), 1)
 
                 # Calculate confidence
                 confidences = [q.get("confidence") for q in questions if q.get("confidence") is not None]

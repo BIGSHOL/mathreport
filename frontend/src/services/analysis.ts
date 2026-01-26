@@ -44,9 +44,9 @@ export interface QuestionAnalysis {
     confidence_reason?: string;  // 신뢰도가 낮은 이유 (70% 미만일 때)
     // 학생 답안지 전용 필드
     is_correct?: boolean | null;  // 정답 여부
-    student_answer?: string;       // 학생 답안
-    earned_points?: number;        // 획득 점수
-    error_type?: ErrorType | null; // 오류 유형
+    student_answer?: string | null;  // 학생 답안
+    earned_points?: number | null;   // 획득 점수
+    error_type?: ErrorType | null;   // 오류 유형
     // 누락 문항 표시
     _is_placeholder?: boolean;     // AI가 인식하지 못해 자동 보완된 문항
 }
@@ -70,6 +70,9 @@ export interface AnalysisResult {
     analyzed_at: string;
     summary: AnalysisSummary;
     questions: QuestionAnalysis[];
+    // 캐시 관련 메타데이터
+    _cache_hit?: boolean;
+    _analyzed_at?: string;  // 원래 분석 시간
 }
 
 // ============================================
@@ -211,12 +214,36 @@ export const analysisService = {
     /**
      * Request exam analysis.
      * Gemini API 호출로 시간이 걸릴 수 있어 타임아웃을 길게 설정
+     *
+     * @param examId 시험지 ID
+     * @param forceReanalyze 재분석 강제 여부
+     * @param analysisMode 분석 모드 (questions_only: 1크레딧, full: 2크레딧)
      */
-    async requestAnalysis(examId: string, forceReanalyze = false): Promise<{ analysis_id: string; status: string }> {
-        const response = await api.post<{ data: { analysis_id: string; status: string } }>(
+    async requestAnalysis(
+        examId: string,
+        forceReanalyze = false,
+        analysisMode: 'questions_only' | 'full' = 'questions_only'
+    ): Promise<{ analysis_id: string; status: string; cache_hit?: boolean; analyzed_at?: string }> {
+        const response = await api.post<{ data: { analysis_id: string; status: string; cache_hit?: boolean; analyzed_at?: string } }>(
             `/api/v1/exams/${examId}/analyze`,
-            { force_reanalyze: forceReanalyze },
+            {
+                force_reanalyze: forceReanalyze,
+                analysis_mode: analysisMode
+            },
             { timeout: 120000 } // 2분 타임아웃 (AI 분석 시간 고려)
+        );
+        return response.data.data;
+    },
+
+    /**
+     * Request answer-only analysis (2단계).
+     * 기존 문항 분석에 정오답 분석 추가 (+1 크레딧)
+     */
+    async requestAnswerAnalysis(examId: string): Promise<{ analysis_id: string; status: string }> {
+        const response = await api.post<{ data: { analysis_id: string; status: string } }>(
+            `/api/v1/exams/${examId}/analyze-answers`,
+            {},
+            { timeout: 120000 }
         );
         return response.data.data;
     },

@@ -141,13 +141,13 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
 
   return (
     <tr key={q.id} className="hover:bg-red-50/50">
-      <td className="px-3 py-2 text-center font-medium text-red-600">
+      <td className="px-3 py-2 text-center font-medium text-red-600 whitespace-nowrap">
         {q.question_number}
       </td>
       <td className="px-3 py-2 text-gray-700 truncate max-w-xs">
         {q.topic || '-'}
       </td>
-      <td className="px-3 py-2 text-center">
+      <td className="px-3 py-2 text-center whitespace-nowrap">
         <span className={`px-1.5 py-0.5 rounded text-xs ${
           q.difficulty === 'high' ? 'bg-red-100 text-red-700' :
           q.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' :
@@ -156,10 +156,10 @@ const WrongQuestionRow = memo(function WrongQuestionRow({
           {q.difficulty === 'high' ? '상' : q.difficulty === 'medium' ? '중' : '하'}
         </span>
       </td>
-      <td className="px-3 py-2 text-center text-gray-600">
+      <td className="px-3 py-2 text-center text-gray-600 whitespace-nowrap">
         {q.earned_points ?? 0}/{q.points ?? 0}
       </td>
-      <td className="px-3 py-2 text-center">
+      <td className="px-3 py-2 text-center whitespace-nowrap">
         {q.error_type && (
           <span className={`px-1.5 py-0.5 rounded text-xs ${
             ERROR_TYPE_COLORS[q.error_type] || 'bg-gray-100 text-gray-700'
@@ -408,15 +408,15 @@ export const AnswerAnalysis = memo(function AnswerAnalysis({
           </h3>
           <div className="overflow-x-auto overflow-y-visible">
             <table className="w-full text-sm overflow-visible">
-              <thead className="bg-gray-50 text-xs text-gray-500">
+              <thead className="bg-gray-50 text-xs text-gray-500 whitespace-nowrap">
                 <tr>
                   <th className="px-3 py-2 text-center w-16">번호</th>
                   <th className="px-3 py-2 text-left">단원</th>
                   <th className="px-3 py-2 text-center w-16">난이도</th>
                   <th className="px-3 py-2 text-center w-20">배점</th>
-                  <th className="px-3 py-2 text-center w-24">오류 유형</th>
+                  <th className="px-3 py-2 text-center w-28">오류 유형</th>
                   <th className="px-3 py-2 text-left">AI 코멘트</th>
-                  {analysisId && <th className="px-3 py-2 text-center w-16 whitespace-nowrap">피드백</th>}
+                  {analysisId && <th className="px-3 py-2 text-center w-20">피드백</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

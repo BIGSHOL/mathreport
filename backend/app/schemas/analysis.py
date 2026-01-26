@@ -61,6 +61,10 @@ class AnalysisRequest(BaseModel):
         default=False,
         description="기존 분석 무시하고 재분석"
     )
+    analysis_mode: str = Field(
+        default="questions_only",
+        description="분석 모드: questions_only(문항만, 1크레딧) / full(전체, 2크레딧)"
+    )
 
 
 class AnalysisMergeRequest(BaseModel):

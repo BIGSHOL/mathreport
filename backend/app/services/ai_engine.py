@@ -118,7 +118,7 @@ class AIEngine:
 | 표시 | 위치 | 설명 |
 |------|------|------|
 | X, ✗, 빗금(/) | 학생 답안 위/옆 | 오답 표시 |
-| **문제번호에 동그라미** | 1, 2, 3 등 번호 위 | **틀린 문제 표시!** |
+| **문제번호에 동그라미** | 1, 2, 3 등 번호 위 | **정답 표시!** |
 | 빨간펜 정답 | 문항 근처 | 학생 답이 틀려서 정답 기재 |
 | 0점 | 문항 근처 | 오답 |
 | 감점 점수 | 문항 근처 | "2/4" 등 부분 점수 |
@@ -131,7 +131,7 @@ class AIEngine:
 ## ⚠️ 핵심 구분법
 
 ```
-위치가 "문제번호" → 동그라미는 오답 표시!
+위치가 "문제번호" → 동그라미는 정답 표시!
 위치가 "학생답안" → 동그라미는 정답 표시!
 ```
 
@@ -158,9 +158,9 @@ class AIEngine:
             "mark_symbol": "○",
             "position": "on_question_number",
             "color": "red",
-            "indicates": "incorrect",
+            "indicates": "correct",
             "confidence": 0.90,
-            "note": "문제번호에 빨간 동그라미 = 틀린 문제"
+            "note": "문제번호에 동그라미 = 정답"
         },
         {
             "question_number": 2,
@@ -216,7 +216,7 @@ class AIEngine:
 
 ## mark_type 값
 - "circle_on_answer": 답안에 동그라미 (정답)
-- "circle_on_number": 문제번호에 동그라미 (오답)
+- "circle_on_number": 문제번호에 동그라미 (정답)
 - "check_mark": 체크(✓) 표시
 - "x_mark": X 또는 빗금 표시
 - "score": 점수 기재
@@ -458,19 +458,39 @@ class AIEngine:
             )
 
         # 분류 프롬프트
-        classification_prompt = """이 시험지 이미지를 분석하여 유형을 분류해주세요.
+        classification_prompt = """이 시험지 이미지를 **세심하게** 분석하여 유형을 분류해주세요.
 
 ## 분류 항목
 
-1. paper_type (시험지 유형):
-   - "blank": 빈 시험지 (손글씨 답안 전혀 없음)
-   - "answered": 학생 답안 작성됨 (손글씨로 답 작성)
-   - "mixed": 일부만 답안 있음
+### 1. paper_type (시험지 유형) - ⚠️ 핵심 판정
 
-2. grading_status (채점 상태) - 매우 중요!:
-   - "not_graded": 채점 표시(O/X) 전혀 없음
-   - "partially_graded": 일부 문항에만 O/X 표시
-   - "fully_graded": 대부분 문항에 O/X 표시
+🔍 **문항 번호 vs 보기 번호 구분!**
+
+```
+문항 번호: 1. 2. 3. (문제 좌상단, 아라비아 숫자)
+보기 번호: ① ② ③ ④ ⑤ (객관식 선택지, 원문자)
+```
+
+**"answered"로 판정 (하나라도 보이면 answered!):**
+- ✅ **문항 번호(1. 2. 3.)에 동그라미** → 정답 표시 = 채점됨!
+- ❌ **문항 번호에 X표시, 빗금(/), 사선** → 오답 표시 = 채점됨!
+- 🔴 **O, ○, ✓ 표시** → 정답 표시 = 채점됨!
+- 🔴 **점수 기재** (3점, 0점, 5/9 등) → 채점됨!
+- 📝 보기 번호(①②③④⑤)에 체크/동그라미 → 학생 답안 = answered!
+- 📝 서술형에 손글씨 풀이
+- 📝 계산 흔적/메모
+
+**"blank"로 판정:**
+- 문항 번호에 **아무 표시도 없음**
+- 보기에 체크 **없음**
+- 손글씨 **전혀 없음**
+
+⚠️ **핵심: 문항 번호(1. 2. 3.)나 보기(①②③)에 표시가 있으면 "answered"!**
+
+### 2. grading_status (채점 상태) - 매우 중요!
+- "not_graded": O/X 표시가 **전혀** 없음
+- "partially_graded": 일부 문항에만 O/X 표시
+- "fully_graded": 대부분 문항에 O/X 표시
 
 ## ⚠️ 채점 표시 판단 기준 (핵심!)
 
@@ -479,7 +499,7 @@ class AIEngine:
 - 문항에 X, ✗, 빗금(/) 표시 존재
 - 점수가 기재되어 있음 (3점, 0점 등)
 - 빨간펜으로 정답을 따로 써줌
-- **문제번호에 빨간 동그라미** → 틀린 문제 표시 = 채점됨!
+- **문제번호에 동그라미** → 정답 표시 = 채점됨!
 
 ### 미채점 (grading_status = "not_graded")으로 판단하는 경우:
 - 학생 답만 있고 O/X 표시가 **전혀 없음**
@@ -492,7 +512,7 @@ class AIEngine:
 |------|------|------|----------------|
 | O, ○, ✓ | 학생 답안 옆 | 정답 | "correct" |
 | X, ✗, / | 학생 답안 옆 | 오답 | "incorrect" |
-| 빨간 동그라미 | **문제번호** 옆 | 틀린 문제 표시 | "incorrect" |
+| 동그라미 | **문제번호** 옆 | 정답 표시 | "correct" |
 | 빨간펜 정답 | 문항 근처 | 학생 답이 틀림 | "incorrect" |
 | 없음 | - | 미채점 | null |
 
@@ -519,7 +539,7 @@ class AIEngine:
             "has_grading_mark": true,
             "grading_result": "incorrect",
             "confidence": 0.90,
-            "note": "문제번호에 빨간 동그라미 = 틀린 문제 표시"
+            "note": "문제번호에 X표시 = 틀린 문제 표시"
         },
         {
             "question_number": 3,
@@ -648,6 +668,7 @@ class AIEngine:
         unit: str | None = None,
         auto_classify: bool = True,
         exam_id: str | None = None,
+        analysis_mode: str = "full",
     ) -> dict:
         """
         패턴 시스템을 활용한 통합 분석 (분류 통합 - 단일 API 호출)
@@ -659,6 +680,7 @@ class AIEngine:
             unit: 단원 (예: "이차방정식")
             auto_classify: 시험지 유형 자동 분류 여부 (통합 버전에서는 항상 분석 내에서 수행)
             exam_id: 시험지 ID (진행 상태 업데이트용)
+            analysis_mode: 분석 모드 (questions_only: 문항만, full: 전체, answers_only: 정오답만)
 
         Returns:
             분석 결과 딕셔너리
@@ -700,9 +722,10 @@ class AIEngine:
         except Exception as e:
             print(f"[Cache Error] {e}")
 
-        # 1. 동적 프롬프트 생성 (분류 없이 통합 프롬프트 사용)
+        # 1. 동적 프롬프트 생성 (분석 모드에 따라 선택)
         await update_step(1)
-        print("[Step 1] 통합 프롬프트 생성 중...")
+        is_questions_only = analysis_mode == "questions_only"
+        print(f"[Step 1] 프롬프트 생성 중... (mode={analysis_mode})")
 
         exam_context = ExamContext(
             grade_level=grade_level,
@@ -711,8 +734,11 @@ class AIEngine:
             exam_paper_type="unknown",  # 분석 시 자동 판단
         )
 
-        # 통합 프롬프트 사용 (분류 + 분석 동시 수행)
-        dynamic_prompt = self._get_unified_prompt()
+        # 분석 모드에 따라 프롬프트 선택
+        if is_questions_only:
+            dynamic_prompt = self._get_questions_only_prompt()
+        else:
+            dynamic_prompt = self._get_unified_prompt()
 
         # ============ 패턴 시스템 전체 통합 ============
         all_additions = []
@@ -861,50 +887,61 @@ class AIEngine:
             print(f"[Pattern Error] problem_categories/types: {e}")
 
         # 5. 시험 유형별 가이드 (exam_type_guide) - 수능/내신 구분
-        try:
-            exam_type_result = await db.table("prompt_templates").select(
-                "name, content, conditions"
-            ).eq("is_active", True).eq(
-                "template_type", "exam_type_guide"
-            ).order("priority", desc=True).execute()
+        # questions_only 모드에서는 채점 관련 가이드 불필요
+        if not is_questions_only:
+            try:
+                exam_type_result = await db.table("prompt_templates").select(
+                    "name, content, conditions"
+                ).eq("is_active", True).eq(
+                    "template_type", "exam_type_guide"
+                ).order("priority", desc=True).execute()
 
-            if exam_type_result.data:
-                # 모든 시험 유형 가이드 추가 (조건 무시 - 분석 시 AI가 판단)
-                for t in exam_type_result.data:
-                    all_additions.append(f"\n## [시험 유형 참고: {t.get('name', '')}]\n{t.get('content', '')}")
-                print(f"[Pattern] 시험 유형 가이드 {len(exam_type_result.data)}개 추가됨")
-        except Exception as e:
-            print(f"[Pattern Error] exam_type_guide: {e}")
+                if exam_type_result.data:
+                    # 모든 시험 유형 가이드 추가 (조건 무시 - 분석 시 AI가 판단)
+                    for t in exam_type_result.data:
+                        all_additions.append(f"\n## [시험 유형 참고: {t.get('name', '')}]\n{t.get('content', '')}")
+                    print(f"[Pattern] 시험 유형 가이드 {len(exam_type_result.data)}개 추가됨")
+            except Exception as e:
+                print(f"[Pattern Error] exam_type_guide: {e}")
+        else:
+            print("[Pattern] questions_only 모드 - 시험 유형 가이드 건너뜀")
 
         # 모든 패턴 정보 병합
         combined_additions = "\n\n".join(all_additions) if all_additions else ""
         print(f"[Pattern] 총 프롬프트 추가 길이: {len(combined_additions)}자")
 
         # ============ 2단계 분석 시스템 ============
-        # [1단계] 채점 표시 탐지 (정오답 인식 정확도 향상)
+        marks_result = {"marks": [], "overall_grading_status": "unknown"}
+
+        # [1단계] 채점 표시 탐지 (questions_only 모드에서는 건너뜀)
         await update_step(2)
-        print("[Step 2-1] 채점 표시 탐지 중 (1단계 분석)...")
-        marks_result = await self.detect_grading_marks(file_path)
-
-        grading_context = ""
-        if marks_result.get("marks"):
-            print(f"[Step 2-1] {len(marks_result['marks'])}개 채점 표시 탐지됨")
-            grading_context = self._build_grading_context_from_marks(marks_result)
-            combined_additions += grading_context
+        if is_questions_only:
+            print("[Step 2-1] 문항만 분석 모드 - 채점 표시 탐지 건너뜀")
         else:
-            print("[Step 2-1] 채점 표시 없음 또는 탐지 실패")
+            print("[Step 2-1] 채점 표시 탐지 중 (1단계 분석)...")
+            marks_result = await self.detect_grading_marks(file_path)
 
-        # [2단계] AI 분석 실행 (분류 + 분석 통합 + 채점 표시 컨텍스트)
-        print("[Step 2-2] AI 통합 분석 실행 중 (2단계 분석)...")
+            grading_context = ""
+            if marks_result.get("marks"):
+                print(f"[Step 2-1] {len(marks_result['marks'])}개 채점 표시 탐지됨")
+                grading_context = self._build_grading_context_from_marks(marks_result)
+                combined_additions += grading_context
+            else:
+                print("[Step 2-1] 채점 표시 없음 또는 탐지 실패")
+
+        # [2단계] AI 분석 실행
+        mode_label = "문항 분석" if is_questions_only else "통합 분석"
+        print(f"[Step 2-2] AI {mode_label} 실행 중...")
         result = await self.analyze_exam_file(
             file_path=file_path,
-            dynamic_prompt_additions=combined_additions,  # 모든 패턴 시스템 + 채점 표시 탐지 결과
-            exam_type="unified",  # 통합 분석 모드
+            dynamic_prompt_additions=combined_additions,
+            exam_type="unified" if not is_questions_only else "blank",
             custom_prompt=dynamic_prompt,
         )
 
-        # [후처리] 탐지 결과와 분석 결과 교차 검증
-        result = self._cross_validate_grading(result, marks_result)
+        # [후처리] 교차 검증 (questions_only 모드에서는 건너뜀)
+        if not is_questions_only:
+            result = self._cross_validate_grading(result, marks_result)
 
         # 3. 분류 결과 추출 및 조건부 템플릿 적용
         await update_step(3)
@@ -965,6 +1002,160 @@ class AIEngine:
             print(f"[Cache Stats] {cache.get_stats()}")
 
         return result
+
+    # ============================================
+    # 3-2. 정오답 분석 전용 (2단계 분석)
+    # ============================================
+    async def analyze_answers_only(
+        self,
+        db: SupabaseClient,
+        file_path: str,
+        existing_questions: list[dict],
+        exam_id: str | None = None,
+    ) -> dict:
+        """기존 문항에 대해 정오답만 분석합니다.
+
+        Args:
+            db: 데이터베이스 세션
+            file_path: 분석할 파일 경로
+            existing_questions: 기존 분석된 문항 목록
+            exam_id: 시험지 ID (상태 업데이트용)
+
+        Returns:
+            정오답 분석 결과 (questions 배열만 포함)
+        """
+        if not self.client:
+            raise Exception("AI service is not configured")
+
+        start_time = time.time()
+
+        # 헬퍼: 분석 단계 업데이트
+        async def update_step(step: int):
+            if exam_id and db:
+                try:
+                    await db.table("exams").eq("id", exam_id).update({"analysis_step": step}).execute()
+                except Exception as e:
+                    print(f"[Step Update Error] {e}")
+
+        # 1. 채점 표시 탐지
+        await update_step(2)
+        print("[Answer Analysis Step 1] 채점 표시 탐지 중...")
+        marks_result = await self.detect_grading_marks(file_path)
+
+        grading_context = ""
+        if marks_result.get("marks"):
+            print(f"[Answer Analysis Step 1] {len(marks_result['marks'])}개 채점 표시 탐지됨")
+            grading_context = self._build_grading_context_from_marks(marks_result)
+
+        # 2. 기존 문항 정보를 프롬프트에 포함
+        questions_context = self._build_questions_context(existing_questions)
+
+        # 3. 정오답 분석 프롬프트 생성
+        await update_step(3)
+        print("[Answer Analysis Step 2] 정오답 분석 중...")
+        prompt = self._get_answers_only_prompt(questions_context, grading_context)
+
+        # 4. AI 분석 실행
+        result = await self.analyze_exam_file(
+            file_path=file_path,
+            dynamic_prompt_additions="",
+            exam_type="student",
+            custom_prompt=prompt,
+        )
+
+        # 5. 채점 결과 교차 검증
+        result = self._cross_validate_grading(result, marks_result)
+
+        elapsed = time.time() - start_time
+        print(f"[Answer Analysis] 완료 ({elapsed:.2f}초)")
+
+        return result
+
+    def _build_questions_context(self, questions: list[dict]) -> str:
+        """기존 문항 정보를 프롬프트용 컨텍스트로 변환."""
+        lines = ["## 기존 분석된 문항 목록\n"]
+        for q in questions:
+            q_num = q.get("question_number", "?")
+            points = q.get("points", "?")
+            topic = q.get("topic", "미분류")
+            lines.append(f"- 문항 {q_num}: 배점 {points}점, {topic}")
+        return "\n".join(lines)
+
+    def _get_answers_only_prompt(self, questions_context: str, grading_context: str) -> str:
+        """정오답 분석 전용 프롬프트."""
+        return f"""당신은 한국 고등학교 수학 시험지 채점 분석 전문가입니다.
+
+## 목표: 정오답 분석만 수행
+
+이 시험지는 이미 문항 분석이 완료되었습니다.
+**학생의 답안과 채점 표시만 분석**하세요.
+
+{questions_context}
+
+{grading_context}
+
+## 분석할 내용
+
+각 문항에 대해:
+1. **is_correct**: 정답 여부 (true/false/null)
+   - 채점 표시 없으면 **반드시 null** (추측 금지!)
+2. **student_answer**: 학생이 작성한 답
+3. **earned_points**: 획득 점수
+4. **error_type**: 오답일 경우 오류 유형
+5. **grading_rationale**: 판정 근거
+
+## ⚠️ 핵심 규칙
+
+1. **채점 표시가 없으면 is_correct = null**
+   - 학생이 답을 썼어도 O/X 표시 없으면 미채점!
+   - 절대로 정답을 추측하지 마세요
+
+2. **채점 표시 인식**
+   - O, ○, ✓ → 정답 (is_correct: true)
+   - X, ✗, / → 오답 (is_correct: false)
+   - 문제번호에 동그라미 → 정답!
+   - 문제번호에 X/빗금 → 오답!
+
+## JSON 출력 형식
+
+{{
+    "questions": [
+        {{
+            "question_number": 1,
+            "is_correct": true,
+            "student_answer": "③",
+            "earned_points": 3,
+            "error_type": null,
+            "grading_rationale": "답 ③에 O표시 확인"
+        }},
+        {{
+            "question_number": 2,
+            "is_correct": false,
+            "student_answer": "①",
+            "earned_points": 0,
+            "error_type": "careless_mistake",
+            "grading_rationale": "답안에 X표시, 정답은 ④"
+        }},
+        {{
+            "question_number": 3,
+            "is_correct": null,
+            "student_answer": "5",
+            "earned_points": null,
+            "error_type": null,
+            "grading_rationale": "채점 표시 없음"
+        }}
+    ]
+}}
+
+## error_type 값
+- calculation_error: 계산 실수
+- concept_error: 개념 오해
+- careless_mistake: 단순 실수
+- process_error: 풀이 과정 오류
+- incomplete: 미완성
+
+모든 문항의 정오답을 분석하고 JSON으로 응답해주세요.
+"""
 
     # ============================================
     # 4. 기본 분석 (기존 호환)
@@ -1160,12 +1351,15 @@ class AIEngine:
                 q_confidence -= 0.1
                 issues.append(f"Q{i+1}: 토픽 형식 오류")
 
-            # 배점 검증
+            # 배점 검증 (부동소수점 오류 방지: 소수점 1자리로 반올림)
             points = q.get("points")
             if points is None or points <= 0:
                 q["points"] = 4
                 confidence -= 0.02
                 q_confidence -= 0.05
+            else:
+                # Gemini가 3.9999999 같은 값을 반환할 수 있으므로 정규화
+                q["points"] = round(points, 1)
 
             # 학생 답안지용 필드 검증
             if exam_type == "student":
@@ -1188,6 +1382,9 @@ class AIEngine:
                         q["earned_points"] = 0
                     else:
                         q["earned_points"] = None
+                elif q.get("earned_points") is not None:
+                    # 부동소수점 오류 방지: 소수점 1자리로 반올림
+                    q["earned_points"] = round(q["earned_points"], 1)
 
             q["confidence"] = round(max(0.0, min(1.0, q_confidence)), 2)
 
@@ -1234,12 +1431,45 @@ class AIEngine:
                 "statistics": actual_type.get("statistics", 0),
             }
 
-        # 5. 신뢰도 점수 반환
+        # 5. 교사 검토 필요 여부 판정
+        low_confidence_count = sum(
+            1 for q in result.get("questions", [])
+            if q.get("confidence", 1.0) < self.grading_confidence_threshold
+        )
+        review_needed = result.get("requires_human_review", False)
+        review_reasons = []
+
+        if low_confidence_count >= 2:
+            review_needed = True
+            review_reasons.append(f"저신뢰도 문항 {low_confidence_count}개")
+
+        # 개별 문항 중 requires_review가 있는 경우
+        review_questions = [
+            q.get("question_number") for q in result.get("questions", [])
+            if q.get("requires_review", False)
+        ]
+        if review_questions:
+            review_needed = True
+            review_reasons.append(f"검토 필요 문항: {review_questions}")
+
+        # 누락된 문항이 있는 경우
+        if result.get("_missing_questions"):
+            review_needed = True
+            review_reasons.append(f"누락 문항: {result['_missing_questions']}")
+
+        result["requires_human_review"] = review_needed
+        if review_reasons:
+            result["review_reason"] = ", ".join(review_reasons)
+
+        # 6. 신뢰도 점수 반환
         confidence = max(0.0, min(1.0, confidence))
 
         if issues:
             print(f"[Validation] Issues found: {issues}")
             print(f"[Validation] Confidence: {confidence:.2f}")
+
+        if review_needed:
+            print(f"[Validation] ⚠️ 교사 검토 필요: {result.get('review_reason')}")
 
         result["_confidence"] = round(confidence, 2)
         result["_validation_issues"] = issues
@@ -1398,24 +1628,29 @@ class AIEngine:
     ]
 }
 
-## 토픽 분류표 (정확히 사용)
+## 토픽 분류표 (2022 개정 교육과정 - 정확히 사용)
+
+### 【공통 과목】
 
 [공통수학1]
 - 다항식: 다항식의 연산, 항등식과 나머지정리, 인수분해
 - 방정식과 부등식: 복소수, 이차방정식, 이차방정식과 이차함수, 여러 가지 방정식, 여러 가지 부등식
 - 경우의 수: 경우의 수와 순열, 조합
+- 행렬: 행렬의 뜻, 행렬의 연산
 
 [공통수학2]
 - 도형의 방정식: 평면좌표, 직선의 방정식, 원의 방정식, 도형의 이동
 - 집합과 명제: 집합의 뜻, 집합의 연산, 명제
-- 함수: 합성함수와 역함수, 유리함수, 무리함수
+- 함수와 그래프: 합성함수와 역함수, 유리함수, 무리함수
 
-[수학1]
+### 【일반 선택 과목】
+
+[대수]
 - 지수함수와 로그함수: 지수, 로그, 지수함수, 로그함수
-- 삼각함수: 삼각함수의 정의, 삼각함수의 그래프, 삼각함수의 활용
+- 삼각함수: 삼각함수의 정의, 삼각함수의 그래프, 사인법칙과 코사인법칙
 - 수열: 등차수열과 등비수열, 수열의 합, 수학적 귀납법
 
-[수학2]
+[미적분I]
 - 함수의 극한과 연속: 함수의 극한, 함수의 연속
 - 미분: 미분계수와 도함수, 도함수의 활용
 - 적분: 부정적분, 정적분, 정적분의 활용
@@ -1423,15 +1658,17 @@ class AIEngine:
 [확률과 통계]
 - 경우의 수: 순열과 조합, 이항정리
 - 확률: 확률의 뜻과 활용, 조건부 확률
-- 통계: 확률분포, 통계적 추정
+- 통계: 확률분포, 통계적 추정, 모비율 추정
 
-[미적분]
+### 【진로 선택 과목】
+
+[미적분II]
 - 수열의 극한: 수열의 극한, 급수
-- 미분법: 여러 가지 함수의 미분, 여러 가지 미분법, 도함수의 활용
-- 적분법: 여러 가지 적분법, 정적분, 정적분의 활용
+- 여러 가지 미분법: 여러 가지 함수의 미분, 합성함수/매개변수/음함수 미분
+- 여러 가지 적분법: 치환적분, 부분적분, 정적분의 활용
 
 [기하]
-- 이차곡선: 이차곡선, 이차곡선과 직선
+- 이차곡선: 포물선, 타원, 쌍곡선
 - 평면벡터: 벡터의 연산, 평면벡터의 성분과 내적
 - 공간도형과 공간좌표: 공간도형, 공간좌표
 
@@ -1458,18 +1695,39 @@ class AIEngine:
         return """
 당신은 한국 고등학교 수학 시험지 분석 전문가입니다.
 
-## STEP 0: 시험지 유형 판별 (먼저 수행)
+## STEP 0: 시험지 유형 판별 (⚠️ 가장 먼저 수행 - 매우 중요!)
 
-이미지를 보고 다음을 판단하세요:
-1. **paper_type** (시험지 유형):
-   - "blank": 빈 시험지 (손글씨 답안 없음)
-   - "answered": 학생 답안 작성됨 (손글씨, 채점 표시 있음)
-   - "mixed": 일부만 답안 있음
+이미지를 **세심하게** 살펴보고 다음을 판단하세요:
 
-2. **grading_status** (채점 상태):
-   - "not_graded": 채점 안됨 (O/X 표시 전혀 없음)
-   - "partially_graded": 일부만 채점 (일부 문항에만 O/X)
-   - "fully_graded": 전체 채점됨 (대부분 문항에 O/X)
+### 1. **paper_type** (시험지 유형) - 핵심 판정 기준
+
+🔍 **문항 번호 vs 보기 번호 구분!**
+
+```
+문항 번호: 1. 2. 3. (문제 좌상단, 아라비아 숫자)
+보기 번호: ① ② ③ ④ ⑤ (객관식 선택지, 원문자)
+```
+
+**"answered"로 판정 (하나라도 보이면 answered!):**
+- ✅ **문항 번호(1. 2. 3.)에 동그라미** → 정답 표시 = 채점됨!
+- ❌ **문항 번호에 X표시, 빗금(/), 사선** → 오답 표시 = 채점됨!
+- 🔴 **O, ○, ✓ 표시** → 정답 표시 = 채점됨!
+- 🔴 **점수 기재** (3점, 0점, 5/9 등) → 채점됨!
+- 📝 보기 번호(①②③④⑤)에 체크/동그라미 → 학생 답안 = answered!
+- 📝 서술형에 손글씨 풀이
+- 📝 계산 흔적/메모
+
+**"blank"로 판정:**
+- 문항 번호에 **아무 표시도 없음**
+- 보기에 체크 **없음**
+- 손글씨 **전혀 없음**
+
+⚠️ **핵심: 문항 번호(1. 2. 3.)나 보기(①②③)에 표시가 있으면 "answered"!**
+
+### 2. **grading_status** (채점 상태)
+- "not_graded": O/X 표시가 **전혀** 없음 (학생이 풀기만 함)
+- "partially_graded": 일부 문항에만 O/X 표시
+- "fully_graded": 대부분 문항에 O/X 표시 있음
 
 ## ⚠️ 채점 표시 인식 (매우 중요!) ⚠️
 
@@ -1480,7 +1738,7 @@ class AIEngine:
 
 ### 오답 표시 → is_correct: false
 - 학생 답안에 X, ✗, 빗금(/), 사선 표시
-- **문제번호에 빨간 동그라미** = 틀린 문제 표시 → 오답!
+- **문제번호에 X표시, 빗금(/), 사선** = 틀린 문제 표시 → 오답!
 - 빨간펜으로 **정답을 따로 써준 경우** → 학생 답이 틀렸다는 의미
 - 점수가 0 또는 감점된 경우
 
@@ -1493,7 +1751,8 @@ class AIEngine:
 ### 핵심 구분법
 | 위치 | 표시 | 의미 |
 |------|------|------|
-| 문제번호(1,2,3) 옆 빨간 동그라미 | ① ② ③ | 틀린 문제 표시 → **오답** |
+| 문제번호(1,2,3) 옆 동그라미 | ① ② ③ | 정답 표시 → **정답** |
+| 문제번호(1,2,3) 옆 X/빗금 | ✗ / | 틀린 문제 표시 → **오답** |
 | 학생 답안 옆 동그라미 | 답: ③ ○ | 정답 표시 → **정답** |
 | 아무 표시 없음 | 답: ③ | 미채점 → **null** |
 
@@ -1527,6 +1786,8 @@ class AIEngine:
     "paper_type_indicators": ["판단 근거1", "판단 근거2"],
     "grading_status": "not_graded 또는 partially_graded 또는 fully_graded",
     "grading_indicators": ["채점 근거"],
+    "requires_human_review": false,
+    "review_reason": null,
     "exam_info": {
         "total_questions": 16,
         "total_points": 100,
@@ -1553,11 +1814,13 @@ class AIEngine:
             "points": 3,
             "topic": "공통수학1 > 다항식 > 다항식의 연산",
             "ai_comment": "핵심 개념. 주의사항.",
+            "difficulty_reason": "기본 공식 적용만 필요한 단순 계산 문제",
             "confidence": 0.95,
             "is_correct": true,
             "student_answer": "3",
             "earned_points": 3,
-            "error_type": null
+            "error_type": null,
+            "grading_rationale": "학생 답 ③에 O표시 확인"
         },
         {
             "question_number": 2,
@@ -1566,24 +1829,72 @@ class AIEngine:
             "points": 4,
             "topic": "공통수학1 > 방정식과 부등식 > 이차방정식",
             "ai_comment": "근의 공식 활용. 계산 주의.",
-            "confidence": 0.90,
+            "difficulty_reason": "근의 공식과 판별식 개념 이해 필요",
+            "confidence": 0.60,
             "is_correct": null,
             "student_answer": "5",
             "earned_points": null,
             "error_type": null,
-            "grading_note": "채점 표시 없음 - 미채점"
+            "grading_rationale": "채점 표시 불분명 - 교사 확인 필요",
+            "requires_review": true
+        },
+        {
+            "question_number": "서답형 1",
+            "difficulty": "high",
+            "question_type": "proof",
+            "points": 9,
+            "topic": "미적분I > 미분 > 도함수의 활용",
+            "ai_comment": "증명 과정 서술. 논리적 흐름 중요.",
+            "difficulty_reason": "다단계 논리 전개 필요, 미분 개념 심화 적용",
+            "confidence": 0.85,
+            "is_correct": false,
+            "student_answer": "(풀이 내용)",
+            "earned_points": 5,
+            "error_type": "process_error",
+            "grading_rationale": "5/9 부분점수 기재 확인, 논리 비약으로 감점",
+            "partial_credit_breakdown": {
+                "개념 이해": {"max": 3, "earned": 3, "note": "정확함"},
+                "풀이 과정": {"max": 4, "earned": 2, "note": "2단계 논리 비약"},
+                "최종 답": {"max": 2, "earned": 0, "note": "오답"}
+            }
         }
     ]
 }
 
-## 토픽 분류표
+## 🔍 채점 근거(grading_rationale) 작성법
 
-[공통수학1] 다항식, 방정식과 부등식, 경우의 수
-[공통수학2] 도형의 방정식, 집합과 명제, 함수
-[수학1] 지수함수와 로그함수, 삼각함수, 수열
-[수학2] 함수의 극한과 연속, 미분, 적분
+**반드시** 각 문항에 판정 근거를 명시하세요:
+- 정답: "답 ②에 빨간펜 O표시", "배점 4점 그대로 기재"
+- 오답: "답안에 X표시", "0점 기재", "문제번호에 X표시/빗금"
+- 미채점: "O/X 표시 없음", "채점 표시 불분명"
+
+## 📝 서술형 부분 점수 규칙 (partial_credit)
+
+서술형 문제는 세부 항목별 점수를 분석하세요:
+
+| 항목 | 설명 | 감점 기준 |
+|------|------|----------|
+| 개념 이해 | 핵심 공식/정리 언급 | 누락 시 해당 점수 0 |
+| 풀이 과정 | 논리적 전개 | 비약/오류당 -1~2점 |
+| 계산 정확성 | 수치 계산 | 단순 실수 -1점 |
+| 최종 답 | 정답 도출 | 오답 시 0점 |
+
+## ⚠️ 교사 검토 필요 (requires_human_review)
+
+다음 경우 `requires_human_review: true` 설정:
+- confidence < 0.7인 문항이 2개 이상
+- 채점 표시가 불분명하거나 판독 불가
+- 부분 점수 판정이 모호한 서술형
+- 이미지 품질 문제로 답안 인식 불가
+
+## 토픽 분류표 (2022 개정)
+
+[공통수학1] 다항식, 방정식과 부등식, 경우의 수, 행렬
+[공통수학2] 도형의 방정식, 집합과 명제, 함수와 그래프
+[대수] 지수함수와 로그함수, 삼각함수, 수열
+[미적분I] 함수의 극한과 연속, 미분, 적분
 [확률과 통계] 경우의 수, 확률, 통계
-[미적분] 수열의 극한, 미분법, 적분법
+[미적분II] 수열의 극한, 여러 가지 미분법, 여러 가지 적분법
 [기하] 이차곡선, 평면벡터, 공간도형과 공간좌표
 
 ## 오류 유형 (error_type) - 오답일 때만 해당
@@ -1603,6 +1914,117 @@ class AIEngine:
 5. topic 형식: "과목명 > 대단원 > 소단원"
 6. ai_comment: 정확히 2문장, 총 50자 이내
 7. confidence: 0.0 ~ 1.0
+"""
+
+    def _get_questions_only_prompt(self) -> str:
+        """문항 분석 전용 프롬프트 (정오답 분석 제외) - 빠른 1차 분석용"""
+        return """
+당신은 한국 고등학교 수학 시험지 분석 전문가입니다.
+
+## 목표: 문항 분석만 수행 (정오답 분석 제외)
+
+이 분석에서는 **문제 자체만 분석**합니다.
+- 학생 답안, 채점 표시, 정오답은 분석하지 않습니다.
+- 문제의 유형, 난이도, 토픽만 파악합니다.
+
+## STEP 0: 시험지 유형 판별
+
+이미지를 살펴보고 다음을 판단하세요:
+
+### paper_type (시험지 유형)
+- **"blank"**: 빈 시험지 (답안 작성 흔적 없음)
+- **"answered"**: 학생 답안지 (답안 작성 흔적 있음)
+- **"mixed"**: 일부만 답안 작성됨
+
+⚠️ 이 분석에서는 paper_type만 판단하고, 정오답은 분석하지 않습니다.
+
+## STEP 1: 문제 추출 (⚠️ 누락 금지)
+
+시험지를 주의 깊게 살펴보고:
+- 총 문항 수 (객관식 + 서답형)
+- 각 문항의 번호와 배점
+- 서답형 문제의 소문제 구조
+
+⚠️ **필수**: 1번부터 마지막 문항까지 **빠짐없이** 모두 분석하세요.
+
+🔢 **번호 추론 규칙**:
+- 번호가 가려지거나 안 보여도, **위치로 번호를 추론**하세요
+- 1번 다음에 나오는 문제 → 2번
+- N번 다음에 나오는 문제 → N+1번
+
+## STEP 2: 문항별 분류
+
+각 문항에 대해:
+1. 토픽 분류 (어떤 개념?)
+2. 난이도 판정 (high/medium/low)
+3. 문제 유형 (calculation/geometry/application/proof/graph/statistics)
+4. 문제 형식 (objective: 객관식, short_answer: 단답형, essay: 서술형)
+
+## JSON 출력 형식
+
+{
+    "paper_type": "blank 또는 answered 또는 mixed",
+    "paper_type_confidence": 0.95,
+    "paper_type_indicators": ["판단 근거"],
+    "grading_status": "not_analyzed",
+    "exam_info": {
+        "total_questions": 16,
+        "total_points": 100,
+        "objective_count": 12,
+        "subjective_count": 4
+    },
+    "summary": {
+        "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+        "type_distribution": {
+            "calculation": 0, "geometry": 0, "application": 0,
+            "proof": 0, "graph": 0, "statistics": 0
+        },
+        "average_difficulty": "medium",
+        "dominant_type": "calculation"
+    },
+    "questions": [
+        {
+            "question_number": 1,
+            "difficulty": "low",
+            "question_type": "calculation",
+            "question_format": "objective",
+            "points": 3,
+            "topic": "공통수학1 > 다항식 > 다항식의 연산",
+            "ai_comment": "핵심 개념. 주의사항.",
+            "difficulty_reason": "기본 공식 적용만 필요한 단순 계산 문제",
+            "confidence": 0.95
+        },
+        {
+            "question_number": "서답형 1",
+            "difficulty": "high",
+            "question_type": "proof",
+            "question_format": "essay",
+            "points": 9,
+            "topic": "미적분I > 미분 > 도함수의 활용",
+            "ai_comment": "증명 과정 서술. 논리적 흐름 중요.",
+            "difficulty_reason": "다단계 논리 전개 필요, 미분 개념 심화 적용",
+            "confidence": 0.85
+        }
+    ]
+}
+
+## 토픽 분류표 (2022 개정)
+
+[공통수학1] 다항식, 방정식과 부등식, 경우의 수, 행렬
+[공통수학2] 도형의 방정식, 집합과 명제, 함수와 그래프
+[대수] 지수함수와 로그함수, 삼각함수, 수열
+[미적분I] 함수의 극한과 연속, 미분, 적분
+[확률과 통계] 경우의 수, 확률, 통계
+[미적분II] 수열의 극한, 여러 가지 미분법, 여러 가지 적분법
+[기하] 이차곡선, 평면벡터, 공간도형과 공간좌표
+
+## 규칙 (엄격 준수)
+
+1. 모든 텍스트는 한국어로 작성
+2. **정오답 관련 필드 제외**: is_correct, student_answer, earned_points, error_type 필드를 포함하지 마세요
+3. topic 형식: "과목명 > 대단원 > 소단원"
+4. ai_comment: 정확히 2문장, 총 50자 이내
+5. confidence: 0.0 ~ 1.0 (문제 인식 신뢰도)
 """
 
     def _get_student_prompt(self) -> str:
@@ -1651,6 +2073,8 @@ class AIEngine:
 ### STEP 3: JSON 출력
 
 {
+    "requires_human_review": false,
+    "review_reason": null,
     "exam_info": {
         "total_questions": 16,
         "total_points": 100,
@@ -1679,9 +2103,10 @@ class AIEngine:
             "ai_comment": "핵심 개념. 주의사항.",
             "confidence": 0.95,
             "is_correct": true,
-            "student_answer": "3",
+            "student_answer": "③",
             "earned_points": 3,
-            "error_type": null
+            "error_type": null,
+            "grading_rationale": "답 ③에 빨간펜 O표시 확인"
         },
         {
             "question_number": 2,
@@ -1692,12 +2117,54 @@ class AIEngine:
             "ai_comment": "근의 공식 활용. 판별식 주의.",
             "confidence": 0.90,
             "is_correct": false,
-            "student_answer": "2",
+            "student_answer": "②",
             "earned_points": 0,
-            "error_type": "calculation_error"
+            "error_type": "calculation_error",
+            "grading_rationale": "답안에 X표시, 빨간펜으로 정답 ④ 기재됨"
+        },
+        {
+            "question_number": "서답형 1",
+            "difficulty": "high",
+            "question_type": "proof",
+            "points": 9,
+            "topic": "미적분I > 미분 > 도함수의 활용",
+            "ai_comment": "증명 과정 서술. 논리적 흐름 중요.",
+            "confidence": 0.85,
+            "is_correct": false,
+            "student_answer": "(풀이 내용)",
+            "earned_points": 5,
+            "error_type": "process_error",
+            "grading_rationale": "5/9 부분점수 기재 확인",
+            "partial_credit_breakdown": {
+                "개념 이해": {"max": 3, "earned": 3, "note": "정확함"},
+                "풀이 과정": {"max": 4, "earned": 2, "note": "2단계 논리 비약"},
+                "최종 답": {"max": 2, "earned": 0, "note": "오답"}
+            }
         }
     ]
 }
+
+## 🔍 채점 근거(grading_rationale) - 필수 작성!
+
+**모든 문항에 판정 근거를 명시**:
+- ✅ 정답: "답 ②에 O표시", "배점 4점 그대로 기재"
+- ❌ 오답: "답안에 X표시", "0점 기재", "문제번호에 X/빗금"
+- ❓ 미채점: "O/X 표시 없음", "채점 표시 불분명"
+
+## 📝 서술형 부분 점수 분석 (partial_credit_breakdown)
+
+서술형 문제는 세부 항목별 점수 분석:
+- 개념 이해: 핵심 공식/정리 언급 여부
+- 풀이 과정: 논리적 전개 (비약/오류당 감점)
+- 계산 정확성: 수치 계산 정확도
+- 최종 답: 정답 도출 여부
+
+## ⚠️ 교사 검토 필요 (requires_human_review: true)
+
+다음 경우 설정:
+- confidence < 0.7인 문항이 2개 이상
+- 채점 표시 불분명/판독 불가
+- 부분 점수 판정이 모호한 서술형
 
 ## 오류 유형 (error_type)
 

@@ -25,16 +25,19 @@ export const CONFIDENCE_COLORS = {
   low: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200', threshold: 0 },
 } as const;
 
-/** 과목 색상 */
+/** 과목 색상 (2022 개정 교육과정) */
 export const SUBJECT_COLORS: Record<string, string> = {
-  // 수학
+  // 수학 - 공통 과목
   '공통수학1': '#6366f1',
   '공통수학2': '#8b5cf6',
-  '수학1': '#ec4899',
-  '수학2': '#14b8a6',
+  // 수학 - 일반 선택 과목
+  '대수': '#ec4899',
+  '미적분I': '#14b8a6',
   '확률과통계': '#f97316',
-  '미적분': '#06b6d4',
+  // 수학 - 진로 선택 과목
+  '미적분II': '#06b6d4',
   '기하': '#84cc16',
+  // 수학 - 기타
   '수학': '#6366f1',
   // 영어
   '영어': '#3b82f6',
@@ -93,6 +96,22 @@ export const ERROR_TYPE_COLORS: Record<string, { bg: string; text: string; label
   // 공통
   careless_mistake: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: '단순 실수' },
 };
+
+/** 도넛 차트 통일 색상 팔레트 (인디고 계열 기반) */
+export const CHART_COLORS = [
+  '#6366f1', // indigo-500
+  '#8b5cf6', // violet-500
+  '#a855f7', // purple-500
+  '#ec4899', // pink-500
+  '#f43f5e', // rose-500
+  '#f97316', // orange-500
+  '#eab308', // yellow-500
+  '#22c55e', // green-500
+  '#14b8a6', // teal-500
+  '#06b6d4', // cyan-500
+  '#3b82f6', // blue-500
+  '#64748b', // slate-500
+] as const;
 
 /** 상태 색상 */
 export const STATUS_COLORS = {

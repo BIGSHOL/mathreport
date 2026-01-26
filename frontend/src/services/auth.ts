@@ -3,7 +3,7 @@
  */
 import { supabase } from '../lib/supabase';
 import api from './api';
-import type { User } from '../types/auth';
+import type { User, TemplateType, TemplateInfo } from '../types/auth';
 
 const TOKEN_KEY = 'access_token';
 
@@ -101,6 +101,36 @@ export const authService = {
    */
   isAuthenticated(): boolean {
     return !!this.getToken();
+  },
+
+  // ============================================
+  // 템플릿 설정 API
+  // ============================================
+
+  /**
+   * Get all available templates.
+   */
+  async getTemplates(): Promise<TemplateInfo[]> {
+    const response = await api.get<TemplateInfo[]>('/api/v1/users/me/templates');
+    return response.data;
+  },
+
+  /**
+   * Get user's preferred template.
+   */
+  async getPreferredTemplate(): Promise<TemplateType> {
+    const response = await api.get<TemplateType>('/api/v1/users/me/template');
+    return response.data;
+  },
+
+  /**
+   * Update user's preferred template.
+   */
+  async updatePreferredTemplate(template: TemplateType): Promise<User> {
+    const response = await api.patch<User>('/api/v1/users/me/template', {
+      preferred_template: template,
+    });
+    return response.data;
   },
 };
 

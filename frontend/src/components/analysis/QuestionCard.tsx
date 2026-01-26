@@ -11,7 +11,6 @@ import type { QuestionAnalysis, BadgeEarned } from '../../services/analysis';
 import { analysisService } from '../../services/analysis';
 import {
   DIFFICULTY_COLORS,
-  FORMAT_COLORS,
   getConfidenceLevel,
   CONFIDENCE_COLORS,
   getQuestionTypeLabel,
@@ -39,12 +38,29 @@ export const QuestionCard = memo(function QuestionCard({
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [badgeEarned, setBadgeEarned] = useState<BadgeEarned | null>(null);
-  const feedbackRef = useRef<HTMLDivElement>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 드롭다운 위치 계산
+  const updateDropdownPosition = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const dropdownWidth = 208; // w-52 = 13rem = 208px
+      setDropdownPos({
+        top: rect.bottom + 4,
+        left: Math.min(rect.right - dropdownWidth, window.innerWidth - dropdownWidth - 8),
+      });
+    }
+  };
 
   // 외부 클릭 시 드롭다운 닫기
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (feedbackRef.current && !feedbackRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isOutsideButton = buttonRef.current && !buttonRef.current.contains(target);
+      const isOutsideDropdown = dropdownRef.current && !dropdownRef.current.contains(target);
+      if (isOutsideButton && isOutsideDropdown) {
         setShowFeedback(false);
         setSelectedType(null);
         setComment('');
@@ -52,8 +68,15 @@ export const QuestionCard = memo(function QuestionCard({
     };
 
     if (showFeedback) {
+      updateDropdownPosition();
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', updateDropdownPosition, true);
+      window.addEventListener('resize', updateDropdownPosition);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        window.removeEventListener('scroll', updateDropdownPosition, true);
+        window.removeEventListener('resize', updateDropdownPosition);
+      };
     }
   }, [showFeedback]);
 
@@ -109,7 +132,6 @@ export const QuestionCard = memo(function QuestionCard({
   };
 
   const diffConfig = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || DIFFICULTY_COLORS.medium;
-  const formatConfig = q.question_format ? FORMAT_COLORS[q.question_format] : null;
   const confidenceLevel = q.confidence != null ? getConfidenceLevel(q.confidence) : null;
   const confidenceConfig = confidenceLevel ? CONFIDENCE_COLORS[confidenceLevel] : null;
 
@@ -118,34 +140,19 @@ export const QuestionCard = memo(function QuestionCard({
 
   return (
     <tr className={isPlaceholder ? "bg-orange-50 hover:bg-orange-100 border-l-4 border-orange-400" : "hover:bg-gray-50"}>
-      {/* 번호 + 형식 */}
+      {/* 번호 */}
       <td className="px-3 py-2 text-center whitespace-nowrap">
-        <div className="flex items-center justify-center gap-1.5">
-          <span className={`text-sm font-semibold ${isPlaceholder ? 'text-orange-600' : 'text-gray-700'}`}>
-            {q.question_number}
-            {isPlaceholder && <span className="ml-1 text-xs">⚠</span>}
-          </span>
-          {formatConfig && (
-            <span
-              className={`inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold ${formatConfig.tailwind}`}
-              title={formatConfig.label}
-            >
-              {formatConfig.short}
-            </span>
-          )}
-        </div>
+        <span className={`text-sm font-semibold ${isPlaceholder ? 'text-orange-600' : 'text-gray-700'}`}>
+          {q.question_number}
+          {isPlaceholder && <span className="ml-1 text-xs">⚠</span>}
+        </span>
       </td>
 
       {/* 난이도 */}
       <td className="px-3 py-2 text-center">
         <span
-          className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white cursor-help"
+          className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white"
           style={{ backgroundColor: diffConfig.bg }}
-          title={
-            q.difficulty_reason
-              ? `난이도 ${diffConfig.label}: ${q.difficulty_reason}`
-              : `난이도: ${diffConfig.label}`
-          }
         >
           {diffConfig.label}
         </span>
@@ -193,7 +200,7 @@ export const QuestionCard = memo(function QuestionCard({
       {/* 피드백 */}
       <td className="px-3 py-2 text-center whitespace-nowrap">
         {analysisId && (
-          <div className="relative inline-block" ref={feedbackRef}>
+          <div className="inline-block">
             {feedbackSent ? (
               <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium whitespace-nowrap">
                 <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -203,6 +210,7 @@ export const QuestionCard = memo(function QuestionCard({
               </span>
             ) : (
               <button
+                ref={buttonRef}
                 onClick={() => setShowFeedback(!showFeedback)}
                 className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors whitespace-nowrap ${
                   showFeedback
@@ -218,9 +226,13 @@ export const QuestionCard = memo(function QuestionCard({
               </button>
             )}
 
-            {/* 드롭다운 메뉴 */}
-            {showFeedback && !feedbackSent && (
-              <div className="absolute right-0 top-full mt-1 z-20 w-52 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+            {/* 드롭다운 메뉴 - Portal로 body에 렌더링 */}
+            {showFeedback && !feedbackSent && createPortal(
+              <div
+                ref={dropdownRef}
+                className="fixed z-[9999] w-52 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
+                style={{ top: dropdownPos.top, left: dropdownPos.left }}
+              >
                 {selectedType ? (
                   /* 코멘트 입력 단계 */
                   <div className="p-2">
@@ -298,7 +310,8 @@ export const QuestionCard = memo(function QuestionCard({
                     </div>
                   </>
                 )}
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         )}

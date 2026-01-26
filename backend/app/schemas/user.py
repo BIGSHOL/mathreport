@@ -19,6 +19,7 @@ class UserUpdate(BaseModel):
     nickname: str | None = None
     profile_image: str | None = None
     data_consent: bool | None = None  # AI 개선 데이터 활용 동의
+    preferred_template: str | None = None  # 선호 템플릿
 
 
 class UserResponse(UserBase):
@@ -27,6 +28,7 @@ class UserResponse(UserBase):
     data_consent: bool  # AI 개선 데이터 활용 동의
     subscription_tier: str = "free"  # 구독 티어
     credits: int = 0  # 보유 크레딧
+    preferred_template: str = "detailed"  # 선호 템플릿
     created_at: datetime
     updated_at: datetime
 

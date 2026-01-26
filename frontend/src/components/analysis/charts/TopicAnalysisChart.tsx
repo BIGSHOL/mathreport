@@ -6,10 +6,18 @@
  */
 import { memo, useMemo } from 'react';
 import type { QuestionAnalysis } from '../../../services/analysis';
-import { DIFFICULTY_COLORS, SUBJECT_COLORS } from '../../../styles/tokens';
+import { DIFFICULTY_COLORS, SUBJECT_COLORS, CHART_COLORS } from '../../../styles/tokens';
+import { DonutChart } from './DifficultyPieChart';
+
+// 도넛 차트 표준 크기
+const DONUT_SIZE = 140;
+const DONUT_STROKE = 28;
+
+type ChartMode = 'bar' | 'donut';
 
 interface TopicAnalysisChartProps {
   questions: QuestionAnalysis[];
+  chartMode?: ChartMode;
 }
 
 interface TopicData {
@@ -25,6 +33,7 @@ interface TopicData {
 
 export const TopicAnalysisChart = memo(function TopicAnalysisChart({
   questions,
+  chartMode = 'bar',
 }: TopicAnalysisChartProps) {
   const { subjectData, unitData } = useMemo(() => {
     const subjectMap = new Map<string, TopicData>();
@@ -89,119 +98,191 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
   const maxSubjectCount = Math.max(...subjectData.map((s) => s.count));
   const maxUnitCount = Math.max(...unitData.map((u) => u.count));
 
+  // 도넛 차트용 데이터 (통일 색상)
+  const subjectDonutData = subjectData.map((s, idx) => ({
+    key: s.name,
+    value: s.count,
+    label: s.name,
+    color: CHART_COLORS[idx % CHART_COLORS.length],
+  }));
+  const unitDonutData = unitData.map((u, idx) => ({
+    key: u.name,
+    value: u.count,
+    label: u.shortName,
+    color: CHART_COLORS[idx % CHART_COLORS.length],
+  }));
+  const totalSubjectCount = subjectData.reduce((a, b) => a + b.count, 0);
+  const totalUnitCount = unitData.reduce((a, b) => a + b.count, 0);
+
   return (
-    <div className="space-y-4">
-      {/* 과목별 출제현황 - 컴팩트 */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* 과목별 출제현황 */}
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="text-base font-semibold text-gray-900 mb-3">
           과목별 출제현황
         </h3>
-        <div className="space-y-2">
-          {subjectData.map((s) => (
-            <div key={s.name} className="flex items-center gap-2">
-              <div className="w-20 text-sm font-medium text-gray-700 flex items-center gap-1 flex-shrink-0">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: s.color }}
-                />
-                {s.name}
-              </div>
-              {/* 스택 바 */}
-              <div className="flex-1 flex h-6 rounded overflow-hidden bg-gray-100">
-                {s.low > 0 && (
-                  <div
-                    className="h-full flex items-center justify-center text-xs text-white"
-                    style={{
-                      width: `${(s.low / maxSubjectCount) * 100}%`,
-                      backgroundColor: DIFFICULTY_COLORS.low.bg,
-                      minWidth: s.low > 0 ? '20px' : 0,
-                    }}
-                  >
-                    {s.low}
+        {chartMode === 'donut' ? (
+          /* 도넛 차트 */
+          <div className="flex items-center justify-center gap-8">
+            <DonutChart data={subjectDonutData} total={totalSubjectCount} size={DONUT_SIZE} strokeWidth={DONUT_STROKE} />
+            <div className="space-y-2">
+              {subjectDonutData.map((s) => {
+                const percent = totalSubjectCount > 0 ? Math.round((s.value / totalSubjectCount) * 100) : 0;
+                return (
+                  <div key={s.key} className="flex items-center gap-2 text-sm">
+                    <span
+                      className="w-3 h-3 rounded-sm flex-shrink-0"
+                      style={{ backgroundColor: s.color }}
+                    />
+                    <span className="text-gray-600 w-20">{s.label}</span>
+                    <span className="font-medium text-gray-900 w-6 text-right">{s.value}</span>
+                    <span className="text-gray-400 w-12">({percent}%)</span>
                   </div>
-                )}
-                {s.medium > 0 && (
-                  <div
-                    className="h-full flex items-center justify-center text-xs text-white"
-                    style={{
-                      width: `${(s.medium / maxSubjectCount) * 100}%`,
-                      backgroundColor: DIFFICULTY_COLORS.medium.bg,
-                      minWidth: s.medium > 0 ? '20px' : 0,
-                    }}
-                  >
-                    {s.medium}
-                  </div>
-                )}
-                {s.high > 0 && (
-                  <div
-                    className="h-full flex items-center justify-center text-xs text-white"
-                    style={{
-                      width: `${(s.high / maxSubjectCount) * 100}%`,
-                      backgroundColor: DIFFICULTY_COLORS.high.bg,
-                      minWidth: s.high > 0 ? '20px' : 0,
-                    }}
-                  >
-                    {s.high}
-                  </div>
-                )}
-              </div>
-              <div className="w-24 text-right text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
-                {s.count}문항 · {Number(s.points.toFixed(1))}점
-              </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
-        {/* 범례 */}
-        <div className="flex gap-4 mt-3 text-xs text-gray-500 justify-end">
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
-            {DIFFICULTY_COLORS.low.label}
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
-            {DIFFICULTY_COLORS.medium.label}
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
-            {DIFFICULTY_COLORS.high.label}
-          </span>
-        </div>
+          </div>
+        ) : (
+          /* 막대 차트 */
+          <>
+            <div className="space-y-2">
+              {subjectData.map((s, idx) => {
+                const barColor = CHART_COLORS[idx % CHART_COLORS.length];
+                return (
+                  <div key={s.name} className="flex items-center gap-2">
+                    <div className="w-20 text-sm font-medium text-gray-700 flex items-center gap-1 flex-shrink-0">
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: barColor }}
+                      />
+                      {s.name}
+                    </div>
+                    {/* 스택 바 */}
+                    <div className="flex-1 flex h-6 rounded overflow-hidden bg-gray-100">
+                      {s.low > 0 && (
+                        <div
+                          className="h-full flex items-center justify-center text-xs text-white"
+                          style={{
+                            width: `${(s.low / maxSubjectCount) * 100}%`,
+                            backgroundColor: DIFFICULTY_COLORS.low.bg,
+                            minWidth: s.low > 0 ? '20px' : 0,
+                          }}
+                        >
+                          {s.low}
+                        </div>
+                      )}
+                      {s.medium > 0 && (
+                        <div
+                          className="h-full flex items-center justify-center text-xs text-white"
+                          style={{
+                            width: `${(s.medium / maxSubjectCount) * 100}%`,
+                            backgroundColor: DIFFICULTY_COLORS.medium.bg,
+                            minWidth: s.medium > 0 ? '20px' : 0,
+                          }}
+                        >
+                          {s.medium}
+                        </div>
+                      )}
+                      {s.high > 0 && (
+                        <div
+                          className="h-full flex items-center justify-center text-xs text-white"
+                          style={{
+                            width: `${(s.high / maxSubjectCount) * 100}%`,
+                            backgroundColor: DIFFICULTY_COLORS.high.bg,
+                            minWidth: s.high > 0 ? '20px' : 0,
+                          }}
+                        >
+                          {s.high}
+                        </div>
+                      )}
+                    </div>
+                    <div className="w-24 text-right text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
+                      {s.count}문항 · {Number(s.points.toFixed(1))}점
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* 범례 */}
+            <div className="flex gap-4 mt-3 text-xs text-gray-500 justify-end">
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
+                {DIFFICULTY_COLORS.low.label}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
+                {DIFFICULTY_COLORS.medium.label}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
+                {DIFFICULTY_COLORS.high.label}
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* 단원별 출제현황 - 컴팩트 */}
+      {/* 단원별 출제현황 */}
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="text-base font-semibold text-gray-900 mb-3">
           단원별 출제현황
         </h3>
-        <div className="space-y-2">
-          {unitData.map((u) => (
-            <div key={u.name} className="flex items-center gap-2">
-              <div className="w-32 text-sm text-gray-700 flex items-center gap-1 flex-shrink-0 truncate" title={u.name}>
-                <span
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: u.color }}
-                />
-                <span className="truncate">{u.shortName}</span>
-              </div>
-              {/* 단순 바 */}
-              <div className="flex-1 h-5 rounded overflow-hidden bg-gray-100">
-                <div
-                  className="h-full rounded flex items-center justify-end pr-2 text-xs text-white"
-                  style={{
-                    width: `${(u.count / maxUnitCount) * 100}%`,
-                    backgroundColor: u.color,
-                    minWidth: '30px',
-                  }}
-                >
-                  {u.count}
-                </div>
-              </div>
-              <div className="w-16 text-right text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
-                {Number(u.points.toFixed(1))}점
-              </div>
+        {chartMode === 'donut' ? (
+          /* 도넛 차트 */
+          <div className="flex items-center justify-center gap-8">
+            <DonutChart data={unitDonutData} total={totalUnitCount} size={DONUT_SIZE} strokeWidth={DONUT_STROKE} />
+            <div className="space-y-2 max-h-36 overflow-y-auto">
+              {unitDonutData.map((u) => {
+                const percent = totalUnitCount > 0 ? Math.round((u.value / totalUnitCount) * 100) : 0;
+                return (
+                  <div key={u.key} className="flex items-center gap-2 text-sm">
+                    <span
+                      className="w-3 h-3 rounded-sm flex-shrink-0"
+                      style={{ backgroundColor: u.color }}
+                    />
+                    <span className="text-gray-600 truncate w-20">{u.label}</span>
+                    <span className="font-medium text-gray-900 w-6 text-right">{u.value}</span>
+                    <span className="text-gray-400 w-12">({percent}%)</span>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          /* 막대 차트 */
+          <div className="space-y-2">
+            {unitData.map((u, idx) => {
+              const barColor = CHART_COLORS[idx % CHART_COLORS.length];
+              return (
+                <div key={u.name} className="flex items-center gap-2">
+                  <div className="w-32 text-sm text-gray-700 flex items-center gap-1 flex-shrink-0 truncate" title={u.name}>
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: barColor }}
+                    />
+                    <span className="truncate">{u.shortName}</span>
+                  </div>
+                  {/* 단순 바 */}
+                  <div className="flex-1 h-5 rounded overflow-hidden bg-gray-100">
+                    <div
+                      className="h-full rounded flex items-center justify-end pr-2 text-xs text-white"
+                      style={{
+                        width: `${(u.count / maxUnitCount) * 100}%`,
+                        backgroundColor: barColor,
+                        minWidth: '30px',
+                      }}
+                    >
+                      {u.count}
+                    </div>
+                  </div>
+                  <div className="w-16 text-right text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
+                    {Number(u.points.toFixed(1))}점
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

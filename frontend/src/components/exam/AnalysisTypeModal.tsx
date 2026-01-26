@@ -1,9 +1,13 @@
 /**
- * Analysis type selection modal with progress indicator.
- * Shows before analysis to confirm exam type and display cost.
+ * Analysis confirmation modal with progress indicator.
+ * Shows before analysis to confirm and display cost (1 credit).
+ *
+ * 2단계 분석 시스템:
+ * - 1단계: 문항 분석 (1크레딧) - 이 모달에서 실행
+ * - 2단계: 정오답 분석 (+1크레딧) - 분석 결과에서 별도 요청
  */
 import { useState, useEffect, useCallback } from 'react';
-import type { Exam, ExamType } from '../../services/exam';
+import type { Exam } from '../../services/exam';
 
 // Analysis stages for progress display
 const ANALYSIS_STAGES = [
@@ -17,7 +21,7 @@ interface AnalysisTypeModalProps {
   isOpen: boolean;
   onClose: () => void;
   exam: Exam | null;
-  onConfirm: (examType: ExamType) => Promise<void>;
+  onConfirm: () => Promise<void>;
 }
 
 function ProgressIndicator({ currentStage }: { currentStage: number }) {
@@ -86,15 +90,12 @@ function ProgressIndicator({ currentStage }: { currentStage: number }) {
 }
 
 export function AnalysisTypeModal({ isOpen, onClose, exam, onConfirm }: AnalysisTypeModalProps) {
-  const [selectedType, setSelectedType] = useState<ExamType>('blank');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [currentStage, setCurrentStage] = useState(-1);
 
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen && exam) {
-      // Use detected_type if available, otherwise fall back to exam_type
-      setSelectedType(exam.detected_type || exam.exam_type || 'blank');
       setIsAnalyzing(false);
       setCurrentStage(-1);
     }
@@ -134,18 +135,17 @@ export function AnalysisTypeModal({ isOpen, onClose, exam, onConfirm }: Analysis
     setIsAnalyzing(true);
 
     try {
-      await onConfirm(selectedType);
+      await onConfirm();
       // Success - modal will be closed by parent
     } catch {
       setIsAnalyzing(false);
       setCurrentStage(-1);
     }
-  }, [selectedType, onConfirm]);
+  }, [onConfirm]);
 
   if (!isOpen || !exam) return null;
 
-  const creditCost = selectedType === 'student' ? 2 : 1;
-  const hasDetection = exam.detected_type != null;
+  const isStudentExam = exam.detected_type === 'student' || exam.detected_type === 'answered';
   const confidencePercent = exam.detection_confidence
     ? Math.round(exam.detection_confidence * 100)
     : 0;
@@ -196,7 +196,7 @@ export function AnalysisTypeModal({ isOpen, onClose, exam, onConfirm }: Analysis
               </svg>
             </div>
             <h3 className="text-xl font-bold text-gray-900">
-              {isAnalyzing ? '분석 진행 중' : '분석 유형 선택'}
+              {isAnalyzing ? '분석 진행 중' : '시험지 분석'}
             </h3>
             <p className="text-gray-600 mt-1 text-sm truncate px-4">{exam.title}</p>
           </div>
@@ -207,7 +207,7 @@ export function AnalysisTypeModal({ isOpen, onClose, exam, onConfirm }: Analysis
           ) : (
             <>
               {/* AI Detection result */}
-              {hasDetection && (
+              {exam.detected_type && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                   <div className="flex items-center gap-2">
                     <svg
@@ -226,7 +226,7 @@ export function AnalysisTypeModal({ isOpen, onClose, exam, onConfirm }: Analysis
                     <span className="text-sm text-blue-800">
                       AI 감지:{' '}
                       <strong>
-                        {exam.detected_type === 'student' ? '학생 답안지' : '빈 시험지'}
+                        {isStudentExam ? '학생 답안지' : '빈 시험지'}
                       </strong>
                       <span className="text-blue-600 ml-1">({confidencePercent}% 확신)</span>
                     </span>
@@ -234,134 +234,56 @@ export function AnalysisTypeModal({ isOpen, onClose, exam, onConfirm }: Analysis
                 </div>
               )}
 
-              {/* Type selection */}
-              <div className="space-y-3 mb-6">
-                <label
-                  className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                    selectedType === 'blank'
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="examType"
-                    value="blank"
-                    checked={selectedType === 'blank'}
-                    onChange={() => setSelectedType('blank')}
-                    className="sr-only"
-                  />
-                  <div
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-3 ${
-                      selectedType === 'blank' ? 'border-indigo-500' : 'border-gray-300'
-                    }`}
-                  >
-                    {selectedType === 'blank' && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                    )}
+              {/* Analysis info */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">빈 시험지</span>
+                  <div>
+                    <h4 className="font-medium text-gray-900">문항 분석</h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      문항별 난이도, 유형, 토픽을 분석합니다.
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
                       <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">
                         1크레딧
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5">문제만 있는 시험지 (출제 분석)</p>
                   </div>
-                </label>
+                </div>
 
-                <label
-                  className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                    selectedType === 'student'
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="examType"
-                    value="student"
-                    checked={selectedType === 'student'}
-                    onChange={() => setSelectedType('student')}
-                    className="sr-only"
-                  />
-                  <div
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-3 ${
-                      selectedType === 'student' ? 'border-indigo-500' : 'border-gray-300'
-                    }`}
-                  >
-                    {selectedType === 'student' && (
-                      <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">학생 답안지</span>
-                      <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">
-                        2크레딧
-                      </span>
+                {/* Student exam info */}
+                {isStudentExam && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                          정오답 분석
+                          <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full">
+                            추가 옵션
+                          </span>
+                        </h4>
+                        <p className="text-sm text-gray-600 mt-1">
+                          분석 완료 후 정오답 분석을 추가할 수 있습니다.
+                        </p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">
+                            +1크레딧
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      정오답 분석 + 취약점 진단 가능
-                    </p>
                   </div>
-                </label>
+                )}
               </div>
-
-              {/* Warning: blank detected but student selected */}
-              {exam.detected_type === 'blank' && selectedType === 'student' && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-                  <div className="flex gap-2">
-                    <svg
-                      className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                      />
-                    </svg>
-                    <div className="text-sm text-amber-800">
-                      <p className="font-medium">빈 시험지로 감지되었습니다</p>
-                      <p className="text-amber-700 mt-0.5">
-                        학생 답안지로 분석하면 정오답 정보가 없어 정확한 분석이 어려울 수 있습니다.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Info: student detected but blank selected */}
-              {exam.detected_type === 'student' && selectedType === 'blank' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                  <div className="flex gap-2">
-                    <svg
-                      className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <div className="text-sm text-blue-800">
-                      <p className="font-medium">학생 답안지로 감지되었습니다</p>
-                      <p className="text-blue-700 mt-0.5">
-                        학생 답안지로 분석하면 정오답 분석과 취약점 진단을 받을 수 있습니다.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Confirm button */}
               <button
@@ -376,7 +298,7 @@ export function AnalysisTypeModal({ isOpen, onClose, exam, onConfirm }: Analysis
                     d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                   />
                 </svg>
-                분석 시작 ({creditCost}크레딧)
+                분석 시작 (1크레딧)
               </button>
 
               {/* Info text */}
