@@ -65,22 +65,44 @@ async def request_analysis(
     analysis_mode = request.analysis_mode
     effective_exam_type = "blank" if analysis_mode == "questions_only" else "student"
 
-    subscription_service = get_subscription_service(db)
-    can_analyze = await subscription_service.consume_analysis(
-        current_user["id"],
-        exam_type=effective_exam_type,
-        exam_id=exam_id
-    )
+    # 기존 분석 결과 확인 (신뢰도 < 60%면 무료 재분석)
+    skip_credit_check = False
+    if request.force_reanalyze:
+        # 기존 분석 조회
+        analysis_service_temp = get_analysis_service(db)
+        existing_analysis = await analysis_service_temp.get_analysis_by_exam(exam_id)
 
-    if not can_analyze:
-        credit_cost = 2 if analysis_mode == "full" else 1
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail={
-                "code": "USAGE_LIMIT_EXCEEDED",
-                "message": f"이번 달 분석 한도를 초과했습니다. (필요: {credit_cost}크레딧) 구독을 업그레이드하거나 크레딧을 구매해주세요."
-            }
+        if existing_analysis:
+            # 신뢰도 확인 (avg_confidence < 0.6이면 무료 재분석)
+            avg_confidence = existing_analysis.get("avg_confidence")
+            if avg_confidence is not None and avg_confidence < 0.6:
+                skip_credit_check = True
+                print(f"[Reanalyze] 신뢰도 {avg_confidence:.0%} < 60% - 크레딧 차감 없이 재분석 허용")
+
+    # 크레딧 체크 (신뢰도 낮은 재분석은 무료)
+    credits_consumed = 0
+    credits_remaining = 0
+
+    if not skip_credit_check:
+        subscription_service = get_subscription_service(db)
+        consume_result = await subscription_service.consume_analysis(
+            current_user["id"],
+            exam_type=effective_exam_type,
+            exam_id=exam_id
         )
+
+        if not consume_result["success"]:
+            credit_cost = 2 if analysis_mode == "full" else 1
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={
+                    "code": "USAGE_LIMIT_EXCEEDED",
+                    "message": f"이번 달 분석 한도를 초과했습니다. (필요: {credit_cost}크레딧) 구독을 업그레이드하거나 크레딧을 구매해주세요."
+                }
+            )
+
+        credits_consumed = consume_result["credits_consumed"]
+        credits_remaining = consume_result["credits_remaining"]
 
     analysis_service = get_analysis_service(db)
     result = await analysis_service.request_analysis(
@@ -89,6 +111,10 @@ async def request_analysis(
         force_reanalyze=request.force_reanalyze,
         analysis_mode=analysis_mode
     )
+
+    # 크레딧 소비 정보 추가
+    result["credits_consumed"] = credits_consumed
+    result["credits_remaining"] = credits_remaining
 
     return AnalysisCreateResponse(data=result)
 
@@ -701,6 +727,8 @@ body { font-family: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'S
 .header .meta { font-size: 10px; color: #6b7280; margin-top: 4px; }
 .two-column { display: flex; gap: 16px; }
 .column { flex: 1; }
+.section-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.section-row .section { flex: 1; margin-bottom: 0; }
 .section { border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
 .section-title { font-size: 10px; font-weight: 600; color: #374151; margin-bottom: 6px; }
 .summary-box { background: #eef2ff; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
@@ -813,28 +841,34 @@ td { padding: 4px; border-bottom: 1px solid #f3f4f6; }
 </div>
 """)
 
-    # Type distribution
-    if "type" in sections:
-        html_parts.append("""
+    # Type & Topic distribution (2-column row)
+    if "type" in sections or "topic" in sections:
+        html_parts.append('<div class="section-row">')
+
+        # Type distribution
+        if "type" in sections:
+            html_parts.append("""
 <div class="section">
 <div class="section-title">유형 분포</div>
 <div class="type-tags">
 """)
-        for qtype, count in sorted(type_dist.items(), key=lambda x: -x[1])[:6]:
-            label = type_labels.get(qtype, qtype)
-            html_parts.append(f'<span class="type-tag">{label} {count}</span>')
-        html_parts.append("</div></div>")
+            for qtype, count in sorted(type_dist.items(), key=lambda x: -x[1])[:6]:
+                label = type_labels.get(qtype, qtype)
+                html_parts.append(f'<span class="type-tag">{label} {count}</span>')
+            html_parts.append("</div></div>")
 
-    # Topic distribution
-    if "topic" in sections:
-        html_parts.append("""
+        # Topic distribution
+        if "topic" in sections:
+            html_parts.append("""
 <div class="section">
 <div class="section-title">단원 분포</div>
 <div class="topic-list">
 """)
-        for topic, count in sorted(topic_dist.items(), key=lambda x: -x[1])[:5]:
-            html_parts.append(f'<div class="topic-row"><span class="topic-name">{topic}</span><span class="topic-count">{count}</span></div>')
-        html_parts.append("</div></div>")
+            for topic, count in sorted(topic_dist.items(), key=lambda x: -x[1])[:5]:
+                html_parts.append(f'<div class="topic-row"><span class="topic-name">{topic}</span><span class="topic-count">{count}</span></div>')
+            html_parts.append("</div></div>")
+
+        html_parts.append('</div>')  # Close section-row
 
     html_parts.append('</div><div class="column">')
 

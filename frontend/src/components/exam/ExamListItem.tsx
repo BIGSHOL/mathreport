@@ -10,7 +10,7 @@ import { calculateDifficultyGrade } from '../../styles/tokens';
 interface ExamListItemProps {
   exam: Exam;
   onViewResult: (examId: string) => void;
-  onRequestAnalysis: (examId: string) => void;
+  onRequestAnalysis: (examId: string, forceReanalyze?: boolean) => void;
   onDelete: (examId: string) => void;
   onFeedback?: (examId: string, feedbackType: string, comment?: string) => void;
   // 선택 모드 관련
@@ -321,6 +321,12 @@ export const ExamListItem = memo(function ExamListItem({
                   <span className="w-2 h-2 rounded-full bg-red-500" />
                   상{brief.difficulty_high}
                 </span>
+                {/* 신뢰도 < 60%일 때 무료 재분석 안내 */}
+                {brief.avg_confidence != null && brief.avg_confidence < 0.6 && (
+                  <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded" title="신뢰도가 낮아 무료로 재분석할 수 있습니다">
+                    신뢰도 {Math.round(brief.avg_confidence * 100)}% (무료 재분석 가능)
+                  </span>
+                )}
               </div>
             );
           })()}
@@ -429,6 +435,20 @@ export const ExamListItem = memo(function ExamListItem({
               className="text-green-600 hover:text-green-900 font-medium"
             >
               분석 요청
+            </button>
+          )}
+
+          {/* 재분석 버튼 (신뢰도 < 60%일 때만 표시) */}
+          {exam.status === 'completed' && brief && brief.avg_confidence != null && brief.avg_confidence < 0.6 && (
+            <button
+              onClick={() => onRequestAnalysis(exam.id, true)}
+              className="text-amber-600 hover:text-amber-900 font-medium flex items-center gap-1"
+              title="신뢰도가 낮아 무료로 재분석할 수 있습니다"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              무료 재분석
             </button>
           )}
 

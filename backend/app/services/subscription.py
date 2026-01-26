@@ -222,13 +222,20 @@ class SubscriptionService:
             is_master=is_master,
         )
 
-    async def consume_analysis(self, user_id: str, exam_type: str = "blank", exam_id: str | None = None) -> bool:
-        """분석 1회 소비 (성공 시 True)
+    async def consume_analysis(self, user_id: str, exam_type: str = "blank", exam_id: str | None = None) -> dict:
+        """분석 1회 소비
 
         Args:
             user_id: 사용자 ID
             exam_type: 시험지 유형 (blank: 1크레딧, student: 2크레딧)
             exam_id: 시험지 ID (로그용)
+
+        Returns:
+            dict: {
+                "success": bool,
+                "credits_consumed": int (소비된 크레딧, 0이면 무료 한도 내),
+                "credits_remaining": int (남은 크레딧)
+            }
         """
         # exam_type에 따른 크레딧 비용 결정
         credit_cost = 2 if exam_type == "student" else 1
@@ -244,7 +251,7 @@ class SubscriptionService:
             await self._update_user(user["id"], {
                 "monthly_analysis_count": weekly_analysis_count + 1,
             })
-            return True
+            return {"success": True, "credits_consumed": 0, "credits_remaining": credits}
 
         tier = SubscriptionTier(user.get("subscription_tier", "free"))
         limits = TIER_LIMITS[tier]
@@ -255,14 +262,14 @@ class SubscriptionService:
             await self._update_user(user["id"], {
                 "monthly_analysis_count": weekly_analysis_count + 1,
             })
-            return True
+            return {"success": True, "credits_consumed": 0, "credits_remaining": credits}
 
         # 한도 내면 카운트 증가
         if weekly_analysis_count < analysis_limit:
             await self._update_user(user["id"], {
                 "monthly_analysis_count": weekly_analysis_count + 1,
             })
-            return True
+            return {"success": True, "credits_consumed": 0, "credits_remaining": credits}
 
         # 크레딧 사용 (exam_type에 따라 차등)
         if credits >= credit_cost:
@@ -283,9 +290,9 @@ class SubscriptionService:
                 reference_id=exam_id,
                 description=description,
             )
-            return True
+            return {"success": True, "credits_consumed": credit_cost, "credits_remaining": new_credits}
 
-        return False
+        return {"success": False, "credits_consumed": 0, "credits_remaining": credits}
 
     async def consume_extended(self, user_id: str, exam_id: str | None = None) -> bool:
         """확장 분석 1회 소비 (성공 시 True)

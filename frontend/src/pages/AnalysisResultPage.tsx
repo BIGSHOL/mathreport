@@ -24,6 +24,7 @@ import {
 import { DetailedTemplate } from '../components/analysis/templates';
 import { CacheHitBanner } from '../components/analysis/CacheHitBanner';
 import { ExportModal } from '../components/analysis/ExportModal';
+import { ToastContainer, useToast } from '../components/Toast';
 import { getConfidenceLevel, CONFIDENCE_COLORS, DIFFICULTY_COLORS, calculateDifficultyGrade } from '../styles/tokens';
 import examService, { type ExamType, type Exam } from '../services/exam';
 
@@ -44,8 +45,29 @@ export function AnalysisResultPage() {
   const [hasAnswerAnalysis, setHasAnswerAnalysis] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
 
+  // 토스트 알림
+  const toast = useToast();
+
   // 캐시 히트 여부 (쿼리 파라미터에서 확인)
   const isCacheHit = searchParams.get('cached') === 'true';
+
+  // 크레딧 소비 알림 (쿼리 파라미터에서 확인)
+  useEffect(() => {
+    const creditsConsumed = searchParams.get('credits_consumed');
+    const creditsRemaining = searchParams.get('credits_remaining');
+
+    if (creditsConsumed && parseInt(creditsConsumed) > 0) {
+      toast.info(
+        `${creditsConsumed}크레딧이 차감되었습니다. (남은 크레딧: ${creditsRemaining ?? 0})`,
+        5000
+      );
+      // 쿼리 파라미터 제거 (한 번만 표시)
+      searchParams.delete('credits_consumed');
+      searchParams.delete('credits_remaining');
+      setSearchParams(searchParams, { replace: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 배너 닫기 핸들러
   const handleBannerDismiss = useCallback(() => {
@@ -326,6 +348,9 @@ export function AnalysisResultPage() {
         onExport={handleExport}
         isExporting={isExporting}
       />
+
+      {/* 토스트 알림 */}
+      <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
     </div>
   );
 }

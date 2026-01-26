@@ -223,8 +223,22 @@ export const analysisService = {
         examId: string,
         forceReanalyze = false,
         analysisMode: 'questions_only' | 'full' = 'questions_only'
-    ): Promise<{ analysis_id: string; status: string; cache_hit?: boolean; analyzed_at?: string }> {
-        const response = await api.post<{ data: { analysis_id: string; status: string; cache_hit?: boolean; analyzed_at?: string } }>(
+    ): Promise<{
+        analysis_id: string;
+        status: string;
+        cache_hit?: boolean;
+        analyzed_at?: string;
+        credits_consumed?: number;
+        credits_remaining?: number;
+    }> {
+        const response = await api.post<{ data: {
+            analysis_id: string;
+            status: string;
+            cache_hit?: boolean;
+            analyzed_at?: string;
+            credits_consumed?: number;
+            credits_remaining?: number;
+        } }>(
             `/api/v1/exams/${examId}/analyze`,
             {
                 force_reanalyze: forceReanalyze,

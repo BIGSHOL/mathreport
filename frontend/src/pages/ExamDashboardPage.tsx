@@ -91,7 +91,7 @@ export function ExamDashboardPage() {
 
   // 분석 요청 - AI 감지 결과로 바로 분석 시작 (모달 없음)
   const handleRequestAnalysis = useCallback(
-    async (examId: string) => {
+    async (examId: string, forceReanalyze = false) => {
       const exam = exams.find((e) => e.id === examId);
       if (!exam) return;
 
@@ -112,10 +112,20 @@ export function ExamDashboardPage() {
       updateExamStatus(examId, 'analyzing');
 
       try {
-        const result = await requestAnalysis({ examId });
-        // 캐시 히트 여부를 쿼리 파라미터로 전달
-        const queryParams = result.cache_hit ? '?cached=true' : '';
-        navigate(`/analysis/${result.analysis_id}${queryParams}`);
+        const result = await requestAnalysis({ examId, forceReanalyze });
+
+        // 쿼리 파라미터 구성
+        const params = new URLSearchParams();
+        if (result.cache_hit) {
+          params.set('cached', 'true');
+        }
+        // 크레딧 소비 정보를 결과 페이지로 전달
+        if (result.credits_consumed && result.credits_consumed > 0) {
+          params.set('credits_consumed', String(result.credits_consumed));
+          params.set('credits_remaining', String(result.credits_remaining ?? 0));
+        }
+        const queryString = params.toString();
+        navigate(`/analysis/${result.analysis_id}${queryString ? `?${queryString}` : ''}`);
       } catch (error: unknown) {
         const axiosError = error as { response?: { status?: number }; code?: string };
         const status = axiosError?.response?.status;
