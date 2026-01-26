@@ -34,7 +34,7 @@ export interface QuestionAnalysis {
     id: string;
     question_number: number | string;  // 숫자 또는 "서술형 1" 형식
     question_format?: QuestionFormat;  // 객관식/단답형/서술형
-    difficulty: 'high' | 'medium' | 'low';
+    difficulty: 'concept' | 'pattern' | 'reasoning' | 'creative' | 'high' | 'medium' | 'low';  // 4단계 + 3단계 하위 호환
     difficulty_reason?: string;  // 난이도 판단 사유 (특히 '상'일 때)
     question_type: string;
     points?: number;
