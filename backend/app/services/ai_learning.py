@@ -192,10 +192,10 @@ class AILearningService:
             # 기존 패턴이 있으면 신뢰도가 더 높을 때만 업데이트
             existing_pattern = existing.data[0]
             if confidence > existing_pattern.get("confidence", 0):
-                await self.db.table("learned_patterns").update({
+                await self.db.table("learned_patterns").eq("id", existing_pattern["id"]).update({
                     "confidence": confidence,
                     "updated_at": datetime.utcnow().isoformat(),
-                }).eq("id", existing_pattern["id"]).execute()
+                }).execute()
                 existing_pattern["confidence"] = confidence
             return LearnedPatternDict(existing_pattern)
 
@@ -315,7 +315,7 @@ class AILearningService:
 
         update_data["updated_at"] = datetime.utcnow().isoformat()
 
-        result = await self.db.table("learned_patterns").select("*").eq(
+        result = await self.db.table("learned_patterns").eq(
             "id", pattern_id
         ).update(update_data).execute()
 

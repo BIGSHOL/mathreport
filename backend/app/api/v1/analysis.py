@@ -338,9 +338,9 @@ async def generate_commentary(
 
     # 분석 결과에 총평 저장
     commentary_dict = commentary.model_dump()
-    await db.table("analysis_results").update({
+    await db.table("analysis_results").eq("id", analysis_id).update({
         "commentary": commentary_dict
-    }).eq("id", analysis_id).execute()
+    }).execute()
 
     return commentary
 

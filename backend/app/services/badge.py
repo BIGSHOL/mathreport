@@ -169,7 +169,7 @@ class BadgeService:
             update_data["badges"] = current_badges + [new_badge_entry]
 
         # DB 업데이트
-        await self.db.table("users").update(update_data).eq("id", user_id).execute()
+        await self.db.table("users").eq("id", user_id).update(update_data).execute()
 
         return new_badge
 
@@ -216,7 +216,7 @@ class BadgeService:
             }
             update_data["badges"] = current_badges + [new_badge_entry]
 
-        await self.db.table("users").update(update_data).eq("id", user_id).execute()
+        await self.db.table("users").eq("id", user_id).update(update_data).execute()
 
         # 크레딧 로그 기록
         credit_log_service = get_credit_log_service(self.db)

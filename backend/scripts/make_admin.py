@@ -29,7 +29,7 @@ async def make_admin(email: str):
         return
 
     # 관리자 권한 부여
-    update_result = await db.table("users").select("*").eq("email", email).update({
+    update_result = await db.table("users").eq("email", email).update({
         "is_superuser": True
     }).execute()
 
