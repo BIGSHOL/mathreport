@@ -49,6 +49,24 @@ export interface SubscriptionUpdateResponse {
   new_tier: string;
 }
 
+export interface AdminCreditLogItem {
+  id: string;
+  change_amount: number;
+  balance_before: number;
+  balance_after: number;
+  action_type: 'analysis' | 'extended' | 'export' | 'purchase' | 'admin' | 'expire';
+  reference_id: string | null;
+  description: string | null;
+  admin_id: string | null;
+  created_at: string;
+}
+
+export interface AdminCreditLogsResponse {
+  logs: AdminCreditLogItem[];
+  total: number;
+  has_more: boolean;
+}
+
 // ============================================
 // Service
 // ============================================
@@ -99,6 +117,16 @@ class AdminService {
    */
   async toggleUserActive(userId: string): Promise<UserListItem> {
     const response = await api.patch(`/api/v1/admin/users/${userId}/toggle-active`);
+    return response.data;
+  }
+
+  /**
+   * 사용자 크레딧 내역 조회 (관리자 전용)
+   */
+  async getUserCreditHistory(userId: string, limit = 20, offset = 0): Promise<AdminCreditLogsResponse> {
+    const response = await api.get(`/api/v1/admin/users/${userId}/credit-history`, {
+      params: { limit, offset },
+    });
     return response.data;
   }
 }

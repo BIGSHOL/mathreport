@@ -12,6 +12,30 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 # ============================================
+# Credit History Schemas for Admin
+# ============================================
+
+class AdminCreditLogItem(BaseModel):
+    """관리자용 크레딧 내역 아이템"""
+    id: str
+    change_amount: int
+    balance_before: int
+    balance_after: int
+    action_type: str
+    reference_id: str | None = None
+    description: str | None = None
+    admin_id: str | None = None
+    created_at: datetime
+
+
+class AdminCreditLogsResponse(BaseModel):
+    """관리자용 크레딧 내역 응답"""
+    logs: list[AdminCreditLogItem]
+    total: int
+    has_more: bool
+
+
+# ============================================
 # Schemas
 # ============================================
 
@@ -265,3 +289,32 @@ async def toggle_user_active(
     ).eq("id", user_id).maybe_single().execute()
 
     return UserListItem(**updated.data)
+
+
+@router.get("/users/{user_id}/credit-history", response_model=AdminCreditLogsResponse)
+async def get_user_credit_history(
+    user_id: str,
+    admin: AdminUser,
+    db: DbDep,
+    limit: int = 20,
+    offset: int = 0,
+):
+    """사용자 크레딧 내역 조회 (관리자 전용)."""
+    # 사용자 존재 확인
+    result = await db.table("users").select("id").eq("id", user_id).maybe_single().execute()
+
+    if result.error or result.data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다"
+        )
+
+    # 크레딧 내역 조회
+    service = get_credit_log_service(db)
+    logs, total = await service.get_history(user_id, limit, offset)
+
+    return AdminCreditLogsResponse(
+        logs=[AdminCreditLogItem(**log) for log in logs],
+        total=total,
+        has_more=(offset + limit) < total,
+    )

@@ -4,7 +4,27 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../stores/auth';
 import { useNavigate } from 'react-router-dom';
-import { adminService, type UserListItem } from '../services/admin';
+import { adminService, type UserListItem, type AdminCreditLogItem } from '../services/admin';
+
+// 액션 타입별 라벨 및 스타일
+const ACTION_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+  analysis: { label: '분석', color: 'bg-blue-100 text-blue-700' },
+  extended: { label: '확장 분석', color: 'bg-purple-100 text-purple-700' },
+  export: { label: '내보내기', color: 'bg-orange-100 text-orange-700' },
+  purchase: { label: '구매', color: 'bg-green-100 text-green-700' },
+  admin: { label: '관리자', color: 'bg-gray-100 text-gray-700' },
+  expire: { label: '만료', color: 'bg-red-100 text-red-700' },
+};
+
+// 날짜 포맷팅
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${month}/${day} ${hours}:${minutes}`;
+}
 
 const TIER_LABELS: Record<string, { label: string; color: string }> = {
   free: { label: '무료', color: 'bg-gray-100 text-gray-700' },
@@ -48,6 +68,23 @@ export function AdminUsersPage() {
     isOpen: false,
     user: null,
     tier: 'free',
+  });
+
+  // 크레딧 내역 모달
+  const [historyModal, setHistoryModal] = useState<{
+    isOpen: boolean;
+    user: UserListItem | null;
+    logs: AdminCreditLogItem[];
+    total: number;
+    hasMore: boolean;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    user: null,
+    logs: [],
+    total: 0,
+    hasMore: false,
+    isLoading: false,
   });
 
   // 관리자 권한 체크
@@ -135,6 +172,56 @@ export function AdminUsersPage() {
     } catch (err) {
       alert('상태 변경에 실패했습니다.');
       console.error(err);
+    }
+  };
+
+  // 크레딧 내역 모달 열기
+  const handleOpenHistory = async (targetUser: UserListItem) => {
+    setHistoryModal({
+      isOpen: true,
+      user: targetUser,
+      logs: [],
+      total: 0,
+      hasMore: false,
+      isLoading: true,
+    });
+
+    try {
+      const response = await adminService.getUserCreditHistory(targetUser.id, 10, 0);
+      setHistoryModal((m) => ({
+        ...m,
+        logs: response.logs,
+        total: response.total,
+        hasMore: response.has_more,
+        isLoading: false,
+      }));
+    } catch (err) {
+      console.error(err);
+      setHistoryModal((m) => ({ ...m, isLoading: false }));
+    }
+  };
+
+  // 크레딧 내역 더 보기
+  const handleLoadMoreHistory = async () => {
+    if (!historyModal.user) return;
+
+    setHistoryModal((m) => ({ ...m, isLoading: true }));
+
+    try {
+      const response = await adminService.getUserCreditHistory(
+        historyModal.user.id,
+        10,
+        historyModal.logs.length
+      );
+      setHistoryModal((m) => ({
+        ...m,
+        logs: [...m.logs, ...response.logs],
+        hasMore: response.has_more,
+        isLoading: false,
+      }));
+    } catch (err) {
+      console.error(err);
+      setHistoryModal((m) => ({ ...m, isLoading: false }));
     }
   };
 
@@ -275,6 +362,12 @@ export function AdminUsersPage() {
                             className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200"
                           >
                             크레딧
+                          </button>
+                          <button
+                            onClick={() => handleOpenHistory(u)}
+                            className="px-2 py-1 text-xs bg-teal-100 text-teal-700 rounded hover:bg-teal-200"
+                          >
+                            내역
                           </button>
                           <button
                             onClick={() =>
@@ -453,6 +546,104 @@ export function AdminUsersPage() {
                 className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
               >
                 저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 크레딧 내역 모달 */}
+      {historyModal.isOpen && historyModal.user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                크레딧 내역 - {historyModal.user.nickname}
+              </h3>
+              <span className="text-sm text-gray-500">
+                총 {historyModal.total}건
+              </span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {historyModal.isLoading && historyModal.logs.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">로딩 중...</div>
+              ) : historyModal.logs.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">크레딧 내역이 없습니다</div>
+              ) : (
+                <div className="space-y-2">
+                  {historyModal.logs.map((log) => {
+                    const config = ACTION_TYPE_CONFIG[log.action_type] || {
+                      label: log.action_type,
+                      color: 'bg-gray-100 text-gray-700',
+                    };
+                    return (
+                      <div
+                        key={log.id}
+                        className="flex items-center justify-between text-sm bg-gray-50 rounded-lg px-4 py-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-medium ${config.color}`}
+                          >
+                            {config.label}
+                          </span>
+                          <span className="text-gray-700">
+                            {log.description || '-'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span
+                            className={`font-bold ${
+                              log.change_amount > 0 ? 'text-green-600' : 'text-red-600'
+                            }`}
+                          >
+                            {log.change_amount > 0 ? '+' : ''}
+                            {log.change_amount}
+                          </span>
+                          <span className="text-gray-500 w-20 text-right">
+                            {log.balance_after}크레딧
+                          </span>
+                          <span className="text-gray-400 w-24 text-right">
+                            {formatDate(log.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {historyModal.hasMore && (
+                <div className="text-center mt-4">
+                  <button
+                    onClick={handleLoadMoreHistory}
+                    disabled={historyModal.isLoading}
+                    className="px-4 py-2 text-sm text-indigo-600 hover:text-indigo-800 disabled:text-gray-400"
+                  >
+                    {historyModal.isLoading
+                      ? '로딩 중...'
+                      : `더 보기 (${historyModal.logs.length}/${historyModal.total})`}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() =>
+                  setHistoryModal({
+                    isOpen: false,
+                    user: null,
+                    logs: [],
+                    total: 0,
+                    hasMore: false,
+                    isLoading: false,
+                  })
+                }
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                닫기
               </button>
             </div>
           </div>
