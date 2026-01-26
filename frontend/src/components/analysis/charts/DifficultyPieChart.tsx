@@ -94,9 +94,9 @@ export const DifficultyPieChart = memo(function DifficultyPieChart({
   distribution,
   chartMode = 'bar',
 }: DifficultyPieChartProps) {
-  // 4단계 시스템 감지: concept, pattern, reasoning, creative가 있으면 4단계
-  const is4Level = distribution.concept != null && distribution.pattern != null &&
-                   distribution.reasoning != null && distribution.creative != null;
+  // 4단계 시스템 감지: concept, pattern, reasoning, creative 중 하나라도 있으면 4단계
+  const is4Level = distribution.concept != null || distribution.pattern != null ||
+                   distribution.reasoning != null || distribution.creative != null;
 
   // 총 문항 수 계산
   const total = is4Level
@@ -105,14 +105,14 @@ export const DifficultyPieChart = memo(function DifficultyPieChart({
 
   // 도넛 차트용 데이터 (통일 색상)
   const donutData = is4Level ? [
-    { key: 'concept', value: distribution.concept || 0, label: '개념', color: CHART_COLORS[1] },
-    { key: 'pattern', value: distribution.pattern || 0, label: '유형', color: CHART_COLORS[0] },
-    { key: 'reasoning', value: distribution.reasoning || 0, label: '사고력', color: CHART_COLORS[2] },
-    { key: 'creative', value: distribution.creative || 0, label: '창의', color: CHART_COLORS[3] },
+    { key: 'concept', value: distribution.concept || 0, label: DIFFICULTY_COLORS.concept.label, color: CHART_COLORS[1] },
+    { key: 'pattern', value: distribution.pattern || 0, label: DIFFICULTY_COLORS.pattern.label, color: CHART_COLORS[0] },
+    { key: 'reasoning', value: distribution.reasoning || 0, label: DIFFICULTY_COLORS.reasoning.label, color: CHART_COLORS[2] },
+    { key: 'creative', value: distribution.creative || 0, label: DIFFICULTY_COLORS.creative.label, color: CHART_COLORS[3] },
   ].filter((d) => d.value > 0) : [
-    { key: 'low', value: distribution.low, label: '하', color: CHART_COLORS[0] },
-    { key: 'medium', value: distribution.medium, label: '중', color: CHART_COLORS[1] },
-    { key: 'high', value: distribution.high, label: '상', color: CHART_COLORS[2] },
+    { key: 'low', value: distribution.low, label: DIFFICULTY_COLORS.low.label, color: CHART_COLORS[0] },
+    { key: 'medium', value: distribution.medium, label: DIFFICULTY_COLORS.medium.label, color: CHART_COLORS[1] },
+    { key: 'high', value: distribution.high, label: DIFFICULTY_COLORS.high.label, color: CHART_COLORS[2] },
   ].filter((d) => d.value > 0);
 
   // 막대 차트용 데이터 (난이도별 색상)
@@ -130,25 +130,25 @@ export const DifficultyPieChart = memo(function DifficultyPieChart({
   // 범례 항목 (도넛/막대 차트 모드별)
   const legendItems = is4Level ? (
     chartMode === 'donut' ? [
-      { key: 'concept', label: '개념 (기초)', color: CHART_COLORS[1] },
-      { key: 'pattern', label: '유형 (기본)', color: CHART_COLORS[0] },
-      { key: 'reasoning', label: '사고력 (심화)', color: CHART_COLORS[2] },
-      { key: 'creative', label: '창의 (최고)', color: CHART_COLORS[3] },
+      { key: 'concept', label: DIFFICULTY_COLORS.concept.label, color: CHART_COLORS[1] },
+      { key: 'pattern', label: DIFFICULTY_COLORS.pattern.label, color: CHART_COLORS[0] },
+      { key: 'reasoning', label: DIFFICULTY_COLORS.reasoning.label, color: CHART_COLORS[2] },
+      { key: 'creative', label: DIFFICULTY_COLORS.creative.label, color: CHART_COLORS[3] },
     ] : [
-      { key: 'concept', label: '개념 (기초)', color: DIFFICULTY_COLORS.concept.bg },
-      { key: 'pattern', label: '유형 (기본)', color: DIFFICULTY_COLORS.pattern.bg },
-      { key: 'reasoning', label: '사고력 (심화)', color: DIFFICULTY_COLORS.reasoning.bg },
-      { key: 'creative', label: '창의 (최고)', color: DIFFICULTY_COLORS.creative.bg },
+      { key: 'concept', label: DIFFICULTY_COLORS.concept.label, color: DIFFICULTY_COLORS.concept.bg },
+      { key: 'pattern', label: DIFFICULTY_COLORS.pattern.label, color: DIFFICULTY_COLORS.pattern.bg },
+      { key: 'reasoning', label: DIFFICULTY_COLORS.reasoning.label, color: DIFFICULTY_COLORS.reasoning.bg },
+      { key: 'creative', label: DIFFICULTY_COLORS.creative.label, color: DIFFICULTY_COLORS.creative.bg },
     ]
   ) : (
     chartMode === 'donut' ? [
-      { key: 'low', label: '하 (쉬움)', color: CHART_COLORS[0] },
-      { key: 'medium', label: '중 (보통)', color: CHART_COLORS[1] },
-      { key: 'high', label: '상 (어려움)', color: CHART_COLORS[2] },
+      { key: 'low', label: DIFFICULTY_COLORS.low.label, color: CHART_COLORS[0] },
+      { key: 'medium', label: DIFFICULTY_COLORS.medium.label, color: CHART_COLORS[1] },
+      { key: 'high', label: DIFFICULTY_COLORS.high.label, color: CHART_COLORS[2] },
     ] : [
-      { key: 'low', label: '하 (쉬움)', color: DIFFICULTY_COLORS.low.bg },
-      { key: 'medium', label: '중 (보통)', color: DIFFICULTY_COLORS.medium.bg },
-      { key: 'high', label: '상 (어려움)', color: DIFFICULTY_COLORS.high.bg },
+      { key: 'low', label: DIFFICULTY_COLORS.low.label, color: DIFFICULTY_COLORS.low.bg },
+      { key: 'medium', label: DIFFICULTY_COLORS.medium.label, color: DIFFICULTY_COLORS.medium.bg },
+      { key: 'high', label: DIFFICULTY_COLORS.high.label, color: DIFFICULTY_COLORS.high.bg },
     ]
   );
 
@@ -674,7 +674,7 @@ export const PointsDistributionChart = memo(function PointsDistributionChart({
 
   if (objDist.data.length === 0 && subjDist.data.length === 0) return null;
 
-  const renderChart = (title: string, dist: ReturnType<typeof calculateDistribution>) => {
+  const renderChart = (title: string, questionCount: number, dist: ReturnType<typeof calculateDistribution>) => {
     const totalCount = dist.data.reduce((a, b) => a + b.count, 0);
     // 통일 색상 적용
     const coloredData = dist.data.map((d, idx) => ({
@@ -691,7 +691,9 @@ export const PointsDistributionChart = memo(function PointsDistributionChart({
     return (
       <div className="flex-1">
         <div className="flex items-center justify-between mb-3 px-1">
-          <h4 className="text-sm font-medium text-gray-700">{title}</h4>
+          <h4 className="text-sm font-medium text-gray-700">
+            {title} <span className="text-indigo-600">{questionCount}문항</span>
+          </h4>
           <span className="text-xs text-gray-500">
             총 {dist.totalPoints}점
           </span>
@@ -766,11 +768,11 @@ export const PointsDistributionChart = memo(function PointsDistributionChart({
       </div>
 
       <div className="flex flex-col md:flex-row gap-8">
-        {renderChart('객관식', objDist)}
+        {renderChart('객관식', objectivePoints.length, objDist)}
         {/* 구분선 (모바일: 가로, PC: 세로) */}
         <div className="hidden md:block w-px bg-gray-200 my-2"></div>
         <div className="md:hidden h-px bg-gray-200 mx-2"></div>
-        {renderChart('서답형 (단답/서술)', subjDist)}
+        {renderChart('서답형 (단답/서술)', subjectivePoints.length, subjDist)}
       </div>
     </div>
   );

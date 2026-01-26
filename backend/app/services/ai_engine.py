@@ -758,6 +758,7 @@ class AIEngine:
         file_path: str,
         grade_level: str | None = None,
         unit: str | None = None,
+        exam_scope: list[str] | None = None,
         auto_classify: bool = True,
         exam_id: str | None = None,
         analysis_mode: str = "full",
@@ -842,6 +843,7 @@ class AIEngine:
             grade_level=grade_level,
             subject="수학",
             unit=unit,
+            exam_scope=exam_scope,  # 출제범위 (단원 목록)
             exam_paper_type="unknown",  # 분석 시 자동 판단
         )
 
@@ -1493,18 +1495,29 @@ class AIEngine:
             issues.append("questions 누락")
 
         # 2. 문항별 검증
-        valid_difficulties = {"high", "medium", "low"}
+        # 4단계 시스템 (신규) + 3단계 시스템 (하위 호환)
+        valid_difficulties = {"concept", "pattern", "reasoning", "creative", "high", "medium", "low"}
         valid_types = {"calculation", "geometry", "application", "proof", "graph", "statistics"}
+
+        # 3단계 → 4단계 변환 매핑
+        difficulty_conversion = {
+            "low": "concept",      # 하 → 개념
+            "medium": "pattern",   # 중 → 유형
+            "high": "reasoning",   # 상 → 심화
+        }
 
         for i, q in enumerate(result.get("questions", [])):
             q_confidence = q.get("confidence", 0.9)
 
             # 난이도 검증
             if q.get("difficulty") not in valid_difficulties:
-                q["difficulty"] = "medium"
+                q["difficulty"] = "pattern"
                 confidence -= 0.05
                 q_confidence -= 0.15
                 issues.append(f"Q{i+1}: 잘못된 난이도")
+            # 3단계 → 4단계 자동 변환
+            elif q.get("difficulty") in difficulty_conversion:
+                q["difficulty"] = difficulty_conversion[q["difficulty"]]
 
             # 유형 검증
             if q.get("question_type") not in valid_types:
@@ -1580,12 +1593,16 @@ class AIEngine:
 
         # 4. 분포 일치 검증
         if result.get("questions"):
-            actual_diff = {"high": 0, "medium": 0, "low": 0}
+            # 4단계 시스템만 사용 (3단계는 위에서 변환됨)
+            actual_diff = {
+                "concept": 0, "pattern": 0, "reasoning": 0, "creative": 0
+            }
             actual_type: dict[str, int] = {}
 
             for q in result["questions"]:
-                diff = q.get("difficulty", "medium")
-                actual_diff[diff] = actual_diff.get(diff, 0) + 1
+                diff = q.get("difficulty", "pattern")  # 기본값을 pattern으로 변경
+                if diff in actual_diff:
+                    actual_diff[diff] += 1
 
                 qtype = q.get("question_type", "calculation")
                 actual_type[qtype] = actual_type.get(qtype, 0) + 1
@@ -1648,12 +1665,14 @@ class AIEngine:
     def _empty_summary(self) -> dict:
         """빈 summary 생성."""
         return {
-            "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+            "difficulty_distribution": {
+                "concept": 0, "pattern": 0, "reasoning": 0, "creative": 0
+            },
             "type_distribution": {
                 "calculation": 0, "geometry": 0, "application": 0,
                 "proof": 0, "graph": 0, "statistics": 0
             },
-            "average_difficulty": "medium",
+            "average_difficulty": "pattern",
             "dominant_type": "calculation"
         }
 
@@ -1792,23 +1811,24 @@ class AIEngine:
         "subjective_count": 4
     },
     "summary": {
-        "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+        "difficulty_distribution": {"concept": 0, "pattern": 0, "reasoning": 0, "creative": 0},
         "type_distribution": {
             "calculation": 0, "geometry": 0, "application": 0,
             "proof": 0, "graph": 0, "statistics": 0
         },
-        "average_difficulty": "medium",
+        "average_difficulty": "pattern",
         "dominant_type": "calculation"
     },
     "questions": [
         {
             "question_number": 1,
-            "difficulty": "low",
+            "difficulty": "concept",
             "question_type": "calculation",
             "points": 3,
             "topic": "공통수학1 > 다항식 > 다항식의 연산",
             "ai_comment": "핵심 개념. 주의사항.",
-            "confidence": 0.95
+            "confidence": 0.95,
+            "difficulty_reason": "기본 개념 확인"
         }
     ]
 }
@@ -1879,19 +1899,24 @@ class AIEngine:
 ## 규칙 (엄격 준수)
 
 1. 모든 텍스트(topic, ai_comment)는 한국어로 작성
-2. difficulty: high(상), medium(중), low(하) 중 하나
+2. difficulty: concept(개념), pattern(유형), reasoning(심화), creative(최상위) 중 하나 (4단계 시스템)
+   - concept: 기본 개념 확인, 공식 직접 대입, 1-2단계 해결
+   - pattern: 교과서 연습문제 수준, 2-4단계 풀이
+   - reasoning: 2개 대단원 복합, 5-6단계 풀이, 논리적 추론
+   - creative: 3개 이상 대단원 복합, 7단계 이상 풀이, 창의적 통찰
 3. question_type: calculation(계산), geometry(도형), application(응용), proof(증명), graph(그래프), statistics(통계) 중 하나
 4. points: 숫자 (소수점 허용)
 5. 서답형은 "서답형 1", "서답형 2" 형식
+6. difficulty_reason: 난이도 판단 근거 (15자 이내)
 
 ⚠️ 중요 - 소문제 처리:
 - (1), (2), (3) 또는 (가), (나), (다)가 있으면 하나의 문제로 취급
 - 배점은 합산
 - 난이도는 가장 어려운 소문제 기준
 
-6. topic 형식: "과목명 > 대단원 > 소단원"
-7. ai_comment: 정확히 2문장, 총 50자 이내
-8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
+7. topic 형식: "과목명 > 대단원 > 소단원"
+8. ai_comment: 정확히 2문장, 총 50자 이내
+9. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
 """
 
     def _get_unified_prompt(self) -> str:
@@ -1986,7 +2011,7 @@ class AIEngine:
 
 각 문항에 대해:
 1. 토픽 분류 (어떤 개념?)
-2. 난이도 판정 (high/medium/low)
+2. 난이도 판정 (concept/pattern/reasoning/creative) - 4단계 시스템
 3. 문제 유형 (calculation/geometry/application/proof/graph/statistics)
 4. **학생 답안지인 경우**: is_correct, error_type, earned_points 추가
 
@@ -2010,23 +2035,23 @@ class AIEngine:
         "wrong_count": 6
     },
     "summary": {
-        "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+        "difficulty_distribution": {"concept": 0, "pattern": 0, "reasoning": 0, "creative": 0},
         "type_distribution": {
             "calculation": 0, "geometry": 0, "application": 0,
             "proof": 0, "graph": 0, "statistics": 0
         },
-        "average_difficulty": "medium",
+        "average_difficulty": "pattern",
         "dominant_type": "calculation"
     },
     "questions": [
         {
             "question_number": 1,
-            "difficulty": "low",
+            "difficulty": "concept",
             "question_type": "calculation",
             "points": 3,
             "topic": "공통수학1 > 다항식 > 다항식의 연산",
             "ai_comment": "핵심 개념. 주의사항.",
-            "difficulty_reason": "기본 공식 적용만 필요한 단순 계산 문제",
+            "difficulty_reason": "기본 개념 확인",
             "confidence": 0.95,
             "is_correct": true,
             "student_answer": "3",
@@ -2036,12 +2061,12 @@ class AIEngine:
         },
         {
             "question_number": 2,
-            "difficulty": "medium",
+            "difficulty": "pattern",
             "question_type": "calculation",
             "points": 4,
             "topic": "공통수학1 > 방정식과 부등식 > 이차방정식",
             "ai_comment": "근의 공식 활용. 계산 주의.",
-            "difficulty_reason": "근의 공식과 판별식 개념 이해 필요",
+            "difficulty_reason": "일반 유형 문제",
             "confidence": 0.60,
             "is_correct": null,
             "student_answer": "5",
@@ -2052,12 +2077,12 @@ class AIEngine:
         },
         {
             "question_number": "서답형 1",
-            "difficulty": "high",
+            "difficulty": "reasoning",
             "question_type": "proof",
             "points": 9,
             "topic": "미적분I > 미분 > 도함수의 활용",
             "ai_comment": "증명 과정 서술. 논리적 흐름 중요.",
-            "difficulty_reason": "다단계 논리 전개 필요, 미분 개념 심화 적용",
+            "difficulty_reason": "다단계 논리 전개",
             "confidence": 0.85,
             "is_correct": false,
             "student_answer": "(풀이 내용)",
@@ -2176,7 +2201,7 @@ class AIEngine:
 
 각 문항에 대해:
 1. 토픽 분류 (어떤 개념?)
-2. 난이도 판정 (high/medium/low)
+2. 난이도 판정 (concept/pattern/reasoning/creative) - 4단계 시스템
 3. 문제 유형 (calculation/geometry/application/proof/graph/statistics)
 4. 문제 형식 (objective: 객관식, short_answer: 단답형, essay: 서술형)
 
@@ -2194,35 +2219,35 @@ class AIEngine:
         "subjective_count": 4
     },
     "summary": {
-        "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+        "difficulty_distribution": {"concept": 0, "pattern": 0, "reasoning": 0, "creative": 0},
         "type_distribution": {
             "calculation": 0, "geometry": 0, "application": 0,
             "proof": 0, "graph": 0, "statistics": 0
         },
-        "average_difficulty": "medium",
+        "average_difficulty": "pattern",
         "dominant_type": "calculation"
     },
     "questions": [
         {
             "question_number": 1,
-            "difficulty": "low",
+            "difficulty": "concept",
             "question_type": "calculation",
             "question_format": "objective",
             "points": 3,
             "topic": "공통수학1 > 다항식 > 다항식의 연산",
             "ai_comment": "핵심 개념. 주의사항.",
-            "difficulty_reason": "기본 공식 적용만 필요한 단순 계산 문제",
+            "difficulty_reason": "기본 개념 확인",
             "confidence": 0.95
         },
         {
             "question_number": "서답형 1",
-            "difficulty": "high",
+            "difficulty": "reasoning",
             "question_type": "proof",
             "question_format": "essay",
             "points": 9,
             "topic": "미적분I > 미분 > 도함수의 활용",
             "ai_comment": "증명 과정 서술. 논리적 흐름 중요.",
-            "difficulty_reason": "다단계 논리 전개 필요, 미분 개념 심화 적용",
+            "difficulty_reason": "다단계 논리 전개",
             "confidence": 0.85
         }
     ]
@@ -2292,7 +2317,7 @@ class AIEngine:
 ### STEP 2: 문항별 분류 + 정오답 분석
 각 문항에 대해:
 1. 어떤 개념을 묻는가? → 토픽 분류
-2. 얼마나 어려운가? → 난이도 판정
+2. 얼마나 어려운가? → 난이도 판정 (concept/pattern/reasoning/creative)
 3. 어떤 유형인가? → 문제 유형
 4. **정답인가 오답인가?** → is_correct
 5. **오답일 경우 오류 유형** → error_type
@@ -2312,22 +2337,23 @@ class AIEngine:
         "wrong_count": 6
     },
     "summary": {
-        "difficulty_distribution": {"high": 0, "medium": 0, "low": 0},
+        "difficulty_distribution": {"concept": 0, "pattern": 0, "reasoning": 0, "creative": 0},
         "type_distribution": {
             "calculation": 0, "geometry": 0, "application": 0,
             "proof": 0, "graph": 0, "statistics": 0
         },
-        "average_difficulty": "medium",
+        "average_difficulty": "pattern",
         "dominant_type": "calculation"
     },
     "questions": [
         {
             "question_number": 1,
-            "difficulty": "low",
+            "difficulty": "concept",
             "question_type": "calculation",
             "points": 3,
             "topic": "공통수학1 > 다항식 > 다항식의 연산",
             "ai_comment": "핵심 개념. 주의사항.",
+            "difficulty_reason": "기본 개념 확인",
             "confidence": 0.95,
             "is_correct": true,
             "student_answer": "③",
@@ -2337,11 +2363,12 @@ class AIEngine:
         },
         {
             "question_number": 2,
-            "difficulty": "medium",
+            "difficulty": "pattern",
             "question_type": "calculation",
             "points": 4,
             "topic": "공통수학1 > 방정식과 부등식 > 이차방정식",
             "ai_comment": "근의 공식 활용. 판별식 주의.",
+            "difficulty_reason": "일반 유형 문제",
             "confidence": 0.90,
             "is_correct": false,
             "student_answer": "②",
@@ -2351,11 +2378,12 @@ class AIEngine:
         },
         {
             "question_number": "서답형 1",
-            "difficulty": "high",
+            "difficulty": "reasoning",
             "question_type": "proof",
             "points": 9,
             "topic": "미적분I > 미분 > 도함수의 활용",
             "ai_comment": "증명 과정 서술. 논리적 흐름 중요.",
+            "difficulty_reason": "다단계 논리 전개",
             "confidence": 0.85,
             "is_correct": false,
             "student_answer": "(풀이 내용)",
@@ -2453,13 +2481,14 @@ class AIEngine:
 ## 규칙 (엄격 준수)
 
 1. 모든 텍스트(topic, ai_comment)는 한국어로 작성
-2. difficulty: high(상), medium(중), low(하) 중 하나
+2. difficulty: concept(개념), pattern(유형), reasoning(심화), creative(최상위) 중 하나 (4단계 시스템)
 3. question_type: calculation, geometry, application, proof, graph, statistics 중 하나
 4. points: 숫자
 5. **채점 표시 없으면 반드시 is_correct: null** (추측 금지!)
 6. topic 형식: "과목명 > 대단원 > 소단원"
 7. ai_comment: 정확히 2문장, 총 50자 이내
 8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
+9. difficulty_reason: 난이도 판단 근거 (15자 이내)
 """
 
 

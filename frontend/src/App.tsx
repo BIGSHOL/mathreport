@@ -19,6 +19,7 @@ const AnalysisResultPage = lazy(() => import('./pages/AnalysisResultPage').then(
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const AdminPatternPage = lazy(() => import('./pages/AdminPatternPage').then(m => ({ default: m.AdminPatternPage })));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then(m => ({ default: m.AdminUsersPage })));
+const AdminSchoolTrendsPage = lazy(() => import('./pages/AdminSchoolTrendsPage').then(m => ({ default: m.AdminSchoolTrendsPage })));
 const TrendsPage = lazy(() => import('./pages/TrendsPage'));
 
 // Loading fallback (rendering-hoist-jsx)
@@ -88,6 +89,7 @@ function App() {
             <Route path="/trends" element={<TrendsPage />} />
             <Route path="/admin/patterns" element={<AdminPatternPage />} />
             <Route path="/admin/users" element={<AdminUsersPage />} />
+            <Route path="/admin/school-trends" element={<AdminSchoolTrendsPage />} />
           </Route>
         </Route>
 

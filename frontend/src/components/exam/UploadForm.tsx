@@ -106,8 +106,114 @@ const STAGE_DURATIONS = {
   classifying: 5000,
 };
 
+// 학년별 세부과목 매핑 (22개정 교육과정)
+const GRADE_TO_CATEGORIES: Record<string, string[]> = {
+  '중1': ['중1-1', '중1-2'],
+  '중2': ['중2-1', '중2-2'],
+  '중3': ['중3-1', '중3-2'],
+  '고1': ['공통수학1', '공통수학2'],
+  '고2': ['대수', '미적분I', '미적분II', '확률과 통계', '기하'],
+  '고3': ['대수', '미적분I', '미적분II', '확률과 통계', '기하'],
+};
+
+// 과목별 카테고리 정의 (하위 호환용)
+const SUBJECT_CATEGORIES: Record<string, { label: string; categories: string[] }> = {
+  '수학': {
+    label: '수학',
+    categories: [
+      '중1-1', '중1-2', '중2-1', '중2-2', '중3-1', '중3-2',
+      '공통수학1', '공통수학2', '대수', '미적분I', '미적분II', '확률과 통계', '기하',
+    ],
+  },
+  '영어': {
+    label: '영어',
+    categories: ['영어Ⅰ', '영어Ⅱ', '영어독해와작문', '영어회화'],
+  },
+};
+
+// 카테고리별 단원 정의 (22개정 교육과정)
+const CATEGORY_UNITS: Record<string, string[]> = {
+  // 중학교 1학년 1학기
+  '중1-1': ['소인수분해', '정수와 유리수', '문자와 식'],
+
+  // 중학교 1학년 2학기
+  '중1-2': ['일차방정식', '좌표평면과 그래프', '정비례와 반비례', '통계'],
+
+  // 중학교 2학년 1학기
+  '중2-1': ['유리수와 순환소수', '식의 계산', '일차부등식'],
+
+  // 중학교 2학년 2학기
+  '중2-2': ['연립일차방정식', '일차함수', '확률'],
+
+  // 중학교 3학년 1학기
+  '중3-1': ['제곱근과 실수', '다항식의 곱셈과 인수분해', '이차방정식'],
+
+  // 중학교 3학년 2학기
+  '중3-2': ['이차함수', '삼각비', '원의 성질', '통계'],
+
+  // 고등학교 22개정 - 공통수학1 (4단원)
+  '공통수학1': ['다항식의 연산', '항등식과 나머지정리', '인수분해', '복소수', '이차방정식', '이차방정식과 이차함수', '여러 가지 방정식', '연립일차부등식', '이차부등식', '경우의 수', '순열', '조합', '행렬'],
+
+  // 고등학교 22개정 - 공통수학2 (3단원)
+  '공통수학2': ['평면좌표', '직선의 방정식', '원의 방정식', '도형의 이동', '집합', '명제', '함수', '유리함수', '무리함수'],
+
+  // 고등학교 22개정 - 대수
+  '대수': ['지수', '로그', '지수함수', '로그함수', '지수/로그 방정식과 부등식', '삼각함수', '삼각함수의 그래프', '삼각함수의 활용', '등차수열', '등비수열', '수열의 합', '수학적 귀납법'],
+
+  // 고등학교 22개정 - 미적분I
+  '미적분I': ['수열의 극한', '급수', '함수의 극한', '함수의 연속', '미분계수와 도함수', '미분법', '도함수의 활용', '부정적분', '정적분', '정적분의 활용'],
+
+  // 고등학교 22개정 - 미적분II
+  '미적분II': ['여러 가지 미분법', '여러 가지 적분법', '정적분의 활용 심화'],
+
+  // 고등학교 22개정 - 확률과 통계
+  '확률과 통계': ['순열과 조합 심화', '확률의 뜻과 활용', '조건부확률', '확률분포', '이항분포', '정규분포', '통계적 추정'],
+
+  // 고등학교 22개정 - 기하
+  '기하': ['이차곡선 - 포물선', '이차곡선 - 타원', '이차곡선 - 쌍곡선', '평면벡터', '평면벡터의 활용', '공간도형', '공간벡터'],
+};
+
+// 학년 옵션
+const GRADE_OPTIONS = ['중1', '중2', '중3', '고1', '고2', '고3'];
+
+// 과목 약어 → 카테고리 매핑 (파일명 파싱용, 22개정)
+const SUBJECT_ABBR_MAP: Record<string, { subject: string; category: string }> = {
+  // 수학 약어 (22개정) - 학기별
+  '중1-1': { subject: '수학', category: '중1-1' },
+  '중1-2': { subject: '수학', category: '중1-2' },
+  '중2-1': { subject: '수학', category: '중2-1' },
+  '중2-2': { subject: '수학', category: '중2-2' },
+  '중3-1': { subject: '수학', category: '중3-1' },
+  '중3-2': { subject: '수학', category: '중3-2' },
+  // 하위 호환 (학년 전체)
+  '중1': { subject: '수학', category: '중1-1' },
+  '중2': { subject: '수학', category: '중2-1' },
+  '중3': { subject: '수학', category: '중3-1' },
+  '공수1': { subject: '수학', category: '공통수학1' },
+  '공수2': { subject: '수학', category: '공통수학2' },
+  '대수': { subject: '수학', category: '대수' },
+  '미적1': { subject: '수학', category: '미적분I' },
+  '미적2': { subject: '수학', category: '미적분II' },
+  '확통': { subject: '수학', category: '확률과 통계' },
+  '기하': { subject: '수학', category: '기하' },
+  // 영어 약어
+  '영1': { subject: '영어', category: '영어Ⅰ' },
+  '영2': { subject: '영어', category: '영어Ⅱ' },
+  '영어': { subject: '영어', category: '영어Ⅰ' },
+  '독작': { subject: '영어', category: '영어독해와작문' },
+  '회화': { subject: '영어', category: '영어회화' },
+};
+
+export interface ExamClassification {
+  school?: string;
+  grade?: string;
+  subject?: string;
+  category?: string;
+  examScope?: string[];  // 출제범위 (단원 목록)
+}
+
 interface UploadFormProps {
-  onUpload: (data: { files: File[]; title: string }) => Promise<void>;
+  onUpload: (data: { files: File[]; title: string; classification?: ExamClassification }) => Promise<void>;
   isUploading: boolean;
 }
 
@@ -117,6 +223,14 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadStage, setUploadStage] = useState<UploadStage>('idle');
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // 분류 정보 state
+  const [school, setSchool] = useState('');
+  const [grade, setGrade] = useState('');
+  const [subject, setSubject] = useState('수학');
+  const [category, setCategory] = useState('');
+  const [examScope, setExamScope] = useState<string[]>([]);  // 출제범위 (선택된 단원)
+  const [showClassification, setShowClassification] = useState(false);
 
   // 파일 크기 합계 (안정적인 의존성을 위해)
   const totalFileSize = files.reduce((sum, f) => sum + f.size, 0);
@@ -170,12 +284,30 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
         const compressedSize = compressedFiles.reduce((sum, f) => sum + f.size, 0);
         console.log(`[압축 완료] 총 ${(originalSize/1024/1024).toFixed(2)}MB → ${(compressedSize/1024/1024).toFixed(2)}MB`);
 
-        // 2. 업로드 (압축된 파일 사용)
-        await onUpload({ files: compressedFiles, title });
+        // 분류 정보 구성
+        const classification: ExamClassification = {};
+        if (school.trim()) classification.school = school.trim();
+        if (grade) classification.grade = grade;
+        if (subject) classification.subject = subject;
+        if (category) classification.category = category;
+        if (examScope.length > 0) classification.examScope = examScope;
+
+        // 2. 업로드 (압축된 파일 + 분류 정보)
+        await onUpload({
+          files: compressedFiles,
+          title,
+          classification: Object.keys(classification).length > 0 ? classification : undefined,
+        });
 
         // Reset form on success
         setTitle('');
         setFiles([]);
+        setExamScope([]);
+        setSchool('');
+        setGrade('');
+        setSubject('수학');
+        setCategory('');
+        setShowClassification(false);
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -183,17 +315,20 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
         // Error handled by parent
       }
     },
-    [files, title, onUpload]
+    [files, title, school, grade, subject, category, examScope, onUpload]
   );
 
   /**
-   * 파일명에서 시험명 추출
+   * 파일명에서 시험명과 분류 정보 추출
    * 패턴 1: "[학교명][학년][과목][시험정보] (기타).pdf"
    *   예: "[구암고][1][수상][24 1 중간] (원본).pdf" -> "구암고 1학년 수학(상) 2024년 1학기 중간고사"
    * 패턴 2: 일반 파일명
    *   예: "2024_1학기_중간고사_수학.pdf" -> "2024 1학기 중간고사 수학"
    */
-  const parseExamTitleFromFilename = useCallback((filename: string): string => {
+  const parseExamFromFilename = useCallback((filename: string): {
+    title: string;
+    classification: ExamClassification;
+  } => {
     // 확장자 제거
     const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
 
@@ -207,29 +342,48 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
     if (matches.length >= 3) {
       const parts = matches.map((m) => m[1]);
 
-      // 과목명 변환 맵
-      const subjectMap: Record<string, string> = {
-        // 수학
-        수상: '수학(상)',
-        수하: '수학(하)',
-        수1: '수학Ⅰ',
-        수2: '수학Ⅱ',
-        확통: '확률과통계',
-        미적: '미적분',
-        기하: '기하',
-        // 영어
-        영1: '영어Ⅰ',
-        영2: '영어Ⅱ',
-        영어: '영어',
-        독작: '영어독해와작문',
-        회화: '영어회화',
-      };
+      // 학교명
+      const extractedSchool = parts[0];
 
-      // 학교명, 학년, 과목
-      const school = parts[0];
+      // 과목/카테고리 먼저 추출 (학년 추론에 사용)
+      const subjectAbbr = parts[2];
+      const subjectInfo = SUBJECT_ABBR_MAP[subjectAbbr];
+      const extractedSubject = subjectInfo?.subject || '수학';
+
+      // 학년 추출 및 추론
       const gradeMatch = parts[1]?.match(/(\d)/);
-      const grade = gradeMatch ? `${gradeMatch[1]}학년` : parts[1];
-      const subject = subjectMap[parts[2]] || parts[2];
+      const extractedGradeNum = gradeMatch ? gradeMatch[1] : '';
+      const isMiddleSchool = extractedSchool.includes('중');
+
+      // 고등학교 과목 약어로 학년 추론
+      let extractedGrade = '';
+      if (extractedGradeNum) {
+        extractedGrade = isMiddleSchool ? `중${extractedGradeNum}` : `고${extractedGradeNum}`;
+      } else if (subjectInfo?.category) {
+        // 과목 약어로 학년 추론
+        if (['공통수학1', '공통수학2'].includes(subjectInfo.category)) {
+          extractedGrade = '고1';
+        } else if (['대수', '미적분I', '미적분II', '확률과 통계', '기하'].includes(subjectInfo.category)) {
+          extractedGrade = '고2'; // 기본값 (고2/고3 구분 어려움)
+        }
+      }
+
+      // 세부과목: 학기별(중1-1 등) 또는 고등과목(공통수학1 등)이 명시적으로 있을 때만 설정
+      const isExplicitCategory = subjectAbbr && (
+        subjectAbbr.match(/중\d-[12]/) || // 중1-1, 중1-2 등
+        ['공수1', '공수2', '대수', '미적1', '미적2', '확통', '기하'].includes(subjectAbbr) // 고등 과목
+      );
+      const extractedCategory = isExplicitCategory ? (subjectInfo?.category || '') : '';
+
+      // 표시용 과목명
+      const displaySubjectMap: Record<string, string> = {
+        수상: '수학(상)', 수하: '수학(하)', 수1: '수학Ⅰ', 수2: '수학Ⅱ',
+        확통: '확률과통계', 미적: '미적분', 기하: '기하',
+        공수1: '공통수학1', 공수2: '공통수학2', 대수: '대수',
+        영1: '영어Ⅰ', 영2: '영어Ⅱ', 영어: '영어', 독작: '영어독해와작문', 회화: '영어회화',
+      };
+      const displaySubject = displaySubjectMap[subjectAbbr] || subjectAbbr;
+      const displayGrade = extractedGradeNum ? `${extractedGradeNum}학년` : parts[1];
 
       // 시험 정보 파싱 (예: "24 1 중간" -> "2024년 1학기 중간고사")
       let examInfo = parts[3] || '';
@@ -237,15 +391,19 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
       if (examMatch) {
         const year = `20${examMatch[1]}`;
         const semester = examMatch[2];
-        const typeMap: Record<string, string> = {
-          중간: '중간고사',
-          기말: '기말고사',
-          모의: '모의고사',
-        };
+        const typeMap: Record<string, string> = { 중간: '중간고사', 기말: '기말고사', 모의: '모의고사' };
         examInfo = `${year}년 ${semester}학기 ${typeMap[examMatch[3]]}`;
       }
 
-      return `${school} ${grade} ${subject} ${examInfo}`.trim();
+      return {
+        title: `${extractedSchool} ${displayGrade} ${displaySubject} ${examInfo}`.trim(),
+        classification: {
+          school: extractedSchool,
+          grade: extractedGrade,
+          subject: extractedSubject,
+          category: extractedCategory,
+        },
+      };
     }
 
     // 패턴 2: 일반 파일명 처리
@@ -254,7 +412,10 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
       .replace(/\s+/g, ' ')
       .trim();
 
-    return cleaned;
+    return {
+      title: cleaned,
+      classification: { subject: '수학' },
+    };
   }, []);
 
   const handleFileChange = useCallback(
@@ -267,14 +428,27 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
         );
         setFiles(fileArray);
 
-        // 시험명이 비어있으면 첫 번째 파일명에서 자동 추출
+        // 첫 번째 파일명에서 자동 추출
+        const parsed = parseExamFromFilename(fileArray[0].name);
+
+        // 시험명이 비어있으면 자동 설정
         if (!title.trim()) {
-          const parsedTitle = parseExamTitleFromFilename(fileArray[0].name);
-          setTitle(parsedTitle);
+          setTitle(parsed.title);
+        }
+
+        // 분류 정보 자동 설정
+        if (parsed.classification.school) setSchool(parsed.classification.school);
+        if (parsed.classification.grade) setGrade(parsed.classification.grade);
+        if (parsed.classification.subject) setSubject(parsed.classification.subject);
+        if (parsed.classification.category) setCategory(parsed.classification.category);
+
+        // 분류 정보가 추출되면 분류 섹션 표시
+        if (parsed.classification.school || parsed.classification.grade) {
+          setShowClassification(true);
         }
       }
     },
-    [title, parseExamTitleFromFilename]
+    [title, parseExamFromFilename]
   );
 
   const removeFile = useCallback((index: number) => {
@@ -325,13 +499,26 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
       );
       setFiles(sortedFiles);
 
-      // 시험명이 비어있으면 첫 번째 파일명에서 자동 추출
+      // 첫 번째 파일명에서 자동 추출
+      const parsed = parseExamFromFilename(sortedFiles[0].name);
+
+      // 시험명이 비어있으면 자동 설정
       if (!title.trim()) {
-        const parsedTitle = parseExamTitleFromFilename(sortedFiles[0].name);
-        setTitle(parsedTitle);
+        setTitle(parsed.title);
+      }
+
+      // 분류 정보 자동 설정
+      if (parsed.classification.school) setSchool(parsed.classification.school);
+      if (parsed.classification.grade) setGrade(parsed.classification.grade);
+      if (parsed.classification.subject) setSubject(parsed.classification.subject);
+      if (parsed.classification.category) setCategory(parsed.classification.category);
+
+      // 분류 정보가 추출되면 분류 섹션 표시
+      if (parsed.classification.school || parsed.classification.grade) {
+        setShowClassification(true);
       }
     }
-  }, [title, parseExamTitleFromFilename]);
+  }, [title, parseExamFromFilename]);
 
   return (
     <div className="bg-white shadow sm:rounded-lg mb-6 p-4">
@@ -435,6 +622,156 @@ export function UploadForm({ onUpload, isUploading }: UploadFormProps) {
             ))}
             {files.length > 5 && (
               <span className="px-2 py-0.5 text-xs text-gray-500">+{files.length - 5}개</span>
+            )}
+          </div>
+        )}
+
+        {/* 분류 정보 섹션 */}
+        {files.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            {/* 분류 토글 버튼 */}
+            <button
+              type="button"
+              onClick={() => setShowClassification(!showClassification)}
+              className="flex items-center gap-1 text-sm text-gray-600 hover:text-indigo-600"
+            >
+              <svg
+                className={`h-4 w-4 transition-transform ${showClassification ? 'rotate-90' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+              </svg>
+              <span>시험 분류 정보</span>
+              {(school || grade || category) && (
+                <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs">
+                  {[school, grade, category].filter(Boolean).join(' · ')}
+                </span>
+              )}
+            </button>
+
+            {showClassification && (
+              <div className="mt-2 space-y-2">
+                {/* 분류 정확도 안내 메시지 */}
+                <p className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded flex items-center gap-1">
+                  <svg className="h-3.5 w-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  분류 정보가 정확할수록 AI 분석 정확도가 향상됩니다
+                </p>
+
+                {/* 분류 입력 필드들 */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {/* 학교명 */}
+                  <input
+                    type="text"
+                    value={school}
+                    onChange={(e) => setSchool(e.target.value)}
+                    placeholder="학교명"
+                    className="border border-gray-200 rounded px-2 py-1.5 text-sm"
+                  />
+
+                  {/* 학년 */}
+                  <select
+                    value={grade}
+                    onChange={(e) => {
+                      setGrade(e.target.value);
+                      setCategory(''); // 학년 변경 시 세부과목 초기화
+                      setExamScope([]); // 학년 변경 시 출제범위 초기화
+                    }}
+                    className="border border-gray-200 rounded px-2 py-1.5 text-sm bg-white"
+                  >
+                    <option value="">학년 선택</option>
+                    {GRADE_OPTIONS.map((g) => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+
+                  {/* 과목 */}
+                  <select
+                    value={subject}
+                    onChange={(e) => {
+                      setSubject(e.target.value);
+                      setCategory(''); // 과목 변경 시 카테고리 초기화
+                    }}
+                    className="border border-gray-200 rounded px-2 py-1.5 text-sm bg-white"
+                  >
+                    {Object.entries(SUBJECT_CATEGORIES).map(([key, { label }]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+
+                  {/* 세부 과목 (카테고리) - 학년에 따라 필터링 */}
+                  <select
+                    value={category}
+                    onChange={(e) => {
+                      setCategory(e.target.value);
+                      setExamScope([]); // 카테고리 변경 시 출제범위 초기화
+                    }}
+                    className="border border-gray-200 rounded px-2 py-1.5 text-sm bg-white"
+                    disabled={!grade} // 학년 선택 전에는 비활성화
+                  >
+                    <option value="">세부 과목</option>
+                    {grade && GRADE_TO_CATEGORIES[grade]?.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 출제범위 선택 (세부 과목 선택 시) */}
+                {category && CATEGORY_UNITS[category] && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-700">출제범위 (단원 선택)</span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setExamScope(CATEGORY_UNITS[category] || [])}
+                          className="text-xs text-indigo-600 hover:text-indigo-800"
+                        >
+                          전체선택
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExamScope([])}
+                          className="text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          선택해제
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CATEGORY_UNITS[category].map((unit) => {
+                        const isSelected = examScope.includes(unit);
+                        return (
+                          <button
+                            key={unit}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setExamScope(examScope.filter(u => u !== unit));
+                              } else {
+                                setExamScope([...examScope, unit]);
+                              }
+                            }}
+                            className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                              isSelected
+                                ? 'bg-indigo-100 border-indigo-400 text-indigo-700'
+                                : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-300'
+                            }`}
+                          >
+                            {unit}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {examScope.length > 0 && (
+                      <p className="mt-2 text-xs text-indigo-600">
+                        {examScope.length}개 단원 선택됨
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

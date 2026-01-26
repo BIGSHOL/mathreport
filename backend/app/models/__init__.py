@@ -19,6 +19,7 @@ from app.models.reference import (
     CollectionReason,
     ReviewStatus,
 )
+from app.models.school_trends import SchoolExamTrend
 
 __all__ = [
     # User
@@ -51,4 +52,6 @@ __all__ = [
     "QuestionReference",
     "CollectionReason",
     "ReviewStatus",
+    # School Trends
+    "SchoolExamTrend",
 ]

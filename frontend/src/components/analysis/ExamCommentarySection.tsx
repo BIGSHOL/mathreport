@@ -135,24 +135,6 @@ export const ExamCommentarySection = memo(function ExamCommentarySection({
             </div>
           )}
 
-          {/* 개선 권장사항 */}
-          {commentary.recommendations && commentary.recommendations.length > 0 && (
-            <div className="bg-white bg-opacity-60 rounded-lg p-4 border border-blue-200">
-              <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                <span className="w-1.5 h-4 bg-blue-500 rounded"></span>
-                ✅ 개선 권장사항
-              </h4>
-              <ul className="space-y-2">
-                {commentary.recommendations.map((recommendation, index) => (
-                  <li key={index} className="flex items-start gap-2 text-sm text-gray-800">
-                    <span className="flex-shrink-0 text-blue-600 mt-0.5">▸</span>
-                    <span className="flex-1">{recommendation}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {/* 학습 가이던스 (답안지인 경우) */}
           {commentary.study_guidance && commentary.study_guidance.length > 0 && (
             <div className="bg-white bg-opacity-60 rounded-lg p-4 border border-green-200">

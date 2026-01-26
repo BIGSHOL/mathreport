@@ -298,6 +298,7 @@ class ExamContext(BaseModel):
     grade_level: GradeLevelType | None = None
     subject: str = "수학"
     unit: str | None = None
+    exam_scope: list[str] | None = Field(None, description="출제범위 (단원 목록)")
     question_count: int | None = None
     detected_types: list[str] = Field(default_factory=list, description="감지된 문제 유형 ID")
     exam_paper_type: ExamPaperType = Field("unknown", description="시험지 유형")

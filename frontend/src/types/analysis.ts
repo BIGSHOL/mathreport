@@ -181,8 +181,8 @@ export const DIFFICULTY_LABELS: Record<QuestionDifficulty, string> = {
   // 4단계 시스템
   [QuestionDifficulty.CONCEPT]: "개념",
   [QuestionDifficulty.PATTERN]: "유형",
-  [QuestionDifficulty.REASONING]: "사고력",
-  [QuestionDifficulty.CREATIVE]: "창의",
+  [QuestionDifficulty.REASONING]: "심화",
+  [QuestionDifficulty.CREATIVE]: "최상위",
   // 3단계 시스템 (하위 호환)
   [QuestionDifficulty.HIGH]: "상",
   [QuestionDifficulty.MEDIUM]: "중",

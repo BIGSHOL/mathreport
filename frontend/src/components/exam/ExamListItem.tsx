@@ -265,6 +265,47 @@ export const ExamListItem = memo(function ExamListItem({
             <span>{formattedDate}</span>
           </p>
 
+          {/* 분류 정보 (학교, 학년, 세부과목, 출제범위) */}
+          {(exam.school_name || exam.grade || exam.unit || (exam.exam_scope && exam.exam_scope.length > 0)) && (
+            <div className="flex items-center flex-wrap gap-2 mt-1.5">
+              {exam.school_name && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                  <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  {exam.school_name}
+                </span>
+              )}
+              {exam.grade && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">
+                  <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  {exam.grade}
+                </span>
+              )}
+              {exam.unit && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                  <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                  {exam.unit}
+                </span>
+              )}
+              {exam.exam_scope && exam.exam_scope.length > 0 && (
+                <span
+                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100 cursor-help"
+                  title={`출제범위: ${exam.exam_scope.join(', ')}`}
+                >
+                  <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  출제범위 {exam.exam_scope.length}개
+                </span>
+              )}
+            </div>
+          )}
+
           {/* AI 감지 설명 (대기 상태이고 감지 결과가 있을 때) */}
           {exam.status === 'pending' && detectionExplanation && (
             <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
@@ -334,11 +375,11 @@ export const ExamListItem = memo(function ExamListItem({
                     </span>
                     <span className="flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-amber-500" />
-                      사고{brief.difficulty_reasoning}
+                      심화{brief.difficulty_reasoning}
                     </span>
                     <span className="flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-red-500" />
-                      창의{brief.difficulty_creative}
+                      최상{brief.difficulty_creative}
                     </span>
                   </>
                 ) : (

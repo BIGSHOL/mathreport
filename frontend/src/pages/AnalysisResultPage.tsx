@@ -21,6 +21,7 @@ import {
   useGenerateExtendedAnalysis,
   useRequestAnswerAnalysis,
   useExportAnalysis,
+  useRequestAnalysis,
 } from '../hooks/useAnalysis';
 import { DetailedTemplate } from '../components/analysis/templates';
 import { CacheHitBanner } from '../components/analysis/CacheHitBanner';
@@ -49,6 +50,7 @@ export function AnalysisResultPage() {
   const { generateExtended, isGenerating } = useGenerateExtendedAnalysis();
   const { requestAnswerAnalysis, isRequesting: isRequestingAnswerAnalysis } = useRequestAnswerAnalysis();
   const { exportAnalysis, isExporting } = useExportAnalysis();
+  const { requestAnalysis, isRequesting: isReanalyzing } = useRequestAnalysis();
 
   const [exam, setExam] = useState<Exam | null>(null);
   const [hasAnswerAnalysis, setHasAnswerAnalysis] = useState(false);
@@ -140,15 +142,17 @@ export function AnalysisResultPage() {
       const newCommentary = await analysisService.generateCommentary(id, forceRegenerate);
       setCommentary(newCommentary);
       toast.success('AI 시험 총평이 생성되었습니다');
-      // 분석 결과에도 총평 반영
-      mutateResult();
+      // SWR 캐시에 총평 즉시 반영 (optimistic update)
+      if (result) {
+        mutateResult({ ...result, commentary: newCommentary }, false);
+      }
     } catch (error) {
       console.error('Failed to generate commentary:', error);
       toast.error('총평 생성에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setIsGeneratingCommentary(false);
     }
-  }, [id, toast, mutateResult]);
+  }, [id, toast, mutateResult, result]);
 
   // 영역별 학습 전략 생성 핸들러
   const handleGenerateTopicStrategies = useCallback(async () => {
@@ -287,6 +291,30 @@ export function AnalysisResultPage() {
     }
   }, [id, result, exam, exportAnalysis]);
 
+  // 재분석 핸들러
+  const handleReanalyze = useCallback(async () => {
+    if (!result?.exam_id) return;
+
+    if (!confirm('시험지를 다시 분석하시겠습니까?\n새로운 4단계 난이도 시스템(개념/유형/심화/최상위)으로 분류됩니다.\n(크레딧이 추가로 소모됩니다)')) {
+      return;
+    }
+
+    try {
+      const newResult = await requestAnalysis({
+        examId: result.exam_id,
+        forceReanalyze: true,
+      });
+      if (newResult?.analysis_id) {
+        toast.success('재분석이 완료되었습니다');
+        // 새 분석 결과 페이지로 이동
+        window.location.href = `/analysis/${newResult.analysis_id}`;
+      }
+    } catch (error) {
+      console.error('재분석 실패:', error);
+      toast.error('재분석에 실패했습니다. 다시 시도해주세요.');
+    }
+  }, [result?.exam_id, requestAnalysis, toast]);
+
   // Early return for loading/error states (js-early-exit)
   if (isLoading) return loadingState;
   if (error || !result) return notFoundState;
@@ -361,6 +389,8 @@ export function AnalysisResultPage() {
   const displayGrade = exam?.extracted_grade || exam?.grade;
   // 과목
   const displaySubject = exam?.detected_subject || exam?.subject || '수학';
+  // 지역 (예: 대구_수성구 → 대구 수성구)
+  const displayRegion = exam?.school_region?.replace('_', ' ');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -422,6 +452,11 @@ export function AnalysisResultPage() {
                 <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 font-medium">
                   {displaySubject}
                 </span>
+                {displayRegion && (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 font-medium">
+                    {displayRegion}
+                  </span>
+                )}
                 <span className="text-gray-500 flex items-center gap-1.5">
                   <span>총 {total_questions}문항 · {totalPoints}점 만점</span>
                   {totalPoints !== 100 && (
@@ -467,6 +502,19 @@ export function AnalysisResultPage() {
                 </button>
               )}
 
+              {/* 재분석 버튼 */}
+              <button
+                onClick={handleReanalyze}
+                disabled={isReanalyzing}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="4단계 난이도 시스템으로 다시 분석합니다"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {isReanalyzing ? '분석 중...' : '재분석'}
+              </button>
+
               {/* 내보내기 버튼 */}
               <button
                 onClick={() => setShowExportModal(true)}
@@ -508,14 +556,14 @@ export function AnalysisResultPage() {
                         {difficultyDist.reasoning > 0 && (
                           <div className="flex items-center gap-1.5 mb-0.5">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.reasoning.bg }} />
-                            <span className="font-medium">사고력</span>
+                            <span className="font-medium">심화</span>
                             <span className="text-gray-500">{difficultyDist.reasoning}</span>
                           </div>
                         )}
                         {difficultyDist.creative > 0 && (
                           <div className="flex items-center gap-1.5">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DIFFICULTY_COLORS.creative.bg }} />
-                            <span className="font-medium">창의</span>
+                            <span className="font-medium">최상위</span>
                             <span className="text-gray-500">{difficultyDist.creative}</span>
                           </div>
                         )}

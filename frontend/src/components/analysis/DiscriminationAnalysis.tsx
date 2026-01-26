@@ -26,8 +26,8 @@ interface QuestionDiscrimination {
  * 이론적 변별력 지수 계산
  *
  * 원리:
- * - 중난이도 문항(유형, 사고력)이 가장 변별력이 높음
- * - 너무 쉽거나(개념) 너무 어려운(창의) 문항은 변별력이 낮음
+ * - 중난이도 문항(유형, 심화)이 가장 변별력이 높음
+ * - 너무 쉽거나(개념) 너무 어려운(최상위) 문항은 변별력이 낮음
  * - 배점이 클수록 변별력 기여도가 높음
  * - 전체 시험 내에서의 상대적 난이도 위치도 고려
  */
@@ -152,17 +152,17 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
       overallRating = '양호';
       overallColor = '#f59e0b';
       overallComment =
-        '전반적으로 양호하나, 일부 문항의 난이도나 배점 조정을 고려해보세요.';
+        '전반적으로 양호하나, 일부 문항은 변별력이 다소 낮습니다.';
     } else if (avgDiscrimination >= 0.40) {
       overallRating = '보통';
       overallColor = '#f97316';
       overallComment =
-        '변별력이 낮은 문항이 다소 있습니다. 너무 쉽거나 어려운 문항의 비중을 조정하세요.';
+        '변별력이 낮은 문항이 다소 있습니다. 너무 쉽거나 어려운 문항의 비중이 높습니다.';
     } else {
       overallRating = '개선 필요';
       overallColor = '#ef4444';
       overallComment =
-        '변별력이 부족합니다. 중난이도 문항의 비중을 늘리고 배점을 재검토하세요.';
+        '변별력이 부족합니다. 중난이도 문항의 비중이 낮고 극단적 난이도 문항이 많습니다.';
     }
 
     return {
@@ -336,7 +336,7 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
             <p className="font-semibold mb-1">변별력이란?</p>
             <p className="text-blue-800">
               문항이 학생들의 실력 차이를 얼마나 잘 구분하는지를 나타내는 지표입니다.
-              중난이도 문항(유형, 사고력)이 가장 변별력이 높으며, 너무 쉽거나 어려운 문항은 변별력이 낮습니다.
+              중난이도 문항(유형, 심화)이 가장 변별력이 높으며, 너무 쉽거나 어려운 문항은 변별력이 낮습니다.
               배점이 높을수록 시험 전체 변별에 미치는 영향이 큽니다.
             </p>
           </div>

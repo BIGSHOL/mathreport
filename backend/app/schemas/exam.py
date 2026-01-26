@@ -61,6 +61,7 @@ class ExamCreateRequest(BaseModel):
     school_name: str | None = Field(None, max_length=100, description="학교명 (선택)")
     school_region: str | None = Field(None, max_length=50, description="지역 (선택, 예: 서울_강남구)")
     school_type: str | None = Field(None, max_length=20, description="학교 유형 (선택, 예: 일반고, 특목고, 자사고)")
+    exam_scope: list[str] | None = Field(None, description="출제범위 - 단원 목록 (선택)")
     exam_type: ExamType = Field(
         default=ExamType.BLANK,
         description="시험지 유형 (blank: 빈 시험지, student: 학생 답안지)"
@@ -102,6 +103,7 @@ class ExamBase(BaseModel):
     school_name: str | None = None
     school_region: str | None = None
     school_type: str | None = None
+    exam_scope: list[str] | None = None  # 출제범위 (단원 목록)
     exam_type: ExamType = ExamType.BLANK
     file_path: str
     file_type: FileType

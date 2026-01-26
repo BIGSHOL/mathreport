@@ -123,6 +123,7 @@ class AnalysisService:
                 file_path=exam["file_path"],
                 grade_level=exam.get("grade"),
                 unit=exam.get("unit"),
+                exam_scope=exam.get("exam_scope"),  # 출제범위 (단원 목록)
                 auto_classify=True,  # 시험지 유형 자동 분류
                 exam_id=exam_id,  # 진행 단계 업데이트용
                 analysis_mode=analysis_mode,  # 분석 모드 (questions_only/full)

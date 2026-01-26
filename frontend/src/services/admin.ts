@@ -77,6 +77,54 @@ export interface ResetAnalysisResponse {
 }
 
 // ============================================
+// School Trends Types
+// ============================================
+
+export interface SchoolTrendItem {
+  id: string;
+  school_name: string;
+  school_region: string | null;
+  school_type: string | null;
+  grade: string;
+  subject: string;
+  period_type: string;
+  period_value: string | null;
+  sample_count: number;
+  difficulty_distribution: Record<string, number>;
+  difficulty_avg_points: Record<string, number>;
+  question_type_distribution: Record<string, number>;
+  chapter_distribution: Record<string, number>;
+  avg_total_points: number;
+  avg_question_count: number;
+  trend_summary: {
+    characteristics: string[];
+    difficulty_level: string;
+    focus_areas: string[];
+    notable_patterns: string[];
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SchoolTrendsResponse {
+  data: SchoolTrendItem[];
+  total: number;
+}
+
+export interface AggregateResponse {
+  message: string;
+  created: number;
+  updated: number;
+  total_schools_processed: number;
+}
+
+export interface RegionSummaryItem {
+  region: string;
+  school_count: number;
+  grades: string[];
+}
+
+// ============================================
 // Service
 // ============================================
 
@@ -144,6 +192,60 @@ class AdminService {
    */
   async resetUserAnalysis(userId: string): Promise<ResetAnalysisResponse> {
     const response = await api.delete(`/api/v1/admin/users/${userId}/analysis`);
+    return response.data;
+  }
+
+  // ============================================
+  // School Trends
+  // ============================================
+
+  /**
+   * 학교별 출제 경향 조회 (관리자 전용)
+   */
+  async getSchoolTrends(params?: {
+    school_name?: string;
+    school_region?: string;
+    grade?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SchoolTrendsResponse> {
+    const response = await api.get('/api/v1/admin/school-trends', { params });
+    return response.data;
+  }
+
+  /**
+   * 학교별 출제 경향 집계 실행 (관리자 전용)
+   */
+  async aggregateSchoolTrends(params?: {
+    school_name?: string;
+    min_sample_count?: number;
+  }): Promise<AggregateResponse> {
+    const response = await api.post('/api/v1/admin/school-trends/aggregate', null, { params });
+    return response.data;
+  }
+
+  /**
+   * 지역별 요약 조회 (관리자 전용)
+   */
+  async getRegionSummary(): Promise<RegionSummaryItem[]> {
+    const response = await api.get('/api/v1/admin/school-trends/regions');
+    return response.data;
+  }
+
+  /**
+   * 사용 가능한 지역 목록 조회 (관리자 전용)
+   * 학교 매핑 데이터에서 정의된 모든 지역
+   */
+  async getAvailableRegions(): Promise<string[]> {
+    const response = await api.get('/api/v1/admin/school-trends/available-regions');
+    return response.data;
+  }
+
+  /**
+   * 학교별 출제 경향 삭제 (관리자 전용)
+   */
+  async deleteSchoolTrend(trendId: string): Promise<{ message: string; id: string }> {
+    const response = await api.delete(`/api/v1/admin/school-trends/${trendId}`);
     return response.data;
   }
 }

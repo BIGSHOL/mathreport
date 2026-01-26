@@ -11,7 +11,7 @@ import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useExams, useUploadExam, useDeleteExam, useOptimisticExamUpdate } from '../hooks/useExams';
 import { useRequestAnalysis } from '../hooks/useAnalysis';
-import { UploadForm } from '../components/exam/UploadForm';
+import { UploadForm, type ExamClassification } from '../components/exam/UploadForm';
 import { ExamListItem } from '../components/exam/ExamListItem';
 import { UpgradeModal } from '../components/UpgradeModal';
 import { analysisService } from '../services/analysis';
@@ -63,12 +63,18 @@ export function ExamDashboardPage() {
   const { updateExamStatus, revalidate } = useOptimisticExamUpdate();
 
   // Stable callback using useCallback (rerender-functional-setstate)
-  // 과목은 서버에서 AI가 자동 감지 (수학/영어만 지원)
+  // 분류 정보가 제공되면 사용, 없으면 AI가 자동 감지
   const handleUpload = useCallback(
-    async (data: { files: File[]; title: string }) => {
+    async (data: { files: File[]; title: string; classification?: ExamClassification }) => {
       await upload({
         files: data.files,
         title: data.title,
+        subject: data.classification?.subject,
+        grade: data.classification?.grade,
+        // category를 unit으로 전달 (백엔드 API 필드명)
+        unit: data.classification?.category,
+        school_name: data.classification?.school,
+        exam_scope: data.classification?.examScope,
       });
       // Revalidate the exam list
       mutate();

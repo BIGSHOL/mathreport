@@ -31,6 +31,10 @@ export interface Exam {
     subject: string;
     grade?: string;
     unit?: string;
+    school_name?: string;  // 학교명
+    school_region?: string;  // 지역 (예: 대구_수성구)
+    school_type?: string;  // 학교 유형 (예: 중학교, 일반고)
+    exam_scope?: string[] | null;  // 출제범위 (단원 목록)
     exam_type: ExamType;  // 시험지 유형
     file_path: string;
     file_type: string;
@@ -71,6 +75,8 @@ export interface UploadExamData {
     subject?: string;
     grade?: string;
     unit?: string;
+    school_name?: string;  // 학교명
+    exam_scope?: string[];  // 출제범위 (단원 목록)
     examType?: ExamType;  // 시험지 유형 (기본값: blank)
 }
 
@@ -88,6 +94,10 @@ export const examService = {
         if (data.subject) formData.append('subject', data.subject);
         if (data.grade) formData.append('grade', data.grade);
         if (data.unit) formData.append('unit', data.unit);
+        if (data.school_name) formData.append('school_name', data.school_name);
+        if (data.exam_scope && data.exam_scope.length > 0) {
+            formData.append('exam_scope', JSON.stringify(data.exam_scope));
+        }
         formData.append('exam_type', data.examType || 'blank');
 
         // axios가 FormData 감지 시 자동으로 multipart/form-data + boundary 설정

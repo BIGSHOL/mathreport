@@ -12,7 +12,6 @@ import {
   DifficultyPieChart,
   TypePieChart,
   PointsDistributionChart,
-  FormatDistributionChart,
 } from '../charts/DifficultyPieChart';
 import { TopicAnalysisChart } from '../charts/TopicAnalysisChart';
 import { TypeRadarChart } from '../charts/TypeRadarChart';
@@ -23,7 +22,7 @@ import { EssayAnalysisSection } from '../EssayAnalysisSection';
 import { DiscriminationAnalysis } from '../DiscriminationAnalysis';
 import { TabGroup, type Tab } from '../../ui/TabGroup';
 import { FEATURE_FLAGS } from '../../../lib/featureFlags';
-import { getQuestionTypeLabel } from '../../../styles/tokens';
+import { DIFFICULTY_COLORS, getQuestionTypeLabel } from '../../../styles/tokens';
 
 type ViewMode = 'basic' | 'comments' | 'answers' | 'extended';
 
@@ -216,24 +215,21 @@ export const DetailedTemplate = memo(function DetailedTemplate({
             <ConfidenceExplanation avgConfidence={avgConfidence} />
           )}
 
-          {/* 도넛 모드: 컴팩트 2x3 그리드 / 막대 모드: 기존 레이아웃 */}
+          {/* 도넛 모드: 컴팩트 2x2 그리드 / 막대 모드: 기존 레이아웃 */}
           {chartType === 'donut' ? (
             /* 컴팩트 도넛 차트 그리드 */
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-2 gap-3 mb-4">
               {isSectionVisible('showDifficulty') && (
                 <DifficultyPieChart distribution={summary.difficulty_distribution} chartMode={chartType} />
               )}
               {isSectionVisible('showType') && (
                 <TypePieChart distribution={summary.type_distribution} chartMode={chartType} />
               )}
-              {isSectionVisible('showSummary') && (
-                <FormatDistributionChart formats={questions.map((q) => q.question_format)} chartMode={chartType} />
+              {isSectionVisible('showTopic') && (
+                <TopicAnalysisChart questions={questions} chartMode={chartType} />
               )}
               {isSectionVisible('showSummary') && (
                 <PointsDistributionChart questions={questions} chartMode={chartType} />
-              )}
-              {isSectionVisible('showTopic') && (
-                <TopicAnalysisChart questions={questions} chartMode={chartType} />
               )}
             </div>
           ) : (
@@ -258,14 +254,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
                 );
               })()}
 
-              {/* 분포 차트 - 2행: 문항 형식 */}
-              {isSectionVisible('showSummary') && (
-                <div className="mb-4">
-                  <FormatDistributionChart formats={questions.map((q) => q.question_format)} chartMode={chartType} />
-                </div>
-              )}
-
-              {/* 분포 차트 - 3행: 배점 (요약 통계에 포함) */}
+              {/* 분포 차트 - 2행: 배점 분포 (문항 형식 포함) */}
               {isSectionVisible('showSummary') && (
                 <div className="mb-4">
                   <PointsDistributionChart questions={questions} chartMode={chartType} />
@@ -313,7 +302,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-200">
                 <h3 className="text-base font-semibold text-gray-900">
-                  문항별 상세 분석
+                  문항별 출제 분석
                 </h3>
               </div>
               <div className="overflow-x-auto">
@@ -407,12 +396,17 @@ export const DetailedTemplate = memo(function DetailedTemplate({
                         <span className="font-semibold text-gray-700">{q.question_number}</span>
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white ${q.difficulty === 'high' ? 'bg-red-500' :
-                          q.difficulty === 'medium' ? 'bg-yellow-500' :
-                            'bg-green-500'
-                          }`}>
-                          {q.difficulty === 'high' ? '상' : q.difficulty === 'medium' ? '중' : '하'}
-                        </span>
+                        {(() => {
+                          const diffConfig = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || DIFFICULTY_COLORS.pattern;
+                          return (
+                            <span
+                              className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white"
+                              style={{ backgroundColor: diffConfig.bg }}
+                            >
+                              {diffConfig.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
                         {getQuestionTypeLabel(q.question_type)}
@@ -421,17 +415,20 @@ export const DetailedTemplate = memo(function DetailedTemplate({
                         {q.topic?.split(' > ').pop() || '-'}
                       </td>
                       <td className="px-3 py-2">
-                        {showDifficultyReason && q.difficulty_reason && (
-                          <p className="text-xs text-gray-500 mb-1">
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1 ${q.difficulty === 'high' ? 'bg-red-100 text-red-700' :
-                              q.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                'bg-green-100 text-green-700'
-                              }`}>
-                              {q.difficulty === 'high' ? '상' : q.difficulty === 'medium' ? '중' : '하'}
-                            </span>
-                            {q.difficulty_reason}
-                          </p>
-                        )}
+                        {showDifficultyReason && q.difficulty_reason && (() => {
+                          const diffConfig = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || DIFFICULTY_COLORS.pattern;
+                          return (
+                            <p className="text-xs text-gray-500 mb-1">
+                              <span
+                                className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1"
+                                style={{ backgroundColor: `${diffConfig.bg}20`, color: diffConfig.bg }}
+                              >
+                                {diffConfig.label}
+                              </span>
+                              {q.difficulty_reason}
+                            </p>
+                          );
+                        })()}
                         {showAiComment && (
                           <p className="text-gray-700">{q.ai_comment}</p>
                         )}

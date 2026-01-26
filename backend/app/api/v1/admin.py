@@ -1,4 +1,4 @@
-"""Admin endpoints for user management."""
+"""Admin endpoints for user management and school trends."""
 from datetime import datetime
 from typing import Literal
 
@@ -7,6 +7,8 @@ from pydantic import BaseModel
 
 from app.core.deps import AdminUser, DbDep
 from app.services.credit_log import get_credit_log_service
+from app.services.school_trends import get_school_trends_service
+from app.data.school_regions import REGIONS
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -431,3 +433,148 @@ async def reset_user_analysis(
         deleted_feedbacks=deleted_counts["feedbacks"],
         message=f"{user_nickname}님의 분석 데이터가 초기화되었습니다."
     )
+
+
+# ============================================
+# School Trends Schemas
+# ============================================
+
+class SchoolTrendItem(BaseModel):
+    """학교별 출제 경향 아이템"""
+    id: str
+    school_name: str
+    school_region: str | None = None
+    school_type: str | None = None
+    grade: str
+    subject: str
+    period_type: str
+    period_value: str | None = None
+    sample_count: int
+    difficulty_distribution: dict
+    difficulty_avg_points: dict
+    question_type_distribution: dict
+    chapter_distribution: dict
+    avg_total_points: float
+    avg_question_count: float
+    trend_summary: dict
+    created_at: datetime
+    updated_at: datetime
+
+
+class SchoolTrendsResponse(BaseModel):
+    """학교별 출제 경향 목록 응답"""
+    data: list[SchoolTrendItem]
+    total: int
+
+
+class AggregateResponse(BaseModel):
+    """집계 실행 응답"""
+    message: str
+    created: int
+    updated: int
+    total_schools_processed: int = 0
+
+
+class RegionSummaryItem(BaseModel):
+    """지역별 요약 아이템"""
+    region: str
+    school_count: int
+    grades: list[str]
+
+
+# ============================================
+# School Trends Endpoints
+# ============================================
+
+@router.get("/school-trends", response_model=SchoolTrendsResponse)
+async def list_school_trends(
+    admin: AdminUser,
+    db: DbDep,
+    school_name: str | None = None,
+    school_region: str | None = None,
+    grade: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """학교별 출제 경향 조회 (관리자 전용)."""
+    service = get_school_trends_service(db)
+    trends, total = await service.get_school_trends(
+        school_name=school_name,
+        school_region=school_region,
+        grade=grade,
+        limit=limit,
+        offset=offset,
+    )
+
+    return SchoolTrendsResponse(
+        data=[SchoolTrendItem(**t) for t in trends],
+        total=total,
+    )
+
+
+@router.post("/school-trends/aggregate", response_model=AggregateResponse)
+async def aggregate_school_trends(
+    admin: AdminUser,
+    db: DbDep,
+    school_name: str | None = None,
+    min_sample_count: int = 3,
+):
+    """학교별 출제 경향 집계 실행 (관리자 전용).
+
+    시험 데이터를 학교/학년/과목별로 집계하여 경향 데이터를 생성합니다.
+
+    Args:
+        school_name: 특정 학교만 집계 (선택)
+        min_sample_count: 경향 생성에 필요한 최소 시험 수 (기본 3)
+    """
+    service = get_school_trends_service(db)
+    result = await service.aggregate_school_trends(
+        school_name=school_name,
+        min_sample_count=min_sample_count,
+    )
+
+    return AggregateResponse(**result)
+
+
+@router.get("/school-trends/regions", response_model=list[RegionSummaryItem])
+async def get_region_summary(
+    admin: AdminUser,
+    db: DbDep,
+):
+    """지역별 학교 경향 요약 조회 (관리자 전용)."""
+    service = get_school_trends_service(db)
+    summary = await service.get_region_summary()
+
+    return [RegionSummaryItem(**s) for s in summary]
+
+
+@router.get("/school-trends/available-regions", response_model=list[str])
+async def get_available_regions(
+    admin: AdminUser,
+):
+    """사용 가능한 지역 목록 조회 (관리자 전용).
+
+    학교 매핑 데이터에서 정의된 모든 지역을 반환합니다.
+    필터 드롭다운에 사용됩니다.
+    """
+    return REGIONS
+
+
+@router.delete("/school-trends/{trend_id}")
+async def delete_school_trend(
+    trend_id: str,
+    admin: AdminUser,
+    db: DbDep,
+):
+    """학교별 출제 경향 삭제 (관리자 전용)."""
+    result = await db.table("school_exam_trends").select("id").eq("id", trend_id).maybe_single().execute()
+
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="경향 데이터를 찾을 수 없습니다"
+        )
+
+    await db.table("school_exam_trends").eq("id", trend_id).delete().execute()
+
+    return {"message": "삭제되었습니다", "id": trend_id}

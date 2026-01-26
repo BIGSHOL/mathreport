@@ -53,6 +53,12 @@ export interface QuestionAnalysis {
 
 export interface AnalysisSummary {
     difficulty_distribution: {
+        // 4단계 시스템 (신규)
+        concept?: number;
+        pattern?: number;
+        reasoning?: number;
+        creative?: number;
+        // 3단계 시스템 (하위 호환)
         high: number;
         medium: number;
         low: number;

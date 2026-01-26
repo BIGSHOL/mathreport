@@ -77,8 +77,8 @@ export const EssayAnalysisSection = memo(function EssayAnalysisSection({
 
       if (weighted <= 1.5) return { label: '개념', color: DIFFICULTY_COLORS.concept };
       if (weighted <= 3.5) return { label: '유형', color: DIFFICULTY_COLORS.pattern };
-      if (weighted <= 6.5) return { label: '사고력', color: DIFFICULTY_COLORS.reasoning };
-      return { label: '창의', color: DIFFICULTY_COLORS.creative };
+      if (weighted <= 6.5) return { label: '심화', color: DIFFICULTY_COLORS.reasoning };
+      return { label: '최상위', color: DIFFICULTY_COLORS.creative };
     } else {
       // 3단계: low=0.5, medium=2, high=5
       const weighted =
@@ -220,7 +220,7 @@ export const EssayAnalysisSection = memo(function EssayAnalysisSection({
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: DIFFICULTY_COLORS.reasoning.bg }}
                     />
-                    <span className="text-sm text-gray-700 flex-shrink-0 w-14">사고력</span>
+                    <span className="text-sm text-gray-700 flex-shrink-0 w-14">심화</span>
                     <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full"
@@ -241,7 +241,7 @@ export const EssayAnalysisSection = memo(function EssayAnalysisSection({
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: DIFFICULTY_COLORS.creative.bg }}
                     />
-                    <span className="text-sm text-gray-700 flex-shrink-0 w-14">창의</span>
+                    <span className="text-sm text-gray-700 flex-shrink-0 w-14">최상위</span>
                     <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full"

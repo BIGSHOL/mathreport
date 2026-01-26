@@ -63,7 +63,7 @@ export const Badge = memo(function Badge({
   let inlineStyle: React.CSSProperties | undefined;
 
   if (variant === 'difficulty') {
-    const config = DIFFICULTY_COLORS[level as DifficultyLevel] ?? DIFFICULTY_COLORS.medium;
+    const config = DIFFICULTY_COLORS[level as DifficultyLevel] ?? DIFFICULTY_COLORS.pattern;
     inlineStyle = { backgroundColor: config.bg, color: config.text };
   } else if (variant === 'confidence') {
     const config = CONFIDENCE_COLORS[level as ConfidenceLevel] ?? CONFIDENCE_COLORS.medium;
@@ -104,7 +104,7 @@ export const DifficultyBadge = memo(function DifficultyBadge({
   size = 'sm',
   showLabel = true,
 }: DifficultyBadgeProps) {
-  const config = DIFFICULTY_COLORS[difficulty as DifficultyLevel] ?? DIFFICULTY_COLORS.medium;
+  const config = DIFFICULTY_COLORS[difficulty as DifficultyLevel] ?? DIFFICULTY_COLORS.pattern;
 
   return (
     <Badge

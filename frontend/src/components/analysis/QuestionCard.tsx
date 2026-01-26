@@ -133,7 +133,7 @@ export const QuestionCard = memo(function QuestionCard({
     return FEEDBACK_TYPES.find(t => t.value === selectedType)?.label || '';
   };
 
-  const diffConfig = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || DIFFICULTY_COLORS.medium;
+  const diffConfig = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || DIFFICULTY_COLORS.pattern;
   const confidenceLevel = q.confidence != null ? getConfidenceLevel(q.confidence) : null;
   const confidenceConfig = confidenceLevel ? CONFIDENCE_COLORS[confidenceLevel] : null;
 

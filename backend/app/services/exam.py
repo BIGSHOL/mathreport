@@ -8,6 +8,7 @@ from fastapi import HTTPException, UploadFile, status
 from app.db.supabase_client import SupabaseClient
 from app.schemas.exam import ExamCreateRequest, ExamStatus
 from app.services.file_storage import file_storage
+from app.data.school_regions import get_school_region, format_school_region
 
 
 class ExamDict(dict):
@@ -142,6 +143,16 @@ class ExamService:
         # Determine file type (IMAGE if any images, PDF if PDF)
         file_type = "pdf" if has_pdf else "image"
 
+        # 학교명으로 지역/학교유형 자동 매핑
+        school_region = request.school_region
+        school_type = request.school_type
+        if request.school_name and (not school_region or not school_type):
+            city, district, mapped_type = get_school_region(request.school_name)
+            if city and not school_region:
+                school_region = format_school_region(city, district)
+            if mapped_type and not school_type:
+                school_type = mapped_type
+
         # Create exam record
         now = datetime.utcnow().isoformat()
         exam_data = {
@@ -152,8 +163,9 @@ class ExamService:
             "subject": request.subject,
             "unit": request.unit,
             "school_name": request.school_name,
-            "school_region": request.school_region,
-            "school_type": request.school_type,
+            "school_region": school_region,
+            "school_type": school_type,
+            "exam_scope": request.exam_scope,  # 출제범위 (단원 목록)
             "file_path": file_path,
             "file_type": file_type,
             "exam_type": request.exam_type.value,

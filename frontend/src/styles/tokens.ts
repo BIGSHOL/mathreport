@@ -16,8 +16,8 @@ export const DIFFICULTY_COLORS = {
   // 4단계 시스템 (신규 - 권장)
   concept: { bg: '#22c55e', text: '#ffffff', label: '개념', tailwind: 'bg-green-500' },      // 초록 - 쉬움
   pattern: { bg: '#3b82f6', text: '#ffffff', label: '유형', tailwind: 'bg-blue-500' },       // 파랑 - 보통
-  reasoning: { bg: '#f59e0b', text: '#ffffff', label: '사고력', tailwind: 'bg-amber-500' },  // 주황 - 어려움
-  creative: { bg: '#ef4444', text: '#ffffff', label: '창의', tailwind: 'bg-red-500' },       // 빨강 - 최고난도
+  reasoning: { bg: '#f59e0b', text: '#ffffff', label: '심화', tailwind: 'bg-amber-500' },    // 주황 - 어려움
+  creative: { bg: '#ef4444', text: '#ffffff', label: '최상위', tailwind: 'bg-red-500' },     // 빨강 - 최고난도
 
   // 3단계 시스템 (하위 호환)
   high: { bg: '#ef4444', text: '#ffffff', label: '상', tailwind: 'bg-red-500' },
@@ -235,7 +235,7 @@ export function getConfidenceClasses(confidence: number): string {
  * 난이도 설정 반환
  */
 export function getDifficultyConfig(difficulty: string) {
-  return DIFFICULTY_COLORS[difficulty as DifficultyLevel] ?? DIFFICULTY_COLORS.medium;
+  return DIFFICULTY_COLORS[difficulty as DifficultyLevel] ?? DIFFICULTY_COLORS.pattern;
 }
 
 /**

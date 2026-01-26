@@ -41,6 +41,7 @@ async def upload_exam(
     school_name: Annotated[str | None, Form()] = None,
     school_region: Annotated[str | None, Form()] = None,
     school_type: Annotated[str | None, Form()] = None,
+    exam_scope: Annotated[str | None, Form()] = None,  # JSON 배열 문자열
     exam_type: Annotated[str, Form()] = "blank",
     current_user: CurrentUser = None,
     db: DbDep = None,
@@ -56,11 +57,22 @@ async def upload_exam(
     - **school_name**: 학교명 (선택)
     - **school_region**: 지역 (선택)
     - **school_type**: 학교 유형 (선택)
+    - **exam_scope**: 출제범위 - 단원 목록 JSON 배열 (선택)
     - **exam_type**: 시험지 유형 (blank: 빈 시험지 1크레딧, student: 학생 답안지 2크레딧)
 
     Returns:
         업로드된 시험지 정보 (AI 자동 분류 결과는 백그라운드에서 업데이트됨)
     """
+    import json
+
+    # Parse exam_scope JSON if provided
+    parsed_exam_scope = None
+    if exam_scope:
+        try:
+            parsed_exam_scope = json.loads(exam_scope)
+        except json.JSONDecodeError:
+            pass  # Invalid JSON, ignore
+
     # Create request object from form data
     request = ExamCreateRequest(
         title=title,
@@ -70,6 +82,7 @@ async def upload_exam(
         school_name=school_name,
         school_region=school_region,
         school_type=school_type,
+        exam_scope=parsed_exam_scope,
         exam_type=ExamType(exam_type)
     )
 

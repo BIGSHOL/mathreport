@@ -12,6 +12,13 @@ class SupabaseClient:
     def __init__(self):
         self.url = settings.SUPABASE_URL
         self.key = settings.SUPABASE_SERVICE_ROLE_KEY  # 서버에서는 service_role 키 사용
+
+        # None 값 검증 - 필수 설정이 없으면 오류
+        if not self.url:
+            raise ValueError("SUPABASE_URL is not set. Check your .env file.")
+        if not self.key:
+            raise ValueError("SUPABASE_SERVICE_ROLE_KEY is not set. Check your .env file.")
+
         self.rest_url = f"{self.url}/rest/v1"
         self.headers = {
             "apikey": self.key,
