@@ -8,6 +8,7 @@
 5. Chain of Thought 프롬프팅
 6. 분석 결과 캐싱 (속도 개선)
 """
+import asyncio
 import json
 import time
 from pathlib import Path
@@ -236,15 +237,24 @@ class AIEngine:
         try:
             all_parts = file_parts + [types.Part.from_text(text=detection_prompt)]
 
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=[types.Content(role="user", parts=all_parts)],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.1,
-                    max_output_tokens=8192,
-                ),
-            )
+            # 채점 표시 탐지 (2분 타임아웃)
+            try:
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.client.models.generate_content,
+                        model=self.model_name,
+                        contents=[types.Content(role="user", parts=all_parts)],
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            temperature=0.1,
+                            max_output_tokens=8192,
+                        ),
+                    ),
+                    timeout=120.0  # 2분 타임아웃
+                )
+            except asyncio.TimeoutError:
+                print("[Mark Detection] 타임아웃 - 채점 표시 탐지 건너뜀")
+                return {"marks": [], "overall_grading_status": "unknown", "color_distinction_possible": False}
 
             if not response.text:
                 return {"marks": [], "overall_grading_status": "unknown", "color_distinction_possible": False}
@@ -1311,20 +1321,32 @@ class AIEngine:
                     # 재분석 시 추가 프롬프트 포함
                     current_parts = file_parts + [types.Part.from_text(text=prompt + retry_prompt_addition)]
 
-                    response = self.client.models.generate_content(
-                        model=self.model_name,
-                        contents=[
-                            types.Content(
-                                role="user",
-                                parts=current_parts,
+                    # Gemini API 호출 (5분 타임아웃)
+                    try:
+                        response = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                self.client.models.generate_content,
+                                model=self.model_name,
+                                contents=[
+                                    types.Content(
+                                        role="user",
+                                        parts=current_parts,
+                                    ),
+                                ],
+                                config=types.GenerateContentConfig(
+                                    response_mime_type="application/json",
+                                    temperature=0.1,
+                                    max_output_tokens=65536,  # Gemini 2.5 Flash max
+                                ),
                             ),
-                        ],
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            temperature=0.1,
-                            max_output_tokens=65536,  # Gemini 2.5 Flash max
-                        ),
-                    )
+                            timeout=300.0  # 5분 타임아웃
+                        )
+                    except asyncio.TimeoutError:
+                        raise ValueError(
+                            "AI 분석이 5분 제한 시간을 초과했습니다. "
+                            "시험지 이미지가 너무 크거나 복잡할 수 있습니다. "
+                            "이미지 해상도를 낮추거나 페이지를 나눠서 다시 시도해주세요."
+                        )
 
                     # Check finish reason
                     if response.candidates:
