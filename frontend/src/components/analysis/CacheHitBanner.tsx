@@ -27,6 +27,7 @@ export const CacheHitBanner = memo(function CacheHitBanner({ examId, analyzedAt,
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        timeZone: 'Asia/Seoul',
       });
     } catch {
       return '이전';

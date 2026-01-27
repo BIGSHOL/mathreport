@@ -87,7 +87,7 @@ export const ExamListItem = memo(function ExamListItem({
   isSelected = false,
   onSelectionChange,
 }: ExamListItemProps) {
-  const formattedDate = new Date(exam.created_at).toLocaleDateString();
+  const formattedDate = new Date(exam.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' });
   const brief = exam.analysis_brief;
 
   // 분석 단계 시뮬레이션

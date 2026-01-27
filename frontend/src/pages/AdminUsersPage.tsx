@@ -20,10 +20,12 @@ const ACTION_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
 // 날짜 포맷팅
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
+  // 한국 시간(KST, UTC+9)으로 변환
+  const kstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000));
+  const month = kstDate.getUTCMonth() + 1;
+  const day = kstDate.getUTCDate();
+  const hours = kstDate.getUTCHours().toString().padStart(2, '0');
+  const minutes = kstDate.getUTCMinutes().toString().padStart(2, '0');
   return `${month}/${day} ${hours}:${minutes}`;
 }
 
