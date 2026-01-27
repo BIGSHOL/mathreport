@@ -76,6 +76,26 @@ export interface ResetAnalysisResponse {
   message: string;
 }
 
+export interface AdminExamItem {
+  id: string;
+  title: string;
+  grade: string | null;
+  subject: string;
+  school_name: string | null;
+  exam_type: string;
+  status: string;
+  created_at: string;
+  error_message: string | null;
+  total_questions: number | null;
+  total_points: number | null;
+}
+
+export interface AdminExamsResponse {
+  exams: AdminExamItem[];
+  total: number;
+  has_more: boolean;
+}
+
 // ============================================
 // School Trends Types
 // ============================================
@@ -192,6 +212,13 @@ class AdminService {
    */
   async resetUserAnalysis(userId: string): Promise<ResetAnalysisResponse> {
     const response = await api.delete(`/api/v1/admin/users/${userId}/analysis`);
+    return response.data;
+  }
+
+  async getUserExams(userId: string, limit = 20, offset = 0): Promise<AdminExamsResponse> {
+    const response = await api.get(`/api/v1/admin/users/${userId}/exams`, {
+      params: { limit, offset },
+    });
     return response.data;
   }
 

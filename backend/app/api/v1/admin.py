@@ -1,4 +1,6 @@
 """Admin endpoints for user management and school trends."""
+import asyncio
+import logging
 from datetime import datetime
 from typing import Literal
 
@@ -8,9 +10,13 @@ from pydantic import BaseModel
 from app.core.deps import AdminUser, DbDep
 from app.services.credit_log import get_credit_log_service
 from app.services.school_trends import get_school_trends_service
-from app.data.school_regions import REGIONS
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+# 집계 중복 실행 방지 락
+_aggregation_lock = asyncio.Lock()
 
 
 # ============================================
@@ -45,6 +51,28 @@ class ResetAnalysisResponse(BaseModel):
     deleted_analysis_extensions: int
     deleted_feedbacks: int
     message: str
+
+
+class AdminExamItem(BaseModel):
+    """관리자용 시험지 아이템"""
+    id: str
+    title: str
+    grade: str | None = None
+    subject: str = "수학"
+    school_name: str | None = None
+    exam_type: str = "blank"
+    status: str = "pending"
+    created_at: datetime
+    error_message: str | None = None
+    total_questions: int | None = None
+    total_points: float | None = None
+
+
+class AdminExamsResponse(BaseModel):
+    """관리자용 시험지 목록 응답"""
+    exams: list[AdminExamItem]
+    total: int
+    has_more: bool
 
 
 # ============================================
@@ -335,6 +363,66 @@ async def get_user_credit_history(
     )
 
 
+@router.get("/users/{user_id}/exams", response_model=AdminExamsResponse)
+async def get_user_exams(
+    user_id: str,
+    admin: AdminUser,
+    db: DbDep,
+    limit: int = 20,
+    offset: int = 0,
+):
+    """사용자 시험지 목록 조회 (관리자 전용)."""
+    # 사용자 존재 확인
+    result = await db.table("users").select("id").eq("id", user_id).maybe_single().execute()
+
+    if result.error or result.data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다"
+        )
+
+    # 시험지 목록 조회
+    exams_result = await (
+        db.table("exams")
+        .select("id, title, grade, subject, school_name, exam_type, status, created_at, error_message")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
+
+    # 전체 개수 조회
+    count_result = await (
+        db.table("exams")
+        .select("id", count="exact")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    total = count_result.count if count_result.count is not None else 0
+
+    exams = []
+    for exam_data in (exams_result.data or []):
+        item = AdminExamItem(**exam_data)
+        if exam_data.get("status") == "completed":
+            ar = await (
+                db.table("analysis_results")
+                .select("total_questions, total_points")
+                .eq("exam_id", exam_data["id"])
+                .maybe_single()
+                .execute()
+            )
+            if ar.data:
+                item.total_questions = ar.data.get("total_questions")
+                item.total_points = ar.data.get("total_points")
+        exams.append(item)
+
+    return AdminExamsResponse(
+        exams=exams,
+        total=total,
+        has_more=(offset + limit) < total,
+    )
+
+
 @router.delete("/users/{user_id}/analysis", response_model=ResetAnalysisResponse)
 async def reset_user_analysis(
     user_id: str,
@@ -527,11 +615,18 @@ async def aggregate_school_trends(
         school_name: 특정 학교만 집계 (선택)
         min_sample_count: 경향 생성에 필요한 최소 시험 수 (기본 3)
     """
-    service = get_school_trends_service(db)
-    result = await service.aggregate_school_trends(
-        school_name=school_name,
-        min_sample_count=min_sample_count,
-    )
+    if _aggregation_lock.locked():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 집계가 진행 중입니다. 잠시 후 다시 시도해주세요.",
+        )
+
+    async with _aggregation_lock:
+        service = get_school_trends_service(db)
+        result = await service.aggregate_school_trends(
+            school_name=school_name,
+            min_sample_count=min_sample_count,
+        )
 
     return AggregateResponse(**result)
 
@@ -551,13 +646,20 @@ async def get_region_summary(
 @router.get("/school-trends/available-regions", response_model=list[str])
 async def get_available_regions(
     admin: AdminUser,
+    db: DbDep,
 ):
     """사용 가능한 지역 목록 조회 (관리자 전용).
 
-    학교 매핑 데이터에서 정의된 모든 지역을 반환합니다.
+    실제 집계된 데이터에 존재하는 지역만 반환합니다.
     필터 드롭다운에 사용됩니다.
     """
-    return REGIONS
+    result = await db.table("school_exam_trends").select("school_region").execute()
+    regions_set: set[str] = set()
+    for item in (result.data or []):
+        region = item.get("school_region")
+        if region:
+            regions_set.add(region)
+    return sorted(regions_set)
 
 
 @router.delete("/school-trends/{trend_id}")
@@ -567,7 +669,9 @@ async def delete_school_trend(
     db: DbDep,
 ):
     """학교별 출제 경향 삭제 (관리자 전용)."""
-    result = await db.table("school_exam_trends").select("id").eq("id", trend_id).maybe_single().execute()
+    result = await db.table("school_exam_trends").select(
+        "id, school_name, grade, subject"
+    ).eq("id", trend_id).maybe_single().execute()
 
     if not result.data:
         raise HTTPException(
@@ -575,6 +679,13 @@ async def delete_school_trend(
             detail="경향 데이터를 찾을 수 없습니다"
         )
 
+    trend_info = result.data
     await db.table("school_exam_trends").eq("id", trend_id).delete().execute()
+
+    logger.info(
+        "School trend deleted | admin=%s | trend_id=%s | school=%s | grade=%s | subject=%s",
+        admin["id"], trend_id,
+        trend_info.get("school_name"), trend_info.get("grade"), trend_info.get("subject"),
+    )
 
     return {"message": "삭제되었습니다", "id": trend_id}

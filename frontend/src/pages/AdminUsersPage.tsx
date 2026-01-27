@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../stores/auth';
 import { useNavigate } from 'react-router-dom';
-import { adminService, type UserListItem, type AdminCreditLogItem } from '../services/admin';
+import { adminService, type UserListItem, type AdminCreditLogItem, type AdminExamItem } from '../services/admin';
 
 // 액션 타입별 라벨 및 스타일
 const ACTION_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -31,6 +31,13 @@ const TIER_LABELS: Record<string, { label: string; color: string }> = {
   free: { label: '무료', color: 'bg-gray-100 text-gray-700' },
   basic: { label: '베이직', color: 'bg-blue-100 text-blue-700' },
   pro: { label: '프로', color: 'bg-purple-100 text-purple-700' },
+};
+
+const EXAM_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  pending: { label: '대기중', color: 'bg-gray-100 text-gray-700' },
+  analyzing: { label: '분석중', color: 'bg-blue-100 text-blue-700' },
+  completed: { label: '완료', color: 'bg-green-100 text-green-700' },
+  failed: { label: '실패', color: 'bg-red-100 text-red-700' },
 };
 
 export function AdminUsersPage() {
@@ -96,6 +103,23 @@ export function AdminUsersPage() {
   }>({
     isOpen: false,
     user: null,
+    isLoading: false,
+  });
+
+  // 시험지 목록 모달
+  const [examsModal, setExamsModal] = useState<{
+    isOpen: boolean;
+    user: UserListItem | null;
+    exams: AdminExamItem[];
+    total: number;
+    hasMore: boolean;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    user: null,
+    exams: [],
+    total: 0,
+    hasMore: false,
     isLoading: false,
   });
 
@@ -279,6 +303,55 @@ export function AdminUsersPage() {
     }
   };
 
+  // 시험지 목록 모달 열기
+  const handleOpenExams = async (targetUser: UserListItem) => {
+    setExamsModal({
+      isOpen: true,
+      user: targetUser,
+      exams: [],
+      total: 0,
+      hasMore: false,
+      isLoading: true,
+    });
+
+    try {
+      const response = await adminService.getUserExams(targetUser.id, 10, 0);
+      setExamsModal((m) => ({
+        ...m,
+        exams: response.exams,
+        total: response.total,
+        hasMore: response.has_more,
+        isLoading: false,
+      }));
+    } catch (err) {
+      console.error(err);
+      setExamsModal((m) => ({ ...m, isLoading: false }));
+    }
+  };
+
+  // 시험지 목록 더 보기
+  const handleLoadMoreExams = async () => {
+    if (!examsModal.user) return;
+    setExamsModal((m) => ({ ...m, isLoading: true }));
+
+    try {
+      const response = await adminService.getUserExams(
+        examsModal.user.id,
+        10,
+        examsModal.exams.length
+      );
+      setExamsModal((m) => ({
+        ...m,
+        exams: [...m.exams, ...response.exams],
+        hasMore: response.has_more,
+        isLoading: false,
+      }));
+    } catch (err) {
+      console.error(err);
+      setExamsModal((m) => ({ ...m, isLoading: false }));
+    }
+  };
+
   const totalPages = Math.ceil(total / pageSize);
 
   if (user?.role !== 'admin') {
@@ -422,6 +495,12 @@ export function AdminUsersPage() {
                             className="px-2 py-1 text-xs bg-teal-100 text-teal-700 rounded hover:bg-teal-200"
                           >
                             내역
+                          </button>
+                          <button
+                            onClick={() => handleOpenExams(u)}
+                            className="px-2 py-1 text-xs bg-sky-100 text-sky-700 rounded hover:bg-sky-200"
+                          >
+                            시험지
                           </button>
                           <button
                             onClick={() =>
@@ -755,6 +834,107 @@ export function AdminUsersPage() {
                 className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
               >
                 {resetModal.isLoading ? '삭제 중...' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 시험지 목록 모달 */}
+      {examsModal.isOpen && examsModal.user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                시험지 목록 - {examsModal.user.nickname}
+              </h3>
+              <span className="text-sm text-gray-500">
+                총 {examsModal.total}건
+              </span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {examsModal.isLoading && examsModal.exams.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">로딩 중...</div>
+              ) : examsModal.exams.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">시험지가 없습니다</div>
+              ) : (
+                <div className="space-y-2">
+                  {examsModal.exams.map((exam) => {
+                    const statusConfig = EXAM_STATUS_CONFIG[exam.status] || {
+                      label: exam.status,
+                      color: 'bg-gray-100 text-gray-700',
+                    };
+                    return (
+                      <div
+                        key={exam.id}
+                        className="flex items-center justify-between text-sm bg-gray-50 rounded-lg px-4 py-3"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 truncate">
+                              {exam.title}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusConfig.color}`}>
+                              {statusConfig.label}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-xs font-medium bg-sky-50 text-sky-700">
+                              {exam.exam_type === 'student' ? '답안지' : '시험지'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                            {exam.grade && <span>{exam.grade}</span>}
+                            {exam.subject && <span>{exam.subject}</span>}
+                            {exam.school_name && <span>{exam.school_name}</span>}
+                            <span>{formatDate(exam.created_at)}</span>
+                            {exam.total_questions != null && (
+                              <span className="text-gray-600 font-medium">
+                                {exam.total_questions}문항 · {exam.total_points}점
+                              </span>
+                            )}
+                          </div>
+                          {exam.status === 'failed' && exam.error_message && (
+                            <div className="text-xs text-red-500 mt-1 truncate">
+                              {exam.error_message}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {examsModal.hasMore && (
+                <div className="text-center mt-4">
+                  <button
+                    onClick={handleLoadMoreExams}
+                    disabled={examsModal.isLoading}
+                    className="px-4 py-2 text-sm text-indigo-600 hover:text-indigo-800 disabled:text-gray-400"
+                  >
+                    {examsModal.isLoading
+                      ? '로딩 중...'
+                      : `더 보기 (${examsModal.exams.length}/${examsModal.total})`}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() =>
+                  setExamsModal({
+                    isOpen: false,
+                    user: null,
+                    exams: [],
+                    total: 0,
+                    hasMore: false,
+                    isLoading: false,
+                  })
+                }
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                닫기
               </button>
             </div>
           </div>
