@@ -51,6 +51,18 @@ interface TopicSummary {
   features: string[];
 }
 
+// 대단원 그룹핑 인터페이스
+interface ChapterGroup {
+  chapterName: string;
+  topics: TopicSummary[];
+  questionCount: number;
+  totalPoints: number;
+  percentage: number;
+  essayCount: number;
+  avgDifficulty: number;
+  features: string[];
+}
+
 // 난이도별 가중치 (학습 우선순위 계산용)
 const DIFFICULTY_WEIGHT: Record<string, number> = {
   concept: 1,
@@ -127,6 +139,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
   questions,
 }: StudyStrategyTabProps) {
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
+  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set()); // 대단원 펼치기 state
   const [expandedMistakes, setExpandedMistakes] = useState<Set<string>>(new Set());
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set());
   const [expandedKillers, setExpandedKillers] = useState<Set<string>>(new Set());
@@ -479,13 +492,12 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                          summary.percentage >= 20
+                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${summary.percentage >= 20
                             ? 'bg-red-100 text-red-700'
                             : summary.percentage >= 10
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
                       >
                         {summary.percentage.toFixed(0)}%
                       </span>
@@ -495,15 +507,14 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                         {summary.features.map((feature, i) => (
                           <span
                             key={i}
-                            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                              feature.includes('서술형')
+                            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${feature.includes('서술형')
                                 ? 'bg-purple-100 text-purple-700'
                                 : feature.includes('고난도')
-                                ? 'bg-red-100 text-red-700'
-                                : feature.includes('핵심')
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-gray-100 text-gray-600'
-                            }`}
+                                  ? 'bg-red-100 text-red-700'
+                                  : feature.includes('핵심')
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : 'bg-gray-100 text-gray-600'
+                              }`}
                           >
                             {feature}
                           </span>
@@ -739,11 +750,10 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                       onClick={() => setSelectedEssayGuide(
                         selectedEssayGuide === guide.category ? null : guide.category
                       )}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        selectedEssayGuide === guide.category
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedEssayGuide === guide.category
                           ? 'bg-purple-600 text-white'
                           : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                      }`}
+                        }`}
                     >
                       {guide.title}
                     </button>
@@ -859,7 +869,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
               {topicsWithTime.map((topic, idx) => (
                 <div key={topic.topic} className="flex items-center gap-3">
                   {/* 단원명 */}
-                  <div className="w-32 flex-shrink-0 text-xs text-gray-700 truncate" title={topic.shortTopic}>
+                  <div className="w-60 flex-shrink-0 text-xs text-gray-700 truncate" title={topic.shortTopic}>
                     {topic.shortTopic}
                   </div>
                   {/* 막대 그래프 */}
@@ -869,9 +879,9 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                       style={{
                         width: `${(topic.recommendedMinutes / maxMinutes) * 100}%`,
                         background: idx === 0 ? 'linear-gradient(90deg, #0891b2, #06b6d4)' :
-                                   idx === 1 ? 'linear-gradient(90deg, #0ea5e9, #38bdf8)' :
-                                   idx === 2 ? 'linear-gradient(90deg, #3b82f6, #60a5fa)' :
-                                   'linear-gradient(90deg, #6366f1, #818cf8)',
+                          idx === 1 ? 'linear-gradient(90deg, #0ea5e9, #38bdf8)' :
+                            idx === 2 ? 'linear-gradient(90deg, #3b82f6, #60a5fa)' :
+                              'linear-gradient(90deg, #6366f1, #818cf8)',
                       }}
                     />
                     <div className="absolute inset-0 flex items-center px-2">
@@ -891,7 +901,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
               {/* 검토 시간 */}
               <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
-                <div className="w-32 flex-shrink-0 text-xs text-green-700 font-medium">
+                <div className="w-40 flex-shrink-0 text-xs text-green-700 font-medium">
                   검토 시간
                 </div>
                 <div className="flex-1 h-6 bg-green-50 rounded-full overflow-hidden relative border border-green-200">
@@ -1123,469 +1133,468 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
             <div className="divide-y divide-gray-100">
               {/* 필수 연계 */}
               {showCriticalConnections && criticalEntries.map(([topic, connections]) => {
-              const isExpanded = expandedConnections.has(topic);
-              const shortTopic = topic.split(' > ').pop() || topic;
-              const criticalCount = connections.filter(c => c.importance === 'critical').length;
+                const isExpanded = expandedConnections.has(topic);
+                const shortTopic = topic.split(' > ').pop() || topic;
+                const criticalCount = connections.filter(c => c.importance === 'critical').length;
 
-              return (
-                <div key={`conn-${topic}`}>
-                  <button
-                    onClick={() => toggleConnection(topic)}
-                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-orange-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`w-3 h-3 rounded-full ${
-                        criticalCount > 0 ? 'bg-red-500' : 'bg-orange-400'
-                      }`} />
-                      <span className="font-medium text-gray-900">{shortTopic}</span>
-                      <span className="text-xs text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">
-                        연계 {connections.length}개
-                      </span>
-                      {criticalCount > 0 && (
-                        <span className="text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
-                          필수
-                        </span>
-                      )}
-                    </div>
-                    <svg
-                      className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+                return (
+                  <div key={`conn-${topic}`}>
+                    <button
+                      onClick={() => toggleConnection(topic)}
+                      className="w-full px-4 py-3 flex items-center justify-between hover:bg-orange-50 transition-colors"
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {isExpanded && (() => {
-                    // importance별로 연계 그룹화
-                    const criticalConns = connections.filter(c => c.importance === 'critical');
-                    const highConns = connections.filter(c => c.importance === 'high');
-                    const mediumConns = connections.filter(c => c.importance === 'medium');
-                    const topicImportanceSet = expandedConnectionImportance.get(topic) || new Set<string>();
-
-                    return (
-                      <div className="px-4 pb-4 bg-orange-50 space-y-2">
-                        {/* 필수 연계 그룹 */}
-                        {criticalConns.length > 0 && (
-                          <div>
-                            <button
-                              onClick={() => toggleConnectionImportance(topic, 'critical')}
-                              className="w-full flex items-center justify-between py-2 px-3 bg-red-100 hover:bg-red-200 rounded transition-colors"
-                            >
-                              <span className="text-sm font-semibold text-red-800">필수 {criticalConns.length}개</span>
-                              <svg
-                                className={`w-4 h-4 text-red-700 transition-transform ${topicImportanceSet.has('critical') ? 'rotate-180' : ''}`}
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                            {topicImportanceSet.has('critical') && (
-                              <div className="mt-2 space-y-3">
-                                {criticalConns.map((conn, i) => (
-                                  <div key={i} className="p-3 rounded-lg border bg-red-50 border-red-200">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">필수</span>
-                                      <span className="text-sm font-medium text-gray-800">
-                                        {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                      </span>
-                                    </div>
-                                    <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                    <div className="bg-white bg-opacity-60 rounded p-2">
-                                      <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                      <ul className="space-y-0.5">
-                                        {conn.checkItems.slice(0, 3).map((item, j) => (
-                                          <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                            <span className="text-orange-500">☐</span>
-                                            <span>{item}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                    <div className="mt-2 flex flex-wrap gap-1">
-                                      {conn.toTopics.slice(0, 4).map((t, j) => (
-                                        <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                          → {t}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* 중요 연계 그룹 */}
-                        {highConns.length > 0 && (
-                          <div>
-                            <button
-                              onClick={() => toggleConnectionImportance(topic, 'high')}
-                              className="w-full flex items-center justify-between py-2 px-3 bg-orange-100 hover:bg-orange-200 rounded transition-colors"
-                            >
-                              <span className="text-sm font-semibold text-orange-800">중요 {highConns.length}개</span>
-                              <svg
-                                className={`w-4 h-4 text-orange-700 transition-transform ${topicImportanceSet.has('high') ? 'rotate-180' : ''}`}
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                            {topicImportanceSet.has('high') && (
-                              <div className="mt-2 space-y-3">
-                                {highConns.map((conn, i) => (
-                                  <div key={i} className="p-3 rounded-lg border bg-orange-100 border-orange-200">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500 text-white">중요</span>
-                                      <span className="text-sm font-medium text-gray-800">
-                                        {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                      </span>
-                                    </div>
-                                    <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                    <div className="bg-white bg-opacity-60 rounded p-2">
-                                      <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                      <ul className="space-y-0.5">
-                                        {conn.checkItems.slice(0, 3).map((item, j) => (
-                                          <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                            <span className="text-orange-500">☐</span>
-                                            <span>{item}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                    <div className="mt-2 flex flex-wrap gap-1">
-                                      {conn.toTopics.slice(0, 4).map((t, j) => (
-                                        <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                          → {t}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* 권장 연계 그룹 */}
-                        {mediumConns.length > 0 && (
-                          <div>
-                            <button
-                              onClick={() => toggleConnectionImportance(topic, 'medium')}
-                              className="w-full flex items-center justify-between py-2 px-3 bg-yellow-100 hover:bg-yellow-200 rounded transition-colors"
-                            >
-                              <span className="text-sm font-semibold text-yellow-800">권장 {mediumConns.length}개</span>
-                              <svg
-                                className={`w-4 h-4 text-yellow-700 transition-transform ${topicImportanceSet.has('medium') ? 'rotate-180' : ''}`}
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                            {topicImportanceSet.has('medium') && (
-                              <div className="mt-2 space-y-3">
-                                {mediumConns.map((conn, i) => (
-                                  <div key={i} className="p-3 rounded-lg border bg-yellow-50 border-yellow-200">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500 text-white">권장</span>
-                                      <span className="text-sm font-medium text-gray-800">
-                                        {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                      </span>
-                                    </div>
-                                    <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                    <div className="bg-white bg-opacity-60 rounded p-2">
-                                      <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                      <ul className="space-y-0.5">
-                                        {conn.checkItems.slice(0, 3).map((item, j) => (
-                                          <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                            <span className="text-orange-500">☐</span>
-                                            <span>{item}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                    <div className="mt-2 flex flex-wrap gap-1">
-                                      {conn.toTopics.slice(0, 4).map((t, j) => (
-                                        <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                          → {t}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`w-3 h-3 rounded-full ${criticalCount > 0 ? 'bg-red-500' : 'bg-orange-400'
+                          }`} />
+                        <span className="font-medium text-gray-900">{shortTopic}</span>
+                        <span className="text-xs text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">
+                          연계 {connections.length}개
+                        </span>
+                        {criticalCount > 0 && (
+                          <span className="text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
+                            필수
+                          </span>
                         )}
                       </div>
-                    );
-                  })()}
-                </div>
-              );
-            })}
-
-            {/* 필수 연계 토글 버튼 */}
-            {criticalEntries.length > 0 && (
-              <div className="px-4 py-3 bg-red-50 border-t border-red-100">
-                <button
-                  onClick={() => setShowCriticalConnections(!showCriticalConnections)}
-                  className="w-full flex items-center justify-center gap-2 text-sm text-red-700 hover:text-red-900 font-medium transition-colors"
-                >
-                  <span>필수 연계 {criticalEntries.length}개</span>
-                  <svg
-                    className={`w-4 h-4 transition-transform ${showCriticalConnections ? 'rotate-180' : ''}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                  <span className="text-xs text-red-600">
-                    ({showCriticalConnections ? '접기' : '더보기'})
-                  </span>
-                </button>
-              </div>
-            )}
-
-            {/* 권장 연계 (접기/펼치기) */}
-            {recommendedEntries.length > 0 && (
-              <>
-                {showAllConnections && recommendedEntries.map(([topic, connections]) => {
-                  const isExpanded = expandedConnections.has(topic);
-                  const shortTopic = topic.split(' > ').pop() || topic;
-
-                  return (
-                    <div key={`conn-recommended-${topic}`}>
-                      <button
-                        onClick={() => toggleConnection(topic)}
-                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-orange-50 transition-colors"
+                      <svg
+                        className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="w-3 h-3 rounded-full bg-orange-300" />
-                          <span className="font-medium text-gray-900">{shortTopic}</span>
-                          <span className="text-xs text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">
-                            연계 {connections.length}개
-                          </span>
-                          <span className="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
-                            권장
-                          </span>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {isExpanded && (() => {
+                      // importance별로 연계 그룹화
+                      const criticalConns = connections.filter(c => c.importance === 'critical');
+                      const highConns = connections.filter(c => c.importance === 'high');
+                      const mediumConns = connections.filter(c => c.importance === 'medium');
+                      const topicImportanceSet = expandedConnectionImportance.get(topic) || new Set<string>();
+
+                      return (
+                        <div className="px-4 pb-4 bg-orange-50 space-y-2">
+                          {/* 필수 연계 그룹 */}
+                          {criticalConns.length > 0 && (
+                            <div>
+                              <button
+                                onClick={() => toggleConnectionImportance(topic, 'critical')}
+                                className="w-full flex items-center justify-between py-2 px-3 bg-red-100 hover:bg-red-200 rounded transition-colors"
+                              >
+                                <span className="text-sm font-semibold text-red-800">필수 {criticalConns.length}개</span>
+                                <svg
+                                  className={`w-4 h-4 text-red-700 transition-transform ${topicImportanceSet.has('critical') ? 'rotate-180' : ''}`}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {topicImportanceSet.has('critical') && (
+                                <div className="mt-2 space-y-3">
+                                  {criticalConns.map((conn, i) => (
+                                    <div key={i} className="p-3 rounded-lg border bg-red-50 border-red-200">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">필수</span>
+                                        <span className="text-sm font-medium text-gray-800">
+                                          {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
+                                      <div className="bg-white bg-opacity-60 rounded p-2">
+                                        <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
+                                        <ul className="space-y-0.5">
+                                          {conn.checkItems.slice(0, 3).map((item, j) => (
+                                            <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
+                                              <span className="text-orange-500">☐</span>
+                                              <span>{item}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap gap-1">
+                                        {conn.toTopics.slice(0, 4).map((t, j) => (
+                                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
+                                            → {t}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* 중요 연계 그룹 */}
+                          {highConns.length > 0 && (
+                            <div>
+                              <button
+                                onClick={() => toggleConnectionImportance(topic, 'high')}
+                                className="w-full flex items-center justify-between py-2 px-3 bg-orange-100 hover:bg-orange-200 rounded transition-colors"
+                              >
+                                <span className="text-sm font-semibold text-orange-800">중요 {highConns.length}개</span>
+                                <svg
+                                  className={`w-4 h-4 text-orange-700 transition-transform ${topicImportanceSet.has('high') ? 'rotate-180' : ''}`}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {topicImportanceSet.has('high') && (
+                                <div className="mt-2 space-y-3">
+                                  {highConns.map((conn, i) => (
+                                    <div key={i} className="p-3 rounded-lg border bg-orange-100 border-orange-200">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500 text-white">중요</span>
+                                        <span className="text-sm font-medium text-gray-800">
+                                          {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
+                                      <div className="bg-white bg-opacity-60 rounded p-2">
+                                        <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
+                                        <ul className="space-y-0.5">
+                                          {conn.checkItems.slice(0, 3).map((item, j) => (
+                                            <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
+                                              <span className="text-orange-500">☐</span>
+                                              <span>{item}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap gap-1">
+                                        {conn.toTopics.slice(0, 4).map((t, j) => (
+                                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
+                                            → {t}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* 권장 연계 그룹 */}
+                          {mediumConns.length > 0 && (
+                            <div>
+                              <button
+                                onClick={() => toggleConnectionImportance(topic, 'medium')}
+                                className="w-full flex items-center justify-between py-2 px-3 bg-yellow-100 hover:bg-yellow-200 rounded transition-colors"
+                              >
+                                <span className="text-sm font-semibold text-yellow-800">권장 {mediumConns.length}개</span>
+                                <svg
+                                  className={`w-4 h-4 text-yellow-700 transition-transform ${topicImportanceSet.has('medium') ? 'rotate-180' : ''}`}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {topicImportanceSet.has('medium') && (
+                                <div className="mt-2 space-y-3">
+                                  {mediumConns.map((conn, i) => (
+                                    <div key={i} className="p-3 rounded-lg border bg-yellow-50 border-yellow-200">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500 text-white">권장</span>
+                                        <span className="text-sm font-medium text-gray-800">
+                                          {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
+                                      <div className="bg-white bg-opacity-60 rounded p-2">
+                                        <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
+                                        <ul className="space-y-0.5">
+                                          {conn.checkItems.slice(0, 3).map((item, j) => (
+                                            <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
+                                              <span className="text-orange-500">☐</span>
+                                              <span>{item}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap gap-1">
+                                        {conn.toTopics.slice(0, 4).map((t, j) => (
+                                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
+                                            → {t}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <svg
-                          className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
+                      );
+                    })()}
+                  </div>
+                );
+              })}
 
-                      {isExpanded && (() => {
-                        // importance별로 연계 그룹화
-                        const criticalConns = connections.filter(c => c.importance === 'critical');
-                        const highConns = connections.filter(c => c.importance === 'high');
-                        const mediumConns = connections.filter(c => c.importance === 'medium');
-                        const topicImportanceSet = expandedConnectionImportance.get(topic) || new Set<string>();
-
-                        return (
-                          <div className="px-4 pb-4 bg-orange-50 space-y-2">
-                            {/* 필수 연계 그룹 */}
-                            {criticalConns.length > 0 && (
-                              <div>
-                                <button
-                                  onClick={() => toggleConnectionImportance(topic, 'critical')}
-                                  className="w-full flex items-center justify-between py-2 px-3 bg-red-100 hover:bg-red-200 rounded transition-colors"
-                                >
-                                  <span className="text-sm font-semibold text-red-800">필수 {criticalConns.length}개</span>
-                                  <svg
-                                    className={`w-4 h-4 text-red-700 transition-transform ${topicImportanceSet.has('critical') ? 'rotate-180' : ''}`}
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </button>
-                                {topicImportanceSet.has('critical') && (
-                                  <div className="mt-2 space-y-3">
-                                    {criticalConns.map((conn, i) => (
-                                      <div key={i} className="p-3 rounded-lg border bg-red-50 border-red-200">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">필수</span>
-                                          <span className="text-sm font-medium text-gray-800">
-                                            {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                          </span>
-                                        </div>
-                                        <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                        <div className="bg-white bg-opacity-60 rounded p-2">
-                                          <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                          <ul className="space-y-0.5">
-                                            {conn.checkItems.slice(0, 3).map((item, j) => (
-                                              <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                                <span className="text-orange-500">☐</span>
-                                                <span>{item}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                        <div className="mt-2 flex flex-wrap gap-1">
-                                          {conn.toTopics.slice(0, 4).map((t, j) => (
-                                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                              → {t}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* 중요 연계 그룹 */}
-                            {highConns.length > 0 && (
-                              <div>
-                                <button
-                                  onClick={() => toggleConnectionImportance(topic, 'high')}
-                                  className="w-full flex items-center justify-between py-2 px-3 bg-orange-100 hover:bg-orange-200 rounded transition-colors"
-                                >
-                                  <span className="text-sm font-semibold text-orange-800">중요 {highConns.length}개</span>
-                                  <svg
-                                    className={`w-4 h-4 text-orange-700 transition-transform ${topicImportanceSet.has('high') ? 'rotate-180' : ''}`}
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </button>
-                                {topicImportanceSet.has('high') && (
-                                  <div className="mt-2 space-y-3">
-                                    {highConns.map((conn, i) => (
-                                      <div key={i} className="p-3 rounded-lg border bg-orange-100 border-orange-200">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500 text-white">중요</span>
-                                          <span className="text-sm font-medium text-gray-800">
-                                            {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                          </span>
-                                        </div>
-                                        <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                        <div className="bg-white bg-opacity-60 rounded p-2">
-                                          <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                          <ul className="space-y-0.5">
-                                            {conn.checkItems.slice(0, 3).map((item, j) => (
-                                              <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                                <span className="text-orange-500">☐</span>
-                                                <span>{item}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                        <div className="mt-2 flex flex-wrap gap-1">
-                                          {conn.toTopics.slice(0, 4).map((t, j) => (
-                                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                              → {t}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* 권장 연계 그룹 */}
-                            {mediumConns.length > 0 && (
-                              <div>
-                                <button
-                                  onClick={() => toggleConnectionImportance(topic, 'medium')}
-                                  className="w-full flex items-center justify-between py-2 px-3 bg-yellow-100 hover:bg-yellow-200 rounded transition-colors"
-                                >
-                                  <span className="text-sm font-semibold text-yellow-800">권장 {mediumConns.length}개</span>
-                                  <svg
-                                    className={`w-4 h-4 text-yellow-700 transition-transform ${topicImportanceSet.has('medium') ? 'rotate-180' : ''}`}
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </button>
-                                {topicImportanceSet.has('medium') && (
-                                  <div className="mt-2 space-y-3">
-                                    {mediumConns.map((conn, i) => (
-                                      <div key={i} className="p-3 rounded-lg border bg-yellow-50 border-yellow-200">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500 text-white">권장</span>
-                                          <span className="text-sm font-medium text-gray-800">
-                                            {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                          </span>
-                                        </div>
-                                        <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                        <div className="bg-white bg-opacity-60 rounded p-2">
-                                          <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                          <ul className="space-y-0.5">
-                                            {conn.checkItems.slice(0, 3).map((item, j) => (
-                                              <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                                <span className="text-orange-500">☐</span>
-                                                <span>{item}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                        <div className="mt-2 flex flex-wrap gap-1">
-                                          {conn.toTopics.slice(0, 4).map((t, j) => (
-                                            <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                              → {t}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                })}
-
-                {/* 더보기/접기 버튼 */}
-                <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+              {/* 필수 연계 토글 버튼 */}
+              {criticalEntries.length > 0 && (
+                <div className="px-4 py-3 bg-red-50 border-t border-red-100">
                   <button
-                    onClick={() => setShowAllConnections(!showAllConnections)}
-                    className="w-full flex items-center justify-center gap-2 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                    onClick={() => setShowCriticalConnections(!showCriticalConnections)}
+                    className="w-full flex items-center justify-center gap-2 text-sm text-red-700 hover:text-red-900 font-medium transition-colors"
                   >
-                    <span>권장 연계 {recommendedEntries.length}개</span>
+                    <span>필수 연계 {criticalEntries.length}개</span>
                     <svg
-                      className={`w-4 h-4 transition-transform ${showAllConnections ? 'rotate-180' : ''}`}
+                      className={`w-4 h-4 transition-transform ${showCriticalConnections ? 'rotate-180' : ''}`}
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
-                    <span className="text-xs text-gray-500">
-                      ({showAllConnections ? '접기' : '더보기'})
+                    <span className="text-xs text-red-600">
+                      ({showCriticalConnections ? '접기' : '더보기'})
                     </span>
                   </button>
                 </div>
-              </>
-            )}
+              )}
+
+              {/* 권장 연계 (접기/펼치기) */}
+              {recommendedEntries.length > 0 && (
+                <>
+                  {showAllConnections && recommendedEntries.map(([topic, connections]) => {
+                    const isExpanded = expandedConnections.has(topic);
+                    const shortTopic = topic.split(' > ').pop() || topic;
+
+                    return (
+                      <div key={`conn-recommended-${topic}`}>
+                        <button
+                          onClick={() => toggleConnection(topic)}
+                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-orange-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="w-3 h-3 rounded-full bg-orange-300" />
+                            <span className="font-medium text-gray-900">{shortTopic}</span>
+                            <span className="text-xs text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">
+                              연계 {connections.length}개
+                            </span>
+                            <span className="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                              권장
+                            </span>
+                          </div>
+                          <svg
+                            className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+
+                        {isExpanded && (() => {
+                          // importance별로 연계 그룹화
+                          const criticalConns = connections.filter(c => c.importance === 'critical');
+                          const highConns = connections.filter(c => c.importance === 'high');
+                          const mediumConns = connections.filter(c => c.importance === 'medium');
+                          const topicImportanceSet = expandedConnectionImportance.get(topic) || new Set<string>();
+
+                          return (
+                            <div className="px-4 pb-4 bg-orange-50 space-y-2">
+                              {/* 필수 연계 그룹 */}
+                              {criticalConns.length > 0 && (
+                                <div>
+                                  <button
+                                    onClick={() => toggleConnectionImportance(topic, 'critical')}
+                                    className="w-full flex items-center justify-between py-2 px-3 bg-red-100 hover:bg-red-200 rounded transition-colors"
+                                  >
+                                    <span className="text-sm font-semibold text-red-800">필수 {criticalConns.length}개</span>
+                                    <svg
+                                      className={`w-4 h-4 text-red-700 transition-transform ${topicImportanceSet.has('critical') ? 'rotate-180' : ''}`}
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  {topicImportanceSet.has('critical') && (
+                                    <div className="mt-2 space-y-3">
+                                      {criticalConns.map((conn, i) => (
+                                        <div key={i} className="p-3 rounded-lg border bg-red-50 border-red-200">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">필수</span>
+                                            <span className="text-sm font-medium text-gray-800">
+                                              {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
+                                            </span>
+                                          </div>
+                                          <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
+                                          <div className="bg-white bg-opacity-60 rounded p-2">
+                                            <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
+                                            <ul className="space-y-0.5">
+                                              {conn.checkItems.slice(0, 3).map((item, j) => (
+                                                <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
+                                                  <span className="text-orange-500">☐</span>
+                                                  <span>{item}</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                          <div className="mt-2 flex flex-wrap gap-1">
+                                            {conn.toTopics.slice(0, 4).map((t, j) => (
+                                              <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
+                                                → {t}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 중요 연계 그룹 */}
+                              {highConns.length > 0 && (
+                                <div>
+                                  <button
+                                    onClick={() => toggleConnectionImportance(topic, 'high')}
+                                    className="w-full flex items-center justify-between py-2 px-3 bg-orange-100 hover:bg-orange-200 rounded transition-colors"
+                                  >
+                                    <span className="text-sm font-semibold text-orange-800">중요 {highConns.length}개</span>
+                                    <svg
+                                      className={`w-4 h-4 text-orange-700 transition-transform ${topicImportanceSet.has('high') ? 'rotate-180' : ''}`}
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  {topicImportanceSet.has('high') && (
+                                    <div className="mt-2 space-y-3">
+                                      {highConns.map((conn, i) => (
+                                        <div key={i} className="p-3 rounded-lg border bg-orange-100 border-orange-200">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500 text-white">중요</span>
+                                            <span className="text-sm font-medium text-gray-800">
+                                              {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
+                                            </span>
+                                          </div>
+                                          <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
+                                          <div className="bg-white bg-opacity-60 rounded p-2">
+                                            <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
+                                            <ul className="space-y-0.5">
+                                              {conn.checkItems.slice(0, 3).map((item, j) => (
+                                                <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
+                                                  <span className="text-orange-500">☐</span>
+                                                  <span>{item}</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                          <div className="mt-2 flex flex-wrap gap-1">
+                                            {conn.toTopics.slice(0, 4).map((t, j) => (
+                                              <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
+                                                → {t}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 권장 연계 그룹 */}
+                              {mediumConns.length > 0 && (
+                                <div>
+                                  <button
+                                    onClick={() => toggleConnectionImportance(topic, 'medium')}
+                                    className="w-full flex items-center justify-between py-2 px-3 bg-yellow-100 hover:bg-yellow-200 rounded transition-colors"
+                                  >
+                                    <span className="text-sm font-semibold text-yellow-800">권장 {mediumConns.length}개</span>
+                                    <svg
+                                      className={`w-4 h-4 text-yellow-700 transition-transform ${topicImportanceSet.has('medium') ? 'rotate-180' : ''}`}
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  {topicImportanceSet.has('medium') && (
+                                    <div className="mt-2 space-y-3">
+                                      {mediumConns.map((conn, i) => (
+                                        <div key={i} className="p-3 rounded-lg border bg-yellow-50 border-yellow-200">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500 text-white">권장</span>
+                                            <span className="text-sm font-medium text-gray-800">
+                                              {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
+                                            </span>
+                                          </div>
+                                          <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
+                                          <div className="bg-white bg-opacity-60 rounded p-2">
+                                            <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
+                                            <ul className="space-y-0.5">
+                                              {conn.checkItems.slice(0, 3).map((item, j) => (
+                                                <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
+                                                  <span className="text-orange-500">☐</span>
+                                                  <span>{item}</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                          <div className="mt-2 flex flex-wrap gap-1">
+                                            {conn.toTopics.slice(0, 4).map((t, j) => (
+                                              <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
+                                                → {t}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })}
+
+                  {/* 더보기/접기 버튼 */}
+                  <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                    <button
+                      onClick={() => setShowAllConnections(!showAllConnections)}
+                      className="w-full flex items-center justify-center gap-2 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                    >
+                      <span>권장 연계 {recommendedEntries.length}개</span>
+                      <svg
+                        className={`w-4 h-4 transition-transform ${showAllConnections ? 'rotate-180' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                      <span className="text-xs text-gray-500">
+                        ({showAllConnections ? '접기' : '더보기'})
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      );
+        );
       })()}
 
       {/* 킬러 문항 유형 경고 */}
@@ -1617,9 +1626,8 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                     className="w-full px-4 py-3 flex items-center justify-between hover:bg-rose-50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <span className={`w-3 h-3 rounded-full ${
-                        topDiffCount > 0 ? 'bg-rose-600' : 'bg-rose-400'
-                      }`} />
+                      <span className={`w-3 h-3 rounded-full ${topDiffCount > 0 ? 'bg-rose-600' : 'bg-rose-400'
+                        }`} />
                       <span className="font-medium text-gray-900">{unit}</span>
                       <span className="text-xs text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">
                         함정 {killer.killerPatterns.length}개
@@ -1646,25 +1654,22 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                         {killer.killerPatterns.map((pattern, i) => (
                           <div
                             key={i}
-                            className={`p-3 rounded-lg border ${
-                              pattern.difficulty === '최상'
+                            className={`p-3 rounded-lg border ${pattern.difficulty === '최상'
                                 ? 'bg-rose-100 border-rose-300'
                                 : 'bg-pink-50 border-pink-200'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center gap-2 mb-2">
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                pattern.difficulty === '최상'
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pattern.difficulty === '최상'
                                   ? 'bg-rose-600 text-white'
                                   : 'bg-pink-500 text-white'
-                              }`}>
+                                }`}>
                                 {pattern.difficulty}
                               </span>
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-                                pattern.frequency === '자주출제'
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] ${pattern.frequency === '자주출제'
                                   ? 'bg-red-100 text-red-700'
                                   : 'bg-gray-100 text-gray-600'
-                              }`}>
+                                }`}>
                                 {pattern.frequency}
                               </span>
                               <span className="text-sm font-medium text-gray-800">{pattern.pattern}</span>
@@ -1734,28 +1739,25 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
           <div className="p-4 space-y-4">
             {/* 자동 수준 추천 배너 */}
             {autoLevelRecommendation && (
-              <div className={`rounded-lg p-4 border-2 ${
-                autoLevelRecommendation.level === '하위권' ? 'bg-blue-50 border-blue-300' :
-                autoLevelRecommendation.level === '중위권' ? 'bg-yellow-50 border-yellow-300' :
-                'bg-red-50 border-red-300'
-              }`}>
+              <div className={`rounded-lg p-4 border-2 ${autoLevelRecommendation.level === '하위권' ? 'bg-blue-50 border-blue-300' :
+                  autoLevelRecommendation.level === '중위권' ? 'bg-yellow-50 border-yellow-300' :
+                    'bg-red-50 border-red-300'
+                }`}>
                 <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                    autoLevelRecommendation.level === '하위권' ? 'bg-blue-500' :
-                    autoLevelRecommendation.level === '중위권' ? 'bg-yellow-500' :
-                    'bg-red-500'
-                  }`}>
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${autoLevelRecommendation.level === '하위권' ? 'bg-blue-500' :
+                      autoLevelRecommendation.level === '중위권' ? 'bg-yellow-500' :
+                        'bg-red-500'
+                    }`}>
                     <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h4 className={`text-sm font-bold ${
-                        autoLevelRecommendation.level === '하위권' ? 'text-blue-900' :
-                        autoLevelRecommendation.level === '중위권' ? 'text-yellow-900' :
-                        'text-red-900'
-                      }`}>
+                      <h4 className={`text-sm font-bold ${autoLevelRecommendation.level === '하위권' ? 'text-blue-900' :
+                          autoLevelRecommendation.level === '중위권' ? 'text-yellow-900' :
+                            'text-red-900'
+                        }`}>
                         분석 결과 기반 추천: {autoLevelRecommendation.level} 교재
                       </h4>
                       <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full">
@@ -1776,11 +1778,10 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                     )}
                     <button
                       onClick={() => setSelectedBookLevel(autoLevelRecommendation.level)}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded ${
-                        autoLevelRecommendation.level === '하위권' ? 'bg-blue-500 hover:bg-blue-600' :
-                        autoLevelRecommendation.level === '중위권' ? 'bg-yellow-500 hover:bg-yellow-600' :
-                        'bg-red-500 hover:bg-red-600'
-                      } text-white transition-colors`}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded ${autoLevelRecommendation.level === '하위권' ? 'bg-blue-500 hover:bg-blue-600' :
+                          autoLevelRecommendation.level === '중위권' ? 'bg-yellow-500 hover:bg-yellow-600' :
+                            'bg-red-500 hover:bg-red-600'
+                        } text-white transition-colors`}
                     >
                       추천 교재 보기
                     </button>
@@ -1799,8 +1800,8 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                 // 해당 수준의 단원별 전략 가져오기
                 const topicGuides = topicLevelStrategies.map(ts => {
                   const guide = levelKey === '하위권' ? ts.lower :
-                                levelKey === '중위권' ? ts.middle :
-                                ts.upper;
+                    levelKey === '중위권' ? ts.middle :
+                      ts.upper;
                   return { topic: ts.topic, grade: ts.grade, guide };
                 });
 
@@ -1822,24 +1823,22 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                 return (
                   <div
                     key={level.level}
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      level.level === '하위권'
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${level.level === '하위권'
                         ? isSelected ? 'border-blue-400 bg-blue-100 ring-2 ring-blue-300' : 'border-blue-200 bg-blue-50 hover:border-blue-300'
                         : level.level === '중위권'
-                        ? isSelected ? 'border-yellow-400 bg-yellow-100 ring-2 ring-yellow-300' : 'border-yellow-200 bg-yellow-50 hover:border-yellow-300'
-                        : isSelected ? 'border-red-400 bg-red-100 ring-2 ring-red-300' : 'border-red-200 bg-red-50 hover:border-red-300'
-                    }`}
+                          ? isSelected ? 'border-yellow-400 bg-yellow-100 ring-2 ring-yellow-300' : 'border-yellow-200 bg-yellow-50 hover:border-yellow-300'
+                          : isSelected ? 'border-red-400 bg-red-100 ring-2 ring-red-300' : 'border-red-200 bg-red-50 hover:border-red-300'
+                      }`}
                     onClick={() => setSelectedBookLevel(isSelected ? null : levelKey)}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className={`text-lg font-bold whitespace-nowrap ${
-                          level.level === '하위권'
+                        <span className={`text-lg font-bold whitespace-nowrap ${level.level === '하위권'
                             ? 'text-blue-700'
                             : level.level === '중위권'
-                            ? 'text-yellow-700'
-                            : 'text-red-700'
-                        }`}>
+                              ? 'text-yellow-700'
+                              : 'text-red-700'
+                          }`}>
                           {level.level}
                         </span>
                         <span className="text-[10px] bg-white px-1.5 py-0.5 rounded text-gray-600">
@@ -1913,11 +1912,10 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                     </div>
 
                     {/* 격려 멘트 */}
-                    <div className={`mt-2 p-2 rounded text-[10px] italic ${
-                      level.level === '하위권' ? 'bg-blue-100 text-blue-700' :
-                      level.level === '중위권' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
+                    <div className={`mt-2 p-2 rounded text-[10px] italic ${level.level === '하위권' ? 'bg-blue-100 text-blue-700' :
+                        level.level === '중위권' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-red-100 text-red-700'
+                      }`}>
                       "{topicGuides.length > 0 ? topicGuides[0].guide.encouragement : encouragement}"
                     </div>
                   </div>
@@ -1927,26 +1925,23 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
             {/* 선택된 수준의 추천 문제집 상세 */}
             {selectedBookLevel && (
-              <div className={`rounded-lg border-2 p-4 ${
-                selectedBookLevel === '하위권' ? 'border-blue-300 bg-blue-50' :
-                selectedBookLevel === '중위권' ? 'border-yellow-300 bg-yellow-50' :
-                'border-red-300 bg-red-50'
-              }`}>
+              <div className={`rounded-lg border-2 p-4 ${selectedBookLevel === '하위권' ? 'border-blue-300 bg-blue-50' :
+                  selectedBookLevel === '중위권' ? 'border-yellow-300 bg-yellow-50' :
+                    'border-red-300 bg-red-50'
+                }`}>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className={`text-sm font-semibold ${
-                    selectedBookLevel === '하위권' ? 'text-blue-800' :
-                    selectedBookLevel === '중위권' ? 'text-yellow-800' :
-                    'text-red-800'
-                  }`}>
+                  <h4 className={`text-sm font-semibold ${selectedBookLevel === '하위권' ? 'text-blue-800' :
+                      selectedBookLevel === '중위권' ? 'text-yellow-800' :
+                        'text-red-800'
+                    }`}>
                     {selectedBookLevel} 추천 문제집
                   </h4>
                   <button
                     onClick={() => setShowBookDetails(!showBookDetails)}
-                    className={`text-xs px-2 py-1 rounded ${
-                      selectedBookLevel === '하위권' ? 'bg-blue-200 text-blue-700 hover:bg-blue-300' :
-                      selectedBookLevel === '중위권' ? 'bg-yellow-200 text-yellow-700 hover:bg-yellow-300' :
-                      'bg-red-200 text-red-700 hover:bg-red-300'
-                    }`}
+                    className={`text-xs px-2 py-1 rounded ${selectedBookLevel === '하위권' ? 'bg-blue-200 text-blue-700 hover:bg-blue-300' :
+                        selectedBookLevel === '중위권' ? 'bg-yellow-200 text-yellow-700 hover:bg-yellow-300' :
+                          'bg-red-200 text-red-700 hover:bg-red-300'
+                      }`}
                   >
                     {showBookDetails ? '간략히' : '전체 보기'}
                   </button>
@@ -1996,11 +1991,10 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                             </div>
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-[10px] text-gray-500">{book.publisher}</span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                                book.type.includes('개념') ? 'bg-blue-100 text-blue-700' :
-                                book.type.includes('유형') ? 'bg-green-100 text-green-700' :
-                                'bg-purple-100 text-purple-700'
-                              }`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${book.type.includes('개념') ? 'bg-blue-100 text-blue-700' :
+                                  book.type.includes('유형') ? 'bg-green-100 text-green-700' :
+                                    'bg-purple-100 text-purple-700'
+                                }`}>
                                 {book.type}
                               </span>
                             </div>
@@ -2035,7 +2029,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                                 <td className="p-1.5 font-medium text-gray-800">{book.name}</td>
                                 <td className="p-1.5 text-gray-600">{book.publisher}</td>
                                 <td className="p-1.5 text-center">
-                                  <span className="text-yellow-500">{'★'.repeat(book.difficulty)}{'☆'.repeat(5-book.difficulty)}</span>
+                                  <span className="text-yellow-500">{'★'.repeat(book.difficulty)}{'☆'.repeat(5 - book.difficulty)}</span>
                                 </td>
                                 <td className="p-1.5 text-gray-600">{book.features}</td>
                               </tr>
@@ -2102,15 +2096,14 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                 {FOUR_WEEK_TIMELINE.map((week, index) => (
                   <div key={week.week} className="relative pl-10">
                     {/* Timeline dot */}
-                    <div className={`absolute left-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${
-                      index === 0
+                    <div className={`absolute left-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${index === 0
                         ? 'bg-indigo-400'
                         : index === 1
-                        ? 'bg-indigo-500'
-                        : index === 2
-                        ? 'bg-indigo-600'
-                        : 'bg-indigo-700'
-                    }`}>
+                          ? 'bg-indigo-500'
+                          : index === 2
+                            ? 'bg-indigo-600'
+                            : 'bg-indigo-700'
+                      }`}>
                       {4 - index}
                     </div>
 
