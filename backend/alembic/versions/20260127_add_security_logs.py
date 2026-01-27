@@ -1,7 +1,7 @@
 """Add security_logs table for tracking auth failures and API errors.
 
 Revision ID: 20260127_add_security_logs
-Revises: 20260126_add_school_trends
+Revises: 20260126_add_school_fields
 Create Date: 2026-01-27
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '20260127_add_security_logs'
-down_revision = '20260126_add_school_trends'
+down_revision = '20260126_add_school_fields'
 branch_labels = None
 depends_on = None
 
