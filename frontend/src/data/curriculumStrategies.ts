@@ -1823,7 +1823,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '확률',
     mistakes: [
       {
-        keywords: ['확률'],
+        keywords: ['확률의 계산', '사건의 확률', '복원추출', '비복원추출'],
         mistakes: [
           '확률이 1을 초과하는 값으로 계산해도 이상함을 느끼지 못함',
           '"적어도 하나"를 직접 구하려다 경우를 빠뜨림 (여사건 이용해야 함)',
@@ -2027,7 +2027,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '원과 직선',
     mistakes: [
       {
-        keywords: ['원과 직선', '원과', '직선'],
+        keywords: ['원과 직선', '할선', '현의 수직이등분선'],
         mistakes: [
           '접선이 접점에서 반지름과 수직임을 이용하지 않음',
           '원 밖의 한 점에서 그은 두 접선의 길이가 같음을 모름',
@@ -2078,7 +2078,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '다항식의 연산',
     mistakes: [
       {
-        keywords: ['다항식의 연산', '다항식의', '연산'],
+        keywords: ['다항식의 연산', '다항식의 덧셈', '다항식의 뺄셈'],
         mistakes: [
           '(a+b+c)²의 전개에서 교차항(2ab, 2bc, 2ca)을 누락',
           '치환 후 원래 문자로 되돌리는 것을 잊음',
@@ -2163,7 +2163,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '이차방정식과 이차함수',
     mistakes: [
       {
-        keywords: ['이차방정식과 이차함수', '이차방정식과', '이차함수'],
+        keywords: ['이차방정식과 이차함수', '이차방정식과 이차함수의 관계'],
         mistakes: [
           '이차함수 그래프와 x축의 교점 개수를 판별식 부호와 반대로 연결',
           '"서로 다른 두 점에서 만난다"를 D ≥ 0으로 착각 (D > 0이 맞음)',
@@ -2180,7 +2180,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '여러 가지 방정식',
     mistakes: [
       {
-        keywords: ['여러 가지 방정식', '여러', '가지', '방정식'],
+        keywords: ['여러 가지 방정식', '삼차방정식', '사차방정식', '분수방정식'],
         mistakes: [
           '삼차방정식은 항상 세 개의 실근을 가진다고 착각 (허근 가능)',
           '인수분해 후 각 인수를 0으로 놓는 과정에서 일부 인수 누락',
@@ -2197,7 +2197,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '여러 가지 부등식',
     mistakes: [
       {
-        keywords: ['여러 가지 부등식', '여러', '가지', '부등식'],
+        keywords: ['여러 가지 부등식', '이차부등식', '절댓값 부등식', '연립부등식'],
         mistakes: [
           '이차부등식에서 최고차항의 계수가 음수일 때 부등호 방향 처리 실수',
           '절댓값 부등식에서 경우 나누기를 하지 않거나 잘못 나눔',
@@ -2248,7 +2248,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '행렬의 뜻과 연산',
     mistakes: [
       {
-        keywords: ['행렬의 뜻과 연산', '행렬의', '뜻과', '연산'],
+        keywords: ['행렬의 뜻과 연산', '행렬의 덧셈', '행렬의 곱셈'],
         mistakes: [
           '행렬의 곱셈에서 교환법칙이 성립한다고 착각 (AB ≠ BA)',
           '행렬 곱셈 조건을 확인하지 않음 (A의 열 수 = B의 행 수)',
@@ -2282,7 +2282,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '평면좌표',
     mistakes: [
       {
-        keywords: ['평면좌표'],
+        keywords: ['평면좌표', '내분점', '외분점', '무게중심'],
         mistakes: [
           '두 점 사이 거리 공식에서 제곱 후 루트를 씌우는 것을 잊음',
           '내분점과 외분점 공식 혼동 (내분: 사이, 외분: 연장선)',
@@ -2299,7 +2299,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '직선의 방정식',
     mistakes: [
       {
-        keywords: ['직선의 방정식', '직선의', '방정식'],
+        keywords: ['직선의 방정식', '점과 직선 사이의 거리', '두 직선의 위치관계'],
         mistakes: [
           '두 점을 지나는 직선의 기울기 계산에서 분자와 분모를 반대로',
           '수직 조건에서 기울기 곱 = -1인데 기울기 합 = -1로 착각',
@@ -2316,7 +2316,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '원의 방정식',
     mistakes: [
       {
-        keywords: ['원의 방정식', '원의', '방정식'],
+        keywords: ['원의 방정식', '원과 직선의 위치관계', '원의 접선'],
         mistakes: [
           '(x-a)²+(y-b)²=r²에서 중심을 (-a, -b)로 착각',
           '일반형 → 표준형 변환 시 완전제곱식 만들기에서 계수 처리 오류',
@@ -2333,7 +2333,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '도형의 이동',
     mistakes: [
       {
-        keywords: ['도형의 이동', '도형의', '이동'],
+        keywords: ['도형의 이동', '평행이동', '대칭이동'],
         mistakes: [
           '점의 이동과 방정식의 이동에서 부호 처리를 같게 함',
           'x축 대칭, y축 대칭, 원점 대칭의 규칙을 혼동',
@@ -2401,7 +2401,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '함수',
     mistakes: [
       {
-        keywords: ['함수'],
+        keywords: ['함수의 뜻', '일대일함수', '일대일대응', '합성함수'],
         mistakes: [
           '일대일함수의 조건을 일대일대응의 조건으로 착각',
           '합성함수 (f∘g)(x) = f(g(x))에서 계산 순서를 g(f(x))로 착각',
@@ -2469,7 +2469,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '지수',
     mistakes: [
       {
-        keywords: ['지수'],
+        keywords: ['지수법칙', '거듭제곱근', '지수의 확장'],
         mistakes: [
           'a^(1/n) = n√a에서 n의 위치를 잘못 이해',
           '음수의 짝수 거듭제곱근이 존재한다고 착각 (실수 범위에서 존재 안 함)',
@@ -2486,7 +2486,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '로그',
     mistakes: [
       {
-        keywords: ['로그'],
+        keywords: ['로그의 뜻', '로그의 성질', '밑 변환 공식'],
         mistakes: [
           'log(a+b) = log a + log b로 착각 (log(ab) = log a + log b)',
           '진수 조건(> 0)과 밑 조건(> 0, ≠ 1) 확인 누락',
@@ -2622,7 +2622,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '수열의 합',
     mistakes: [
       {
-        keywords: ['수열의 합', '수열의', '합'],
+        keywords: ['수열의 합', '시그마', 'Σ'],
         mistakes: [
           'Σ 기호의 성질에서 상수 분리를 잘못 적용',
           'Σk² = n(n+1)(2n+1)/6 공식에서 계수 오류',
@@ -2656,7 +2656,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '함수의 극한',
     mistakes: [
       {
-        keywords: ['함수의 극한', '함수의', '극한'],
+        keywords: ['함수의 극한', '극한값', '부정형'],
         mistakes: [
           '0/0 꼴 부정형을 0으로 바로 계산 (인수분해나 유리화 필요)',
           '∞/∞ 꼴에서 최고차항 계수비가 아닌 상수항 비로 계산',
@@ -2673,7 +2673,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '함수의 연속',
     mistakes: [
       {
-        keywords: ['함수의 연속', '함수의', '연속'],
+        keywords: ['함수의 연속', '연속함수', '불연속점'],
         mistakes: [
           '연속의 세 조건 중 일부만 확인하고 연속이라고 판단',
           '미분가능 → 연속을 연속 → 미분가능으로 착각 (역은 성립 안 함)',
@@ -2724,7 +2724,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '도함수의 활용 (속도와 가속도)',
     mistakes: [
       {
-        keywords: ['도함수의 활용 (속도와 가속도)', '도함수의', '활용', '(속도와', '가속도)'],
+        keywords: ['속도와 가속도', '위치함수', '속력'],
         mistakes: [
           '속도와 속력을 혼동 (속력 = |속도|)',
           '가속도의 부호와 속력 변화의 관계를 잘못 이해',
@@ -2894,7 +2894,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '통계적 추정',
     mistakes: [
       {
-        keywords: ['통계적 추정', '통계적', '추정'],
+        keywords: ['통계적 추정', '신뢰구간', '모평균의 추정'],
         mistakes: [
           '신뢰구간 공식에서 √n을 n으로 착각',
           '95% 신뢰도의 z값(1.96)과 99% 신뢰도의 z값(2.58) 혼동',
@@ -2911,7 +2911,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '수열의 극한',
     mistakes: [
       {
-        keywords: ['수열의 극한', '수열의', '극한'],
+        keywords: ['수열의 극한', '수렴', '발산'],
         mistakes: [
           '발산하는 수열의 극한을 ∞로 표기하고 수렴한다고 착각',
           '등비수열의 수렴 조건 |r| < 1을 r < 1로 착각',
@@ -2928,7 +2928,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '급수',
     mistakes: [
       {
-        keywords: ['급수'],
+        keywords: ['무한급수', '등비급수', '급수의 수렴'],
         mistakes: [
           '급수가 수렴하면 일반항도 수렴하지만, 일반항이 0으로 수렴해도 급수는 발산할 수 있음',
           '등비급수 합 공식 a/(1-r)을 |r| ≥ 1일 때도 적용',
@@ -2945,7 +2945,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '여러 가지 함수의 미분',
     mistakes: [
       {
-        keywords: ['여러 가지 함수의 미분', '여러', '가지', '함수의', '미분'],
+        keywords: ['여러 가지 함수의 미분', '지수함수의 미분', '로그함수의 미분', '삼각함수의 미분'],
         mistakes: [
           '(e^x)\' = xe^(x-1)로 착각 ((e^x)\' = e^x)',
           '(ln x)\' = 1로 착각 ((ln x)\' = 1/x)',
@@ -2962,7 +2962,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '여러 가지 미분법',
     mistakes: [
       {
-        keywords: ['여러 가지 미분법', '여러', '가지', '미분법'],
+        keywords: ['여러 가지 미분법', '합성함수의 미분', '매개변수 미분', '음함수 미분'],
         mistakes: [
           '합성함수 미분에서 안쪽 함수의 미분(속미분)을 빠뜨림',
           '몫의 미분법에서 분자의 부호를 잘못 적용 ((분자)\' = f\'g - fg\')',
@@ -2996,7 +2996,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '여러 가지 적분법',
     mistakes: [
       {
-        keywords: ['여러 가지 적분법', '여러', '가지', '적분법'],
+        keywords: ['여러 가지 적분법', '치환적분', '부분적분'],
         mistakes: [
           '치환적분에서 dx를 du로 바꾸는 것을 잊음',
           '부분적분에서 f와 g\' 선택을 잘못하여 더 복잡해짐',
@@ -3081,7 +3081,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '벡터의 연산',
     mistakes: [
       {
-        keywords: ['벡터의 연산', '벡터의', '연산'],
+        keywords: ['벡터의 연산', '벡터의 덧셈', '벡터의 실수배'],
         mistakes: [
           '벡터의 뺄셈 a - b의 방향을 잘못 이해 (b에서 a로 향하는 벡터)',
           '영벡터의 크기를 1로 착각 (0이 맞음)',
@@ -3098,7 +3098,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '평면벡터의 성분과 내적',
     mistakes: [
       {
-        keywords: ['평면벡터의 성분과 내적', '평면벡터의', '성분과', '내적'],
+        keywords: ['평면벡터의 성분과 내적', '벡터의 내적', '벡터의 성분'],
         mistakes: [
           '내적 a·b = |a||b|cos θ에서 cos를 sin으로 착각',
           '내적이 0이면 평행이라고 착각 (수직이 맞음)',
@@ -9435,7 +9435,7 @@ export const TIME_ALLOCATION_STRATEGIES: TimeAllocationStrategy[] = [
   },
   {
     unit: '일차방정식',
-    keywords: ['일차방정식', '방정식', '활용문제', '문자와 식'],
+    keywords: ['일차방정식', '방정식의 활용', '등식의 성질'],
     examDuration: 45,
     guides: [
       { type: '식의 값 (대입)', weight: '15%', suggestedTime: '1분', difficulty: '⭐' },

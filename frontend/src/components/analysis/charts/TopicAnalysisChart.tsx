@@ -309,7 +309,7 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                       </div>
 
                       {/* 중단원명 */}
-                      <div className="w-24 text-sm font-medium text-gray-800 flex items-center gap-1.5 flex-shrink-0 truncate" title={chapter.name}>
+                      <div className="w-32 sm:w-40 text-sm font-medium text-gray-800 flex items-center gap-1.5 flex-shrink-0" title={chapter.name}>
                         <span
                           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                           style={{ backgroundColor: barColor }}
