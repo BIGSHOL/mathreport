@@ -515,12 +515,16 @@ class PromptBuilder:
    - ✅ 올바른 예:
      - "중3 수학 > 다항식의 곱셈과 인수분해 > 인수분해"
      - "공통수학1 > 다항식 > 다항식의 연산"
+     - "고1 수학 > 방정식과 부등식 > 이차방정식" (복합 문제도 주요 개념 하나만)
    - ❌ 잘못된 예:
      - "[중3 수학] 인수분해" (> 구분자 없음)
      - "[수와 연산] 제곱근과 실수" (과목명 없음)
      - "중3 수학 > [다항식의 곱셈과 인수분해] 인수분해" ([] 사용)
+     - "로그방정식과 이차방정식의 판별식" (❌ 복합 토픽 금지)
+     - "지수함수와 로그함수의 활용" (❌ 여러 단원 합치기 금지)
    - **반드시 " > " (공백-꺽쇠-공백)로 구분**
    - **[] 기호 사용 금지**
+   - **⚠️ 복합 토픽 금지**: 여러 개념이 융합된 문제도 **핵심 개념 하나만** 선택
 7. ai_comment: 정확히 2문장, 총 50자 이내
 8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
 9. question_number: 숫자 또는 "서술형 1", "서답형 2" 형식
@@ -688,7 +692,7 @@ class PromptBuilder:
 3. difficulty: concept(개념), pattern(유형), reasoning(사고력), creative(창의) 중 하나 (4단계 시스템)
 4. question_type: vocabulary(어휘), grammar(문법), reading_main_idea(대의파악), reading_detail(세부정보), reading_inference(추론), listening(듣기), writing(영작), sentence_completion(문장완성), conversation(대화문) 중 하나
 5. points: 숫자 (소수점 허용)
-6. topic 형식: "학년 영어 > 대영역 > 세부영역"
+6. topic 형식: "학년 영어 > 대영역 > 세부영역" (복합 토픽 금지, 핵심 영역 하나만 선택)
 7. ai_comment: 정확히 2문장, 총 50자 이내
 8. confidence: 해당 문항 분석의 확신도 (0.0 ~ 1.0)
 9. question_number: 숫자 또는 "서술형 1" 형식

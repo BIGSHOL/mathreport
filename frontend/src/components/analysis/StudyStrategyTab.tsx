@@ -49,6 +49,7 @@ interface TopicSummary {
   essayCount: number;
   avgDifficulty: number;
   features: string[];
+  questionNumbers: number[]; // 해당 단원의 문항 번호들
 }
 
 // 대단원 그룹핑 인터페이스
@@ -144,8 +145,6 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set());
   const [expandedKillers, setExpandedKillers] = useState<Set<string>>(new Set());
   const [expandedConnectionImportance, setExpandedConnectionImportance] = useState<Map<string, Set<string>>>(new Map());
-  const [showCriticalConnections, setShowCriticalConnections] = useState(true);
-  const [showAllConnections, setShowAllConnections] = useState(false);
   const [showLevelStrategy, setShowLevelStrategy] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showEssayAdvanced, setShowEssayAdvanced] = useState(false);
@@ -154,7 +153,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
   const [showBookDetails, setShowBookDetails] = useState(false);
 
   // 토픽별 분석 데이터 계산
-  const { topicSummaries, totalPoints, essayQuestions, is4Level } = useMemo(() => {
+  const { topicSummaries, chapterGroups, totalPoints, essayQuestions, is4Level } = useMemo(() => {
     const topicMap = new Map<string, TopicSummary>();
     const totalPts = questions.reduce((sum, q) => sum + (q.points || 0), 0);
 
@@ -179,6 +178,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
           essayCount: 0,
           avgDifficulty: 0,
           features: [],
+          questionNumbers: [],
         });
       }
 
@@ -189,6 +189,15 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
       if (q.question_type) summary.types.push(q.question_type);
       if (q.question_format === 'essay' || q.question_format === 'short_answer') {
         summary.essayCount++;
+      }
+      // 문항 번호 수집
+      if (q.question_number != null) {
+        const num = typeof q.question_number === 'string'
+          ? parseInt(q.question_number, 10)
+          : q.question_number;
+        if (!isNaN(num)) {
+          summary.questionNumbers.push(num);
+        }
       }
     });
 
@@ -221,6 +230,49 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
     const sortedSummaries = Array.from(topicMap.values())
       .sort((a, b) => b.totalPoints - a.totalPoints);
 
+    // 대단원(중단원) 기준 그룹핑
+    const chapterMap = new Map<string, ChapterGroup>();
+    sortedSummaries.forEach((summary) => {
+      const parts = summary.topic.split(' > ');
+      const chapterName = parts.length >= 2 ? parts[1] : parts[0];
+
+      if (!chapterMap.has(chapterName)) {
+        chapterMap.set(chapterName, {
+          chapterName,
+          topics: [],
+          questionCount: 0,
+          totalPoints: 0,
+          percentage: 0,
+          essayCount: 0,
+          avgDifficulty: 0,
+          features: [],
+        });
+      }
+
+      const chapter = chapterMap.get(chapterName)!;
+      chapter.topics.push(summary);
+      chapter.questionCount += summary.questionCount;
+      chapter.totalPoints += summary.totalPoints;
+      chapter.essayCount += summary.essayCount;
+    });
+
+    // 대단원별 통계 계산
+    chapterMap.forEach((chapter) => {
+      chapter.percentage = totalPts > 0 ? (chapter.totalPoints / totalPts) * 100 : 0;
+      const allDiffs = chapter.topics.flatMap(t => t.difficulties);
+      if (allDiffs.length > 0) {
+        const weights = allDiffs.map(d => DIFFICULTY_WEIGHT[d] || 2);
+        chapter.avgDifficulty = weights.reduce((a, b) => a + b, 0) / weights.length;
+      }
+      if (chapter.essayCount > 0) chapter.features.push(`서술형 ${chapter.essayCount}문항`);
+      if (chapter.avgDifficulty >= 3) chapter.features.push('고난도 집중');
+      if (chapter.percentage >= 15) chapter.features.push('핵심 대단원');
+      chapter.topics.sort((a, b) => b.totalPoints - a.totalPoints);
+    });
+
+    const sortedChapters = Array.from(chapterMap.values())
+      .sort((a, b) => b.totalPoints - a.totalPoints);
+
     // 서술형 문항
     const essayQs = questions.filter(
       q => q.question_format === 'essay' || q.question_format === 'short_answer'
@@ -228,6 +280,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
     return {
       topicSummaries: sortedSummaries,
+      chapterGroups: sortedChapters,
       totalPoints: totalPts,
       essayQuestions: essayQs,
       is4Level,
@@ -251,6 +304,18 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
         next.delete(topic);
       } else {
         next.add(topic);
+      }
+      return next;
+    });
+  };
+
+  const toggleChapter = (chapterName: string) => {
+    setExpandedChapters((prev) => {
+      const next = new Set(prev);
+      if (next.has(chapterName)) {
+        next.delete(chapterName);
+      } else {
+        next.add(chapterName);
       }
       return next;
     });
@@ -428,107 +493,186 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
   return (
     <div className="space-y-6">
-      {/* 출제 영역별 상세 분석 */}
+      {/* 출제 영역별 상세 분석 - 대단원 그룹핑 아코디언 */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-              </svg>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">출제 영역별 상세 분석</h3>
+                <p className="text-xs text-gray-600">
+                  {chapterGroups.length}개 대단원, {topicSummaries.length}개 소단원, 총 {Math.round(totalPoints)}점
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">출제 영역별 상세 분석</h3>
-              <p className="text-xs text-gray-600">
-                {topicSummaries.length}개 단원, 총 {Math.round(totalPoints)}점
-              </p>
-            </div>
+            {/* 모두 펼치기/접기 버튼 */}
+            <button
+              onClick={() => {
+                const allExpanded = chapterGroups.every(c => expandedChapters.has(c.chapterName));
+                if (allExpanded) {
+                  setExpandedChapters(new Set());
+                } else {
+                  setExpandedChapters(new Set(chapterGroups.map(c => c.chapterName)));
+                }
+              }}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded hover:bg-indigo-50"
+            >
+              {chapterGroups.every(c => expandedChapters.has(c.chapterName)) ? '모두 접기' : '모두 펼치기'}
+            </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 text-xs text-gray-500">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium">단원</th>
-                <th className="px-4 py-3 text-center font-medium w-20">문항 수</th>
-                <th className="px-4 py-3 text-center font-medium w-20">배점</th>
-                <th className="px-4 py-3 text-center font-medium w-20">비율</th>
-                <th className="px-4 py-3 text-left font-medium">특징</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
-              {topicSummaries.map((summary, index) => {
-                // 난이도 색상 결정
-                const avgDiffIndex = Math.round(summary.avgDifficulty) - 1;
-                const diffKeys = is4Level
-                  ? ['concept', 'pattern', 'reasoning', 'creative']
-                  : ['low', 'medium', 'high'];
-                const diffKey = diffKeys[Math.min(avgDiffIndex, diffKeys.length - 1)] as keyof typeof DIFFICULTY_COLORS;
-                const diffColor = DIFFICULTY_COLORS[diffKey] || DIFFICULTY_COLORS.pattern;
+        <div className="divide-y divide-gray-100">
+          {chapterGroups.map((chapter) => {
+            const isExpanded = expandedChapters.has(chapter.chapterName);
+            const avgDiffIndex = Math.round(chapter.avgDifficulty) - 1;
+            const diffKeys = is4Level
+              ? ['concept', 'pattern', 'reasoning', 'creative']
+              : ['low', 'medium', 'high'];
+            const diffKey = diffKeys[Math.min(Math.max(avgDiffIndex, 0), diffKeys.length - 1)] as keyof typeof DIFFICULTY_COLORS;
+            const diffColor = DIFFICULTY_COLORS[diffKey] || DIFFICULTY_COLORS.pattern;
 
-                return (
-                  <tr
-                    key={summary.topic}
-                    className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+            return (
+              <div key={chapter.chapterName}>
+                {/* 대단원 행 (클릭 가능) */}
+                <button
+                  onClick={() => toggleChapter(chapter.chapterName)}
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* 펼치기 아이콘 */}
+                    <svg
+                      className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: diffColor.bg }}
+                    />
+                    <span className="font-semibold text-gray-900 truncate">{chapter.chapterName}</span>
+                    <span className="text-xs text-gray-500 flex-shrink-0">
+                      ({chapter.topics.length}개 소단원)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 flex-shrink-0">
+                    <span className="text-sm text-gray-600">{chapter.questionCount}문항</span>
+                    <span className="text-sm font-medium text-gray-900 w-16 text-right">{chapter.totalPoints}점</span>
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium w-12 text-center ${chapter.percentage >= 20
+                        ? 'bg-red-100 text-red-700'
+                        : chapter.percentage >= 10
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-gray-100 text-gray-600'
+                        }`}
+                    >
+                      {chapter.percentage.toFixed(0)}%
+                    </span>
+                    <div className="flex gap-1 flex-nowrap min-w-[140px]">
+                      {chapter.features.slice(0, 2).map((feature, i) => (
                         <span
-                          className="w-2 h-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: diffColor.bg }}
-                          title={DIFFICULTY_LABELS[diffKey]}
-                        />
-                        <span className="font-medium text-gray-900" title={summary.topic}>
-                          {summary.shortTopic}
+                          key={i}
+                          className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${feature.includes('서술형')
+                            ? 'bg-purple-100 text-purple-700'
+                            : feature.includes('고난도')
+                              ? 'bg-red-100 text-red-700'
+                              : feature.includes('핵심')
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                        >
+                          {feature}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-700">
-                      {summary.questionCount}문항
-                    </td>
-                    <td className="px-4 py-3 text-center font-medium text-gray-900">
-                      {summary.totalPoints}점
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${summary.percentage >= 20
-                            ? 'bg-red-100 text-red-700'
-                            : summary.percentage >= 10
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-gray-100 text-gray-600'
-                          }`}
-                      >
-                        {summary.percentage.toFixed(0)}%
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {summary.features.map((feature, i) => (
-                          <span
-                            key={i}
-                            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${feature.includes('서술형')
-                                ? 'bg-purple-100 text-purple-700'
-                                : feature.includes('고난도')
-                                  ? 'bg-red-100 text-red-700'
-                                  : feature.includes('핵심')
-                                    ? 'bg-blue-100 text-blue-700'
-                                    : 'bg-gray-100 text-gray-600'
-                              }`}
-                          >
-                            {feature}
-                          </span>
-                        ))}
-                        {summary.features.length === 0 && (
-                          <span className="text-gray-400 text-xs">-</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      ))}
+                    </div>
+                  </div>
+                </button>
+
+                {/* 소단원 목록 (펼쳐질 때) */}
+                {isExpanded && (
+                  <div className="bg-gray-50 border-t border-gray-100">
+                    <table className="w-full">
+                      <tbody className="divide-y divide-gray-100 text-sm">
+                        {chapter.topics.map((summary) => {
+                          const topicDiffIndex = Math.round(summary.avgDifficulty) - 1;
+                          const topicDiffKey = diffKeys[Math.min(Math.max(topicDiffIndex, 0), diffKeys.length - 1)] as keyof typeof DIFFICULTY_COLORS;
+                          const topicDiffColor = DIFFICULTY_COLORS[topicDiffKey] || DIFFICULTY_COLORS.pattern;
+
+                          return (
+                            <tr
+                              key={summary.topic}
+                              className="hover:bg-blue-50 transition-colors"
+                            >
+                              <td className="pl-12 pr-4 py-2">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="w-2 h-2 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: topicDiffColor.bg }}
+                                    title={DIFFICULTY_LABELS[topicDiffKey]}
+                                  />
+                                  <span className="text-gray-700" title={summary.topic}>
+                                    {summary.shortTopic}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-2 text-center text-gray-600">
+                                <div className="flex flex-col items-center">
+                                  <span>{summary.questionCount}문항</span>
+                                  {summary.questionNumbers.length > 0 && (
+                                    <span className="text-xs text-indigo-500 font-medium">
+                                      ({summary.questionNumbers.sort((a, b) => a - b).join(', ')}번)
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-2 text-center font-medium text-gray-800 w-20">
+                                {summary.totalPoints}점
+                              </td>
+                              <td className="px-4 py-2 text-center w-16">
+                                <span className="text-xs text-gray-500">
+                                  {summary.percentage.toFixed(0)}%
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 w-40">
+                                <div className="flex flex-wrap gap-1">
+                                  {summary.features.map((feature, i) => (
+                                    <span
+                                      key={i}
+                                      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${feature.includes('서술형')
+                                        ? 'bg-purple-100 text-purple-700'
+                                        : feature.includes('고난도')
+                                          ? 'bg-red-100 text-red-700'
+                                          : feature.includes('핵심')
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : 'bg-gray-100 text-gray-600'
+                                        }`}
+                                    >
+                                      {feature}
+                                    </span>
+                                  ))}
+                                  {summary.features.length === 0 && (
+                                    <span className="text-gray-400 text-xs">-</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -751,8 +895,8 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                         selectedEssayGuide === guide.category ? null : guide.category
                       )}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedEssayGuide === guide.category
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                         }`}
                     >
                       {guide.title}
@@ -869,7 +1013,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
               {topicsWithTime.map((topic, idx) => (
                 <div key={topic.topic} className="flex items-center gap-3">
                   {/* 단원명 */}
-                  <div className="w-60 flex-shrink-0 text-xs text-gray-700 truncate" title={topic.shortTopic}>
+                  <div className="w-50 flex-shrink-0 text-xs text-gray-700 truncate" title={topic.shortTopic}>
                     {topic.shortTopic}
                   </div>
                   {/* 막대 그래프 */}
@@ -901,7 +1045,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
               {/* 검토 시간 */}
               <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
-                <div className="w-40 flex-shrink-0 text-xs text-green-700 font-medium">
+                <div className="w-50 flex-shrink-0 text-xs text-green-700 font-medium">
                   검토 시간
                 </div>
                 <div className="flex-1 h-6 bg-green-50 rounded-full overflow-hidden relative border border-green-200">
@@ -1096,16 +1240,45 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
         </div>
       )}
 
-      {/* 학년별 연계 경고 */}
+      {/* 학년별 연계 경고 - 대단원별 그루핑 */}
       {gradeConnections.size > 0 && (() => {
-        // 필수 연계와 권장 연계로 분리
-        const allEntries = Array.from(gradeConnections.entries());
-        const criticalEntries = allEntries.filter(([_, connections]) =>
-          connections.some(c => c.importance === 'critical')
-        );
-        const recommendedEntries = allEntries.filter(([_, connections]) =>
-          !connections.some(c => c.importance === 'critical')
-        );
+        // 대단원 분류 함수
+        const getMajorUnit = (topic: string): string => {
+          const t = topic.toLowerCase();
+          if (t.includes('지수') || t.includes('로그')) return '지수와 로그';
+          if (t.includes('삼각함수') || t.includes('삼각비') || t.includes('호도법') || t.includes('부채꼴') || t.includes('사인') || t.includes('코사인')) return '삼각함수';
+          if (t.includes('수열') || t.includes('급수') || t.includes('점화식') || t.includes('등차') || t.includes('등비')) return '수열';
+          if (t.includes('함수') || t.includes('합성') || t.includes('역함수')) return '함수';
+          if (t.includes('극한') || t.includes('연속')) return '극한과 연속';
+          if (t.includes('미분') || t.includes('도함수')) return '미분';
+          if (t.includes('적분')) return '적분';
+          if (t.includes('확률') || t.includes('순열') || t.includes('조합')) return '확률과 통계';
+          if (t.includes('벡터') || t.includes('평면')) return '벡터';
+          if (t.includes('행렬')) return '행렬';
+          if (t.includes('방정식') || t.includes('부등식')) return '방정식과 부등식';
+          if (t.includes('집합') || t.includes('명제')) return '집합과 명제';
+          return '기타';
+        };
+
+        // 대단원별로 그루핑
+        type ConnectionsType = typeof gradeConnections extends Map<string, infer V> ? V : never;
+        const groupedByMajor = new Map<string, Array<{ topic: string; connections: ConnectionsType }>>();
+        Array.from(gradeConnections.entries()).forEach(([topic, connections]) => {
+          const majorUnit = getMajorUnit(topic);
+          if (!groupedByMajor.has(majorUnit)) {
+            groupedByMajor.set(majorUnit, []);
+          }
+          groupedByMajor.get(majorUnit)!.push({ topic, connections });
+        });
+
+        // 필수 연계 개수가 많은 순으로 정렬
+        const sortedGroups = Array.from(groupedByMajor.entries()).sort((a, b) => {
+          const aCritical = a[1].reduce((sum, item) => sum + item.connections.filter(c => c.importance === 'critical').length, 0);
+          const bCritical = b[1].reduce((sum, item) => sum + item.connections.filter(c => c.importance === 'critical').length, 0);
+          return bCritical - aCritical;
+        });
+
+        const totalCritical = Array.from(gradeConnections.values()).flat().filter(c => c.importance === 'critical').length;
 
         return (
           <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -1119,479 +1292,124 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                   </div>
                   <div>
                     <h3 className="text-base font-semibold text-gray-900">학년별 연계 경고</h3>
-                    <p className="text-xs text-gray-600">선수학습이 중요한 단원과 연계 관계</p>
+                    <p className="text-xs text-gray-600">선수학습이 중요한 단원 (대단원별)</p>
                   </div>
                 </div>
-                {criticalEntries.length > 0 && (
-                  <span className="text-xs font-semibold px-2 py-1 bg-red-100 text-red-700 rounded">
-                    필수 {criticalEntries.length}개
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">{sortedGroups.length}개 단원</span>
+                  {totalCritical > 0 && (
+                    <span className="text-xs font-semibold px-2 py-1 bg-red-100 text-red-700 rounded">
+                      필수 {totalCritical}개
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="divide-y divide-gray-100">
-              {/* 필수 연계 */}
-              {showCriticalConnections && criticalEntries.map(([topic, connections]) => {
-                const isExpanded = expandedConnections.has(topic);
-                const shortTopic = topic.split(' > ').pop() || topic;
-                const criticalCount = connections.filter(c => c.importance === 'critical').length;
+              {sortedGroups.map(([majorUnit, items]) => {
+                const isExpanded = expandedConnections.has(majorUnit);
+                const criticalCount = items.reduce((sum, item) => sum + item.connections.filter((c: GradeConnection) => c.importance === 'critical').length, 0);
+                const totalCount = items.reduce((sum, item) => sum + item.connections.length, 0);
 
                 return (
-                  <div key={`conn-${topic}`}>
+                  <div key={`major-${majorUnit}`}>
                     <button
-                      onClick={() => toggleConnection(topic)}
+                      onClick={() => toggleConnection(majorUnit)}
                       className="w-full px-4 py-3 flex items-center justify-between hover:bg-orange-50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <span className={`w-3 h-3 rounded-full ${criticalCount > 0 ? 'bg-red-500' : 'bg-orange-400'
-                          }`} />
-                        <span className="font-medium text-gray-900">{shortTopic}</span>
-                        <span className="text-xs text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">
-                          연계 {connections.length}개
+                        <span className={`w-3 h-3 rounded-full ${criticalCount > 0 ? 'bg-red-500' : 'bg-orange-400'}`} />
+                        <span className="font-medium text-gray-900">{majorUnit}</span>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                          {items.length}개 소단원
                         </span>
                         {criticalCount > 0 && (
                           <span className="text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
-                            필수
+                            필수 {criticalCount}
                           </span>
                         )}
                       </div>
-                      <svg
-                        className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-orange-600">연계 {totalCount}개</span>
+                        <svg
+                          className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
                     </button>
 
-                    {isExpanded && (() => {
-                      // importance별로 연계 그룹화
-                      const criticalConns = connections.filter(c => c.importance === 'critical');
-                      const highConns = connections.filter(c => c.importance === 'high');
-                      const mediumConns = connections.filter(c => c.importance === 'medium');
-                      const topicImportanceSet = expandedConnectionImportance.get(topic) || new Set<string>();
-
-                      return (
-                        <div className="px-4 pb-4 bg-orange-50 space-y-2">
-                          {/* 필수 연계 그룹 */}
-                          {criticalConns.length > 0 && (
-                            <div>
-                              <button
-                                onClick={() => toggleConnectionImportance(topic, 'critical')}
-                                className="w-full flex items-center justify-between py-2 px-3 bg-red-100 hover:bg-red-200 rounded transition-colors"
-                              >
-                                <span className="text-sm font-semibold text-red-800">필수 {criticalConns.length}개</span>
-                                <svg
-                                  className={`w-4 h-4 text-red-700 transition-transform ${topicImportanceSet.has('critical') ? 'rotate-180' : ''}`}
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
-                              {topicImportanceSet.has('critical') && (
-                                <div className="mt-2 space-y-3">
-                                  {criticalConns.map((conn, i) => (
-                                    <div key={i} className="p-3 rounded-lg border bg-red-50 border-red-200">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">필수</span>
-                                        <span className="text-sm font-medium text-gray-800">
-                                          {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                      <div className="bg-white bg-opacity-60 rounded p-2">
-                                        <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                        <ul className="space-y-0.5">
-                                          {conn.checkItems.slice(0, 3).map((item, j) => (
-                                            <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                              <span className="text-orange-500">☐</span>
-                                              <span>{item}</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                      <div className="mt-2 flex flex-wrap gap-1">
-                                        {conn.toTopics.slice(0, 4).map((t, j) => (
-                                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                            → {t}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* 중요 연계 그룹 */}
-                          {highConns.length > 0 && (
-                            <div>
-                              <button
-                                onClick={() => toggleConnectionImportance(topic, 'high')}
-                                className="w-full flex items-center justify-between py-2 px-3 bg-orange-100 hover:bg-orange-200 rounded transition-colors"
-                              >
-                                <span className="text-sm font-semibold text-orange-800">중요 {highConns.length}개</span>
-                                <svg
-                                  className={`w-4 h-4 text-orange-700 transition-transform ${topicImportanceSet.has('high') ? 'rotate-180' : ''}`}
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
-                              {topicImportanceSet.has('high') && (
-                                <div className="mt-2 space-y-3">
-                                  {highConns.map((conn, i) => (
-                                    <div key={i} className="p-3 rounded-lg border bg-orange-100 border-orange-200">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500 text-white">중요</span>
-                                        <span className="text-sm font-medium text-gray-800">
-                                          {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                      <div className="bg-white bg-opacity-60 rounded p-2">
-                                        <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                        <ul className="space-y-0.5">
-                                          {conn.checkItems.slice(0, 3).map((item, j) => (
-                                            <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                              <span className="text-orange-500">☐</span>
-                                              <span>{item}</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                      <div className="mt-2 flex flex-wrap gap-1">
-                                        {conn.toTopics.slice(0, 4).map((t, j) => (
-                                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                            → {t}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* 권장 연계 그룹 */}
-                          {mediumConns.length > 0 && (
-                            <div>
-                              <button
-                                onClick={() => toggleConnectionImportance(topic, 'medium')}
-                                className="w-full flex items-center justify-between py-2 px-3 bg-yellow-100 hover:bg-yellow-200 rounded transition-colors"
-                              >
-                                <span className="text-sm font-semibold text-yellow-800">권장 {mediumConns.length}개</span>
-                                <svg
-                                  className={`w-4 h-4 text-yellow-700 transition-transform ${topicImportanceSet.has('medium') ? 'rotate-180' : ''}`}
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
-                              {topicImportanceSet.has('medium') && (
-                                <div className="mt-2 space-y-3">
-                                  {mediumConns.map((conn, i) => (
-                                    <div key={i} className="p-3 rounded-lg border bg-yellow-50 border-yellow-200">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500 text-white">권장</span>
-                                        <span className="text-sm font-medium text-gray-800">
-                                          {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                      <div className="bg-white bg-opacity-60 rounded p-2">
-                                        <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                        <ul className="space-y-0.5">
-                                          {conn.checkItems.slice(0, 3).map((item, j) => (
-                                            <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                              <span className="text-orange-500">☐</span>
-                                              <span>{item}</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                      <div className="mt-2 flex flex-wrap gap-1">
-                                        {conn.toTopics.slice(0, 4).map((t, j) => (
-                                          <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                            → {t}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                );
-              })}
-
-              {/* 필수 연계 토글 버튼 */}
-              {criticalEntries.length > 0 && (
-                <div className="px-4 py-3 bg-red-50 border-t border-red-100">
-                  <button
-                    onClick={() => setShowCriticalConnections(!showCriticalConnections)}
-                    className="w-full flex items-center justify-center gap-2 text-sm text-red-700 hover:text-red-900 font-medium transition-colors"
-                  >
-                    <span>필수 연계 {criticalEntries.length}개</span>
-                    <svg
-                      className={`w-4 h-4 transition-transform ${showCriticalConnections ? 'rotate-180' : ''}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                    <span className="text-xs text-red-600">
-                      ({showCriticalConnections ? '접기' : '더보기'})
-                    </span>
-                  </button>
-                </div>
-              )}
-
-              {/* 권장 연계 (접기/펼치기) */}
-              {recommendedEntries.length > 0 && (
-                <>
-                  {showAllConnections && recommendedEntries.map(([topic, connections]) => {
-                    const isExpanded = expandedConnections.has(topic);
-                    const shortTopic = topic.split(' > ').pop() || topic;
-
-                    return (
-                      <div key={`conn-recommended-${topic}`}>
-                        <button
-                          onClick={() => toggleConnection(topic)}
-                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-orange-50 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="w-3 h-3 rounded-full bg-orange-300" />
-                            <span className="font-medium text-gray-900">{shortTopic}</span>
-                            <span className="text-xs text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">
-                              연계 {connections.length}개
-                            </span>
-                            <span className="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
-                              권장
-                            </span>
-                          </div>
-                          <svg
-                            className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-
-                        {isExpanded && (() => {
-                          // importance별로 연계 그룹화
-                          const criticalConns = connections.filter(c => c.importance === 'critical');
-                          const highConns = connections.filter(c => c.importance === 'high');
-                          const mediumConns = connections.filter(c => c.importance === 'medium');
+                    {isExpanded && (
+                      <div className="px-4 pb-4 bg-orange-50 space-y-2">
+                        {items.map(({ topic, connections }) => {
+                          const shortTopic = topic.split(' > ').pop() || topic;
+                          const topicCritical = connections.filter((c: GradeConnection) => c.importance === 'critical').length;
                           const topicImportanceSet = expandedConnectionImportance.get(topic) || new Set<string>();
+                          const isTopicExpanded = topicImportanceSet.has('detail');
 
                           return (
-                            <div className="px-4 pb-4 bg-orange-50 space-y-2">
-                              {/* 필수 연계 그룹 */}
-                              {criticalConns.length > 0 && (
-                                <div>
-                                  <button
-                                    onClick={() => toggleConnectionImportance(topic, 'critical')}
-                                    className="w-full flex items-center justify-between py-2 px-3 bg-red-100 hover:bg-red-200 rounded transition-colors"
-                                  >
-                                    <span className="text-sm font-semibold text-red-800">필수 {criticalConns.length}개</span>
-                                    <svg
-                                      className={`w-4 h-4 text-red-700 transition-transform ${topicImportanceSet.has('critical') ? 'rotate-180' : ''}`}
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      stroke="currentColor"
-                                    >
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </button>
-                                  {topicImportanceSet.has('critical') && (
-                                    <div className="mt-2 space-y-3">
-                                      {criticalConns.map((conn, i) => (
-                                        <div key={i} className="p-3 rounded-lg border bg-red-50 border-red-200">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">필수</span>
-                                            <span className="text-sm font-medium text-gray-800">
-                                              {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                            </span>
-                                          </div>
-                                          <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                          <div className="bg-white bg-opacity-60 rounded p-2">
-                                            <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                            <ul className="space-y-0.5">
-                                              {conn.checkItems.slice(0, 3).map((item, j) => (
-                                                <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                                  <span className="text-orange-500">☐</span>
-                                                  <span>{item}</span>
-                                                </li>
-                                              ))}
-                                            </ul>
-                                          </div>
-                                          <div className="mt-2 flex flex-wrap gap-1">
-                                            {conn.toTopics.slice(0, 4).map((t, j) => (
-                                              <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                                → {t}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
+                            <div key={`topic-${topic}`} className="bg-white rounded-lg border border-orange-200 overflow-hidden">
+                              <button
+                                onClick={() => toggleConnectionImportance(topic, 'detail')}
+                                className="w-full px-3 py-2 flex items-center justify-between hover:bg-orange-50 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${topicCritical > 0 ? 'bg-red-400' : 'bg-orange-300'}`} />
+                                  <span className="text-sm font-medium text-gray-800">{shortTopic}</span>
+                                  {topicCritical > 0 && (
+                                    <span className="text-[10px] text-red-600 bg-red-50 px-1 py-0.5 rounded">필수</span>
                                   )}
                                 </div>
-                              )}
-
-                              {/* 중요 연계 그룹 */}
-                              {highConns.length > 0 && (
-                                <div>
-                                  <button
-                                    onClick={() => toggleConnectionImportance(topic, 'high')}
-                                    className="w-full flex items-center justify-between py-2 px-3 bg-orange-100 hover:bg-orange-200 rounded transition-colors"
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500">{connections.length}개</span>
+                                  <svg
+                                    className={`w-4 h-4 text-gray-400 transition-transform ${isTopicExpanded ? 'rotate-180' : ''}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
                                   >
-                                    <span className="text-sm font-semibold text-orange-800">중요 {highConns.length}개</span>
-                                    <svg
-                                      className={`w-4 h-4 text-orange-700 transition-transform ${topicImportanceSet.has('high') ? 'rotate-180' : ''}`}
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      stroke="currentColor"
-                                    >
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </button>
-                                  {topicImportanceSet.has('high') && (
-                                    <div className="mt-2 space-y-3">
-                                      {highConns.map((conn, i) => (
-                                        <div key={i} className="p-3 rounded-lg border bg-orange-100 border-orange-200">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500 text-white">중요</span>
-                                            <span className="text-sm font-medium text-gray-800">
-                                              {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                            </span>
-                                          </div>
-                                          <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                          <div className="bg-white bg-opacity-60 rounded p-2">
-                                            <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                            <ul className="space-y-0.5">
-                                              {conn.checkItems.slice(0, 3).map((item, j) => (
-                                                <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                                  <span className="text-orange-500">☐</span>
-                                                  <span>{item}</span>
-                                                </li>
-                                              ))}
-                                            </ul>
-                                          </div>
-                                          <div className="mt-2 flex flex-wrap gap-1">
-                                            {conn.toTopics.slice(0, 4).map((t, j) => (
-                                              <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                                → {t}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
                                 </div>
-                              )}
+                              </button>
 
-                              {/* 권장 연계 그룹 */}
-                              {mediumConns.length > 0 && (
-                                <div>
-                                  <button
-                                    onClick={() => toggleConnectionImportance(topic, 'medium')}
-                                    className="w-full flex items-center justify-between py-2 px-3 bg-yellow-100 hover:bg-yellow-200 rounded transition-colors"
-                                  >
-                                    <span className="text-sm font-semibold text-yellow-800">권장 {mediumConns.length}개</span>
-                                    <svg
-                                      className={`w-4 h-4 text-yellow-700 transition-transform ${topicImportanceSet.has('medium') ? 'rotate-180' : ''}`}
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      stroke="currentColor"
-                                    >
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </button>
-                                  {topicImportanceSet.has('medium') && (
-                                    <div className="mt-2 space-y-3">
-                                      {mediumConns.map((conn, i) => (
-                                        <div key={i} className="p-3 rounded-lg border bg-yellow-50 border-yellow-200">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-500 text-white">권장</span>
-                                            <span className="text-sm font-medium text-gray-800">
-                                              {conn.fromGrade} {conn.fromTopic} → {conn.toGrade}
-                                            </span>
-                                          </div>
-                                          <p className="text-xs text-gray-700 mb-2">{conn.warning}</p>
-                                          <div className="bg-white bg-opacity-60 rounded p-2">
-                                            <h5 className="text-[10px] font-semibold text-gray-600 mb-1">자가 점검 항목</h5>
-                                            <ul className="space-y-0.5">
-                                              {conn.checkItems.slice(0, 3).map((item, j) => (
-                                                <li key={j} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                                  <span className="text-orange-500">☐</span>
-                                                  <span>{item}</span>
-                                                </li>
-                                              ))}
-                                            </ul>
-                                          </div>
-                                          <div className="mt-2 flex flex-wrap gap-1">
-                                            {conn.toTopics.slice(0, 4).map((t, j) => (
-                                              <span key={j} className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600">
-                                                → {t}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      ))}
+                              {isTopicExpanded && (
+                                <div className="px-3 pb-3 space-y-2 border-t border-orange-100">
+                                  {connections.slice(0, 3).map((conn: GradeConnection, i: number) => (
+                                    <div key={i} className={`p-2 rounded text-xs ${
+                                      conn.importance === 'critical' ? 'bg-red-50 border-l-2 border-red-400' :
+                                      conn.importance === 'high' ? 'bg-orange-50 border-l-2 border-orange-400' :
+                                      'bg-yellow-50 border-l-2 border-yellow-400'
+                                    }`}>
+                                      <div className="flex items-center gap-1 mb-1">
+                                        <span className={`px-1 py-0.5 rounded text-[9px] font-bold text-white ${
+                                          conn.importance === 'critical' ? 'bg-red-500' :
+                                          conn.importance === 'high' ? 'bg-orange-500' : 'bg-yellow-500'
+                                        }`}>
+                                          {conn.importance === 'critical' ? '필수' : conn.importance === 'high' ? '중요' : '권장'}
+                                        </span>
+                                        <span className="text-gray-600">{conn.fromGrade} → {conn.toGrade}</span>
+                                      </div>
+                                      <p className="text-gray-700 line-clamp-2">{conn.warning}</p>
                                     </div>
+                                  ))}
+                                  {connections.length > 3 && (
+                                    <p className="text-[10px] text-gray-500 text-center">+{connections.length - 3}개 더...</p>
                                   )}
                                 </div>
                               )}
                             </div>
                           );
-                        })()}
+                        })}
                       </div>
-                    );
-                  })}
-
-                  {/* 더보기/접기 버튼 */}
-                  <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-                    <button
-                      onClick={() => setShowAllConnections(!showAllConnections)}
-                      className="w-full flex items-center justify-center gap-2 text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
-                    >
-                      <span>권장 연계 {recommendedEntries.length}개</span>
-                      <svg
-                        className={`w-4 h-4 transition-transform ${showAllConnections ? 'rotate-180' : ''}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                      <span className="text-xs text-gray-500">
-                        ({showAllConnections ? '접기' : '더보기'})
-                      </span>
-                    </button>
+                    )}
                   </div>
-                </>
-              )}
+                );
+              })}
             </div>
           </div>
         );
@@ -1655,20 +1473,20 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                           <div
                             key={i}
                             className={`p-3 rounded-lg border ${pattern.difficulty === '최상'
-                                ? 'bg-rose-100 border-rose-300'
-                                : 'bg-pink-50 border-pink-200'
+                              ? 'bg-rose-100 border-rose-300'
+                              : 'bg-pink-50 border-pink-200'
                               }`}
                           >
                             <div className="flex items-center gap-2 mb-2">
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pattern.difficulty === '최상'
-                                  ? 'bg-rose-600 text-white'
-                                  : 'bg-pink-500 text-white'
+                                ? 'bg-rose-600 text-white'
+                                : 'bg-pink-500 text-white'
                                 }`}>
                                 {pattern.difficulty}
                               </span>
                               <span className={`px-1.5 py-0.5 rounded text-[10px] ${pattern.frequency === '자주출제'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-gray-100 text-gray-600'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-gray-100 text-gray-600'
                                 }`}>
                                 {pattern.frequency}
                               </span>
@@ -1740,13 +1558,13 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
             {/* 자동 수준 추천 배너 */}
             {autoLevelRecommendation && (
               <div className={`rounded-lg p-4 border-2 ${autoLevelRecommendation.level === '하위권' ? 'bg-blue-50 border-blue-300' :
-                  autoLevelRecommendation.level === '중위권' ? 'bg-yellow-50 border-yellow-300' :
-                    'bg-red-50 border-red-300'
+                autoLevelRecommendation.level === '중위권' ? 'bg-yellow-50 border-yellow-300' :
+                  'bg-red-50 border-red-300'
                 }`}>
                 <div className="flex items-start gap-3">
                   <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${autoLevelRecommendation.level === '하위권' ? 'bg-blue-500' :
-                      autoLevelRecommendation.level === '중위권' ? 'bg-yellow-500' :
-                        'bg-red-500'
+                    autoLevelRecommendation.level === '중위권' ? 'bg-yellow-500' :
+                      'bg-red-500'
                     }`}>
                     <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1755,8 +1573,8 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h4 className={`text-sm font-bold ${autoLevelRecommendation.level === '하위권' ? 'text-blue-900' :
-                          autoLevelRecommendation.level === '중위권' ? 'text-yellow-900' :
-                            'text-red-900'
+                        autoLevelRecommendation.level === '중위권' ? 'text-yellow-900' :
+                          'text-red-900'
                         }`}>
                         분석 결과 기반 추천: {autoLevelRecommendation.level} 교재
                       </h4>
@@ -1779,8 +1597,8 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                     <button
                       onClick={() => setSelectedBookLevel(autoLevelRecommendation.level)}
                       className={`text-xs font-semibold px-3 py-1.5 rounded ${autoLevelRecommendation.level === '하위권' ? 'bg-blue-500 hover:bg-blue-600' :
-                          autoLevelRecommendation.level === '중위권' ? 'bg-yellow-500 hover:bg-yellow-600' :
-                            'bg-red-500 hover:bg-red-600'
+                        autoLevelRecommendation.level === '중위권' ? 'bg-yellow-500 hover:bg-yellow-600' :
+                          'bg-red-500 hover:bg-red-600'
                         } text-white transition-colors`}
                     >
                       추천 교재 보기
@@ -1824,20 +1642,20 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                   <div
                     key={level.level}
                     className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${level.level === '하위권'
-                        ? isSelected ? 'border-blue-400 bg-blue-100 ring-2 ring-blue-300' : 'border-blue-200 bg-blue-50 hover:border-blue-300'
-                        : level.level === '중위권'
-                          ? isSelected ? 'border-yellow-400 bg-yellow-100 ring-2 ring-yellow-300' : 'border-yellow-200 bg-yellow-50 hover:border-yellow-300'
-                          : isSelected ? 'border-red-400 bg-red-100 ring-2 ring-red-300' : 'border-red-200 bg-red-50 hover:border-red-300'
+                      ? isSelected ? 'border-blue-400 bg-blue-100 ring-2 ring-blue-300' : 'border-blue-200 bg-blue-50 hover:border-blue-300'
+                      : level.level === '중위권'
+                        ? isSelected ? 'border-yellow-400 bg-yellow-100 ring-2 ring-yellow-300' : 'border-yellow-200 bg-yellow-50 hover:border-yellow-300'
+                        : isSelected ? 'border-red-400 bg-red-100 ring-2 ring-red-300' : 'border-red-200 bg-red-50 hover:border-red-300'
                       }`}
                     onClick={() => setSelectedBookLevel(isSelected ? null : levelKey)}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <span className={`text-lg font-bold whitespace-nowrap ${level.level === '하위권'
-                            ? 'text-blue-700'
-                            : level.level === '중위권'
-                              ? 'text-yellow-700'
-                              : 'text-red-700'
+                          ? 'text-blue-700'
+                          : level.level === '중위권'
+                            ? 'text-yellow-700'
+                            : 'text-red-700'
                           }`}>
                           {level.level}
                         </span>
@@ -1913,8 +1731,8 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
                     {/* 격려 멘트 */}
                     <div className={`mt-2 p-2 rounded text-[10px] italic ${level.level === '하위권' ? 'bg-blue-100 text-blue-700' :
-                        level.level === '중위권' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
+                      level.level === '중위권' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-700'
                       }`}>
                       "{topicGuides.length > 0 ? topicGuides[0].guide.encouragement : encouragement}"
                     </div>
@@ -1926,21 +1744,21 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
             {/* 선택된 수준의 추천 문제집 상세 */}
             {selectedBookLevel && (
               <div className={`rounded-lg border-2 p-4 ${selectedBookLevel === '하위권' ? 'border-blue-300 bg-blue-50' :
-                  selectedBookLevel === '중위권' ? 'border-yellow-300 bg-yellow-50' :
-                    'border-red-300 bg-red-50'
+                selectedBookLevel === '중위권' ? 'border-yellow-300 bg-yellow-50' :
+                  'border-red-300 bg-red-50'
                 }`}>
                 <div className="flex items-center justify-between mb-3">
                   <h4 className={`text-sm font-semibold ${selectedBookLevel === '하위권' ? 'text-blue-800' :
-                      selectedBookLevel === '중위권' ? 'text-yellow-800' :
-                        'text-red-800'
+                    selectedBookLevel === '중위권' ? 'text-yellow-800' :
+                      'text-red-800'
                     }`}>
                     {selectedBookLevel} 추천 문제집
                   </h4>
                   <button
                     onClick={() => setShowBookDetails(!showBookDetails)}
                     className={`text-xs px-2 py-1 rounded ${selectedBookLevel === '하위권' ? 'bg-blue-200 text-blue-700 hover:bg-blue-300' :
-                        selectedBookLevel === '중위권' ? 'bg-yellow-200 text-yellow-700 hover:bg-yellow-300' :
-                          'bg-red-200 text-red-700 hover:bg-red-300'
+                      selectedBookLevel === '중위권' ? 'bg-yellow-200 text-yellow-700 hover:bg-yellow-300' :
+                        'bg-red-200 text-red-700 hover:bg-red-300'
                       }`}
                   >
                     {showBookDetails ? '간략히' : '전체 보기'}
@@ -1992,8 +1810,8 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-[10px] text-gray-500">{book.publisher}</span>
                               <span className={`text-[10px] px-1.5 py-0.5 rounded ${book.type.includes('개념') ? 'bg-blue-100 text-blue-700' :
-                                  book.type.includes('유형') ? 'bg-green-100 text-green-700' :
-                                    'bg-purple-100 text-purple-700'
+                                book.type.includes('유형') ? 'bg-green-100 text-green-700' :
+                                  'bg-purple-100 text-purple-700'
                                 }`}>
                                 {book.type}
                               </span>
@@ -2097,12 +1915,12 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                   <div key={week.week} className="relative pl-10">
                     {/* Timeline dot */}
                     <div className={`absolute left-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${index === 0
-                        ? 'bg-indigo-400'
-                        : index === 1
-                          ? 'bg-indigo-500'
-                          : index === 2
-                            ? 'bg-indigo-600'
-                            : 'bg-indigo-700'
+                      ? 'bg-indigo-400'
+                      : index === 1
+                        ? 'bg-indigo-500'
+                        : index === 2
+                          ? 'bg-indigo-600'
+                          : 'bg-indigo-700'
                       }`}>
                       {4 - index}
                     </div>
