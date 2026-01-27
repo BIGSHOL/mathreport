@@ -1,8 +1,8 @@
 /**
  * Type Radar Chart - 문항 유형별 균형 레이더 차트
  *
- * 컴팩트한 디자인으로 문항 유형 분포를 시각화
- * 각 유형별 고유 색상 적용
+ * 동적 다각형: 출제된 유형 수에 따라 삼각형~육각형으로 변화
+ * 2개 이하일 때는 가로 막대 차트로 전환
  */
 import { memo, useMemo, useRef, useState, useEffect } from 'react';
 import {
@@ -19,7 +19,7 @@ interface TypeRadarChartProps {
   isExport?: boolean;
 }
 
-// 6각형 레이더 차트를 위한 고정 유형 순서 (색상 포함)
+// 전체 유형 정의 (색상 포함)
 const ALL_TYPES = [
   { key: 'calculation', label: '계산', color: QUESTION_TYPE_COLORS.calculation.color },
   { key: 'geometry', label: '도형', color: QUESTION_TYPE_COLORS.geometry.color },
@@ -29,11 +29,19 @@ const ALL_TYPES = [
   { key: 'statistics', label: '통계', color: QUESTION_TYPE_COLORS.statistics.color },
 ];
 
-// 커스텀 라벨 렌더러 (각 유형별 색상 적용)
+// 다각형 이름 매핑
+const POLYGON_NAMES: Record<number, string> = {
+  3: '삼각형',
+  4: '사각형',
+  5: '오각형',
+  6: '육각형',
+};
+
+// 커스텀 라벨 렌더러
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const renderColoredTick = (props: any) => {
+const createColoredTick = (activeTypes: typeof ALL_TYPES) => (props: any) => {
   const { payload, x, y, textAnchor } = props;
-  const typeInfo = ALL_TYPES.find((t) => t.label === payload?.value);
+  const typeInfo = activeTypes.find((t) => t.label === payload?.value);
   const color = typeInfo?.color || '#4b5563';
 
   return (
@@ -42,36 +50,34 @@ const renderColoredTick = (props: any) => {
       y={y}
       textAnchor={textAnchor as 'start' | 'middle' | 'end' | 'inherit'}
       fill={color}
-      fontSize={10}
-      fontWeight={600}
+      fontSize={11}
+      fontWeight={700}
     >
       {payload?.value}
     </text>
   );
 };
 
-// 색상 오버레이 SVG 컴포넌트
+// 동적 색상 오버레이 SVG 컴포넌트
 const ColoredOverlay = ({
   width,
   height,
   data,
   maxValue,
+  numSides,
 }: {
   width: number;
   height: number;
   data: Array<{ type: string; value: number; color: string; fullMark: number }>;
   maxValue: number;
+  numSides: number;
 }) => {
-  // RadarChart와 동일한 설정 (cx=50%, cy=45%, outerRadius=70%)
   const cx = width / 2;
   const cy = height * 0.45;
   const outerRadius = Math.min(width, height) * 0.5 * 0.7;
 
-  const numSectors = 6;
-  const anglePerSector = (2 * Math.PI) / numSectors;
+  const anglePerSector = (2 * Math.PI) / numSides;
   const startOffset = -Math.PI / 2;
-  // PolarGrid와 동일하게 정렬 (라벨 위치에서 시작)
-  const bgOffset = startOffset;
   const gridLevels = [0.2, 0.4, 0.6, 0.8, 1.0];
 
   // 데이터 포인트 좌표 계산
@@ -93,13 +99,13 @@ const ColoredOverlay = ({
       height={height}
       style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 10 }}
     >
-      {/* 배경 색상 섹터 (육각형 직선) */}
+      {/* 배경 색상 섹터 */}
       {gridLevels.map((level, levelIdx) => {
         const innerR = levelIdx === 0 ? 0 : outerRadius * gridLevels[levelIdx - 1];
         const outerR = outerRadius * level;
 
-        return ALL_TYPES.map((type, index) => {
-          const startAngle = bgOffset + index * anglePerSector;
+        return data.map((item, index) => {
+          const startAngle = startOffset + index * anglePerSector;
           const endAngle = startAngle + anglePerSector;
 
           const ox1 = cx + outerR * Math.cos(startAngle);
@@ -112,23 +118,22 @@ const ColoredOverlay = ({
           const ix2 = cx + innerR * Math.cos(startAngle);
           const iy2 = cy + innerR * Math.sin(startAngle);
 
-          // 직선으로 육각형 섹터 그리기 (아크 대신 L 명령 사용)
           const pathData = levelIdx === 0
             ? `M ${cx} ${cy} L ${ox1} ${oy1} L ${ox2} ${oy2} Z`
             : `M ${ox1} ${oy1} L ${ox2} ${oy2} L ${ix1} ${iy1} L ${ix2} ${iy2} Z`;
 
           return (
             <path
-              key={`bg-${type.key}-${levelIdx}`}
+              key={`bg-${item.type}-${levelIdx}`}
               d={pathData}
-              fill={type.color}
-              fillOpacity={0.1}
+              fill={item.color}
+              fillOpacity={0.12}
             />
           );
         });
       })}
 
-      {/* 데이터 폴리곤 - 각 섹터별 다른 색상 */}
+      {/* 데이터 폴리곤 */}
       {dataPoints.map((point, i) => {
         const nextPoint = dataPoints[(i + 1) % dataPoints.length];
         const pathData = `M ${cx} ${cy} L ${point.x} ${point.y} L ${nextPoint.x} ${nextPoint.y} Z`;
@@ -137,14 +142,45 @@ const ColoredOverlay = ({
             key={`data-${i}`}
             d={pathData}
             fill={point.color}
-            fillOpacity={0.5}
+            fillOpacity={0.6}
             stroke={point.color}
-            strokeWidth={2}
+            strokeWidth={2.5}
           />
         );
       })}
-
     </svg>
+  );
+};
+
+// 가로 막대 차트 (2개 이하 유형용)
+const HorizontalBarChart = ({
+  data,
+  maxValue,
+}: {
+  data: Array<{ type: string; value: number; color: string; key: string }>;
+  maxValue: number;
+}) => {
+  return (
+    <div className="space-y-3 py-2">
+      {data.map((item) => (
+        <div key={item.key} className="flex items-center gap-3">
+          <div className="w-14 text-xs font-semibold text-right" style={{ color: item.color }}>
+            {item.type}
+          </div>
+          <div className="flex-1 h-7 bg-gray-100 rounded-full overflow-hidden relative">
+            <div
+              className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-3"
+              style={{
+                width: `${Math.max((item.value / maxValue) * 100, 15)}%`,
+                backgroundColor: item.color,
+              }}
+            >
+              <span className="text-white text-xs font-bold">{item.value}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 };
 
@@ -159,7 +195,6 @@ export const TypeRadarChart = memo(function TypeRadarChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-  // 컨테이너 크기 감지 (ResizeObserver 사용) - 내보내기 시 건너뜀
   useEffect(() => {
     if (isExport || !containerRef.current) return;
 
@@ -170,14 +205,11 @@ export const TypeRadarChart = memo(function TypeRadarChart({
       }
     };
 
-    // ResizeObserver for reliable dimension tracking
     const resizeObserver = new ResizeObserver(() => {
       updateDimensions();
     });
 
     resizeObserver.observe(containerRef.current);
-
-    // Initial measurement after a short delay to ensure layout is complete
     requestAnimationFrame(() => {
       updateDimensions();
     });
@@ -187,25 +219,33 @@ export const TypeRadarChart = memo(function TypeRadarChart({
     };
   }, [isExport]);
 
-  // 내보내기용 고정 크기 사용
   const effectiveDimensions = isExport
     ? { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
     : dimensions;
 
-  // 항상 6개 유형 모두 표시 (없으면 0)
-  const maxValue = Math.max(...Object.values(distribution), 1);
-  const fullMark = maxValue * 1.2;
-  const data = useMemo(() => ALL_TYPES.map(({ key, label, color }) => ({
-    type: label,
-    value: distribution[key] || 0,
-    fullMark,
-    color,
-    key,
-  })), [distribution, fullMark]);
+  // 출제된 유형만 필터링 (value > 0)
+  const activeData = useMemo(() => {
+    return ALL_TYPES
+      .filter(({ key }) => (distribution[key] || 0) > 0)
+      .map(({ key, label, color }) => ({
+        type: label,
+        value: distribution[key] || 0,
+        fullMark: 0, // 아래에서 계산
+        color,
+        key,
+      }));
+  }, [distribution]);
 
-  // 모든 값이 0이면 차트 표시 안함
-  const hasData = data.some((d) => d.value > 0);
-  if (!hasData) {
+  // 최대값 및 fullMark 계산
+  const maxValue = Math.max(...activeData.map(d => d.value), 1);
+  const fullMark = maxValue * 1.2;
+  const data = useMemo(() => activeData.map(d => ({ ...d, fullMark })), [activeData, fullMark]);
+
+  const numTypes = data.length;
+  const polygonName = POLYGON_NAMES[numTypes] || `${numTypes}각형`;
+
+  // 데이터 없음
+  if (numTypes === 0) {
     return (
       <div className="bg-white rounded-xl border border-gray-100 p-4">
         <div className="flex items-center gap-2 mb-2">
@@ -214,7 +254,7 @@ export const TypeRadarChart = memo(function TypeRadarChart({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           </div>
-          <h3 className="text-sm font-semibold text-gray-800">유형 균형</h3>
+          <h3 className="text-sm font-semibold text-gray-800">유형 분포</h3>
         </div>
         <div className="flex items-center justify-center h-32 text-gray-400 text-xs">
           유형 데이터가 없습니다
@@ -223,15 +263,45 @@ export const TypeRadarChart = memo(function TypeRadarChart({
     );
   }
 
+  // 2개 이하: 가로 막대 차트
+  if (numTypes <= 2) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-semibold text-gray-800">유형 분포</h3>
+          </div>
+          <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+            {numTypes}개 유형
+          </span>
+        </div>
+        <HorizontalBarChart data={data} maxValue={maxValue} />
+      </div>
+    );
+  }
+
+  // 3개 이상: 동적 다각형 레이더 차트
+  const activeTypes = ALL_TYPES.filter(({ key }) => (distribution[key] || 0) > 0);
+
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-2 mb-1">
-        <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
-          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <h3 className="text-sm font-semibold text-gray-800">유형 분포</h3>
         </div>
-        <h3 className="text-sm font-semibold text-gray-800">유형 균형</h3>
+        <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">
+          {polygonName}
+        </span>
       </div>
       <div className="flex items-center">
         {/* 차트 영역 */}
@@ -243,16 +313,14 @@ export const TypeRadarChart = memo(function TypeRadarChart({
             : { flex: 1, minWidth: 0, height: 200 }
           }
         >
-          {/* Recharts RadarChart (그리드와 라벨만 사용) - 먼저 렌더링 */}
           <ResponsiveContainer width="100%" height={isExport ? EXPORT_HEIGHT : 200}>
             <RadarChart data={data} cx="50%" cy="45%" outerRadius="70%">
               <PolarGrid stroke="#d1d5db" strokeDasharray="3 3" />
               <PolarAngleAxis
                 dataKey="type"
-                tick={renderColoredTick}
+                tick={createColoredTick(activeTypes)}
                 tickLine={false}
               />
-              {/* 투명 Radar (그리드 스케일용) */}
               <Radar
                 dataKey="value"
                 stroke="transparent"
@@ -260,27 +328,27 @@ export const TypeRadarChart = memo(function TypeRadarChart({
               />
             </RadarChart>
           </ResponsiveContainer>
-          {/* 색상 오버레이 (별도 SVG) - 위에 렌더링 */}
           {effectiveDimensions.width > 0 && effectiveDimensions.height > 0 && (
             <ColoredOverlay
               width={effectiveDimensions.width}
               height={effectiveDimensions.height}
               data={data}
               maxValue={fullMark}
+              numSides={numTypes}
             />
           )}
         </div>
-        {/* 우측 범례 (0인 항목 숨김) - 내보내기 시 마진 조정 */}
-        <div className={`flex flex-col gap-0.5 pr-1 ${isExport ? 'ml-1' : '-ml-14'}`}>
-          {data.filter((item) => item.value > 0).map((item) => (
-            <div key={item.key} className="flex items-center gap-1">
+        {/* 우측 범례 */}
+        <div className={`flex flex-col gap-1 pr-1 ${isExport ? 'ml-1' : '-ml-10'}`}>
+          {data.map((item) => (
+            <div key={item.key} className="flex items-center gap-1.5">
               <span
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                className="w-2 h-2 rounded-full flex-shrink-0"
                 style={{ backgroundColor: item.color }}
               />
               <span className="text-[10px] text-gray-600 whitespace-nowrap font-semibold">{item.type}</span>
               <span
-                className="text-[10px] font-bold ml-auto"
+                className="text-[11px] font-bold ml-auto"
                 style={{ color: item.color }}
               >
                 {item.value}
