@@ -2776,6 +2776,89 @@ export function getBooksByLevel(level: '하위권' | '중위권' | '상위권'):
 }
 
 /**
+ * 스마트 문제집 추천 (2~3권)
+ * - 서로 다른 출판사에서 선택 (편향 방지)
+ * - 난이도 순서로 정렬 (기초 → 심화)
+ * - 개념서 + 유형서 조합 우선
+ */
+export function getSmartBookRecommendations(
+  level: '하위권' | '중위권' | '상위권',
+  count: number = 3
+): RecommendedBook[] {
+  const levelBooks = getBooksByLevel(level);
+  if (!levelBooks) return [];
+
+  const books = [...levelBooks.books];
+  const selected: RecommendedBook[] = [];
+  const usedPublishers = new Set<string>();
+
+  // 타입별 우선순위 (개념서 → 유형서 → 심화서)
+  const typeOrder: Record<string, number> = {
+    '개념서': 1,
+    '기초개념': 1,
+    '기초유형': 2,
+    '기본유형': 2,
+    '개념+유형': 2,
+    '유형서': 3,
+    '연산/유형': 3,
+    '응용유형': 4,
+    '준심화': 4,
+    '기출문제': 5,
+    '심화서': 6,
+    '극심화': 7,
+  };
+
+  // 난이도 + 타입 순으로 정렬
+  books.sort((a, b) => {
+    const diffDiff = a.difficulty - b.difficulty;
+    if (diffDiff !== 0) return diffDiff;
+    return (typeOrder[a.type] || 5) - (typeOrder[b.type] || 5);
+  });
+
+  // 1. 먼저 개념서 1권 선택
+  const conceptBook = books.find(b =>
+    (b.type.includes('개념') || b.type === '기초유형') &&
+    !usedPublishers.has(b.publisher)
+  );
+  if (conceptBook) {
+    selected.push(conceptBook);
+    usedPublishers.add(conceptBook.publisher);
+  }
+
+  // 2. 유형서 1권 선택 (다른 출판사)
+  const typeBook = books.find(b =>
+    (b.type.includes('유형') && !b.type.includes('개념')) &&
+    !usedPublishers.has(b.publisher)
+  );
+  if (typeBook) {
+    selected.push(typeBook);
+    usedPublishers.add(typeBook.publisher);
+  }
+
+  // 3. 나머지 채우기 (다른 출판사에서)
+  for (const book of books) {
+    if (selected.length >= count) break;
+    if (!usedPublishers.has(book.publisher) && !selected.includes(book)) {
+      selected.push(book);
+      usedPublishers.add(book.publisher);
+    }
+  }
+
+  // 부족하면 출판사 중복 허용
+  if (selected.length < count) {
+    for (const book of books) {
+      if (selected.length >= count) break;
+      if (!selected.includes(book)) {
+        selected.push(book);
+      }
+    }
+  }
+
+  // 최종 난이도순 정렬
+  return selected.slice(0, count).sort((a, b) => a.difficulty - b.difficulty);
+}
+
+/**
  * 난이도 비교 정보
  */
 export const DIFFICULTY_COMPARISON = {

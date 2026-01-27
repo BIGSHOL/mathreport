@@ -16,6 +16,7 @@ import {
   findKillerPatterns,
   getEncouragementMessages,
   getBooksByLevel,
+  getSmartBookRecommendations,
   LEVEL_STRATEGIES,
   TIME_STRATEGIES,
   ESSAY_CHECKLIST,
@@ -1255,25 +1256,36 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                   </p>
                 </div>
 
-                {/* 추천 조합 */}
+                {/* 스마트 추천 문제집 (3권) */}
                 {(() => {
-                  const levelBooks = getBooksByLevel(selectedBookLevel);
-                  if (!levelBooks) return null;
+                  const smartBooks = getSmartBookRecommendations(selectedBookLevel, 3);
+                  if (smartBooks.length === 0) return null;
                   return (
                     <div className="mb-3">
-                      <h5 className="text-xs font-semibold text-gray-700 mb-2">추천 학습 루트</h5>
-                      <div className="flex flex-wrap gap-2">
-                        {levelBooks.recommendedCombos.map((combo) => (
-                          <div key={combo.name} className="bg-white rounded p-2 flex-1 min-w-[200px]">
-                            <span className="text-[10px] font-semibold text-gray-600">{combo.name}</span>
-                            <div className="flex items-center gap-1 mt-1 flex-wrap">
-                              {combo.sequence.map((book, i) => (
-                                <span key={i} className="flex items-center">
-                                  <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 rounded text-gray-700">{book}</span>
-                                  {i < combo.sequence.length - 1 && <span className="text-gray-400 mx-0.5">→</span>}
-                                </span>
-                              ))}
+                      <h5 className="text-xs font-semibold text-gray-700 mb-2">
+                        맞춤 추천 문제집
+                        <span className="ml-1 text-[10px] font-normal text-gray-500">(개념 → 유형 순)</span>
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        {smartBooks.map((book, i) => (
+                          <div key={i} className="bg-white rounded-lg p-3 border border-gray-200 hover:shadow-sm transition-shadow">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-gray-800">{book.name}</span>
+                              <span className="text-yellow-500 text-[10px]">
+                                {'★'.repeat(book.difficulty)}{'☆'.repeat(5 - book.difficulty)}
+                              </span>
                             </div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] text-gray-500">{book.publisher}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                book.type.includes('개념') ? 'bg-blue-100 text-blue-700' :
+                                book.type.includes('유형') ? 'bg-green-100 text-green-700' :
+                                'bg-purple-100 text-purple-700'
+                              }`}>
+                                {book.type}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-gray-600">{book.features}</p>
                           </div>
                         ))}
                       </div>
