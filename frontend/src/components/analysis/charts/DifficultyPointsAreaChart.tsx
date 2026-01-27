@@ -240,16 +240,16 @@ export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart
           />
           {is4Level ? (
             <>
-              {totals.개념 > 0 && <Area type="monotone" dataKey="개념" stackId="1" stroke={DIFFICULTY_COLORS.concept.bg} fill="url(#gradConcept)" strokeWidth={0} />}
-              {totals.유형 > 0 && <Area type="monotone" dataKey="유형" stackId="1" stroke={DIFFICULTY_COLORS.pattern.bg} fill="url(#gradPattern)" strokeWidth={0} />}
-              {totals.심화 > 0 && <Area type="monotone" dataKey="심화" stackId="1" stroke={DIFFICULTY_COLORS.reasoning.bg} fill="url(#gradReasoning)" strokeWidth={0} />}
-              {totals.최상위 > 0 && <Area type="monotone" dataKey="최상위" stackId="1" stroke={DIFFICULTY_COLORS.creative.bg} fill="url(#gradCreative)" strokeWidth={0} />}
+              {(totals as Totals4Level).개념 > 0 && <Area type="monotone" dataKey="개념" stackId="1" stroke={DIFFICULTY_COLORS.concept.bg} fill="url(#gradConcept)" strokeWidth={0} />}
+              {(totals as Totals4Level).유형 > 0 && <Area type="monotone" dataKey="유형" stackId="1" stroke={DIFFICULTY_COLORS.pattern.bg} fill="url(#gradPattern)" strokeWidth={0} />}
+              {(totals as Totals4Level).심화 > 0 && <Area type="monotone" dataKey="심화" stackId="1" stroke={DIFFICULTY_COLORS.reasoning.bg} fill="url(#gradReasoning)" strokeWidth={0} />}
+              {(totals as Totals4Level).최상위 > 0 && <Area type="monotone" dataKey="최상위" stackId="1" stroke={DIFFICULTY_COLORS.creative.bg} fill="url(#gradCreative)" strokeWidth={0} />}
             </>
           ) : (
             <>
-              {totals.하 > 0 && <Area type="monotone" dataKey="하" stackId="1" stroke={DIFFICULTY_COLORS.low.bg} fill="url(#gradLow)" strokeWidth={0} />}
-              {totals.중 > 0 && <Area type="monotone" dataKey="중" stackId="1" stroke={DIFFICULTY_COLORS.medium.bg} fill="url(#gradMedium)" strokeWidth={0} />}
-              {totals.상 > 0 && <Area type="monotone" dataKey="상" stackId="1" stroke={DIFFICULTY_COLORS.high.bg} fill="url(#gradHigh)" strokeWidth={0} />}
+              {(totals as Totals3Level).하 > 0 && <Area type="monotone" dataKey="하" stackId="1" stroke={DIFFICULTY_COLORS.low.bg} fill="url(#gradLow)" strokeWidth={0} />}
+              {(totals as Totals3Level).중 > 0 && <Area type="monotone" dataKey="중" stackId="1" stroke={DIFFICULTY_COLORS.medium.bg} fill="url(#gradMedium)" strokeWidth={0} />}
+              {(totals as Totals3Level).상 > 0 && <Area type="monotone" dataKey="상" stackId="1" stroke={DIFFICULTY_COLORS.high.bg} fill="url(#gradHigh)" strokeWidth={0} />}
             </>
           )}
         </AreaChart>
