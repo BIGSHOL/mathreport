@@ -395,11 +395,11 @@ async def get_user_exams(
     # 전체 개수 조회
     count_result = await (
         db.table("exams")
-        .select("id", count="exact")
+        .select("id")
         .eq("user_id", user_id)
         .execute()
     )
-    total = count_result.count if count_result.count is not None else 0
+    total = len(count_result.data) if count_result.data else 0
 
     exams = []
     for exam_data in (exams_result.data or []):
