@@ -15,19 +15,16 @@ import {
   findGradeConnections,
   findKillerPatterns,
   getEncouragementMessages,
-  filterMessagesByGrade,
   getBooksByLevel,
   LEVEL_STRATEGIES,
   TIME_STRATEGIES,
   ESSAY_CHECKLIST,
   ESSAY_ADVANCED_GUIDE,
   FOUR_WEEK_TIMELINE,
-  RECOMMENDED_BOOKS,
   BOOK_SELECTION_GUIDE,
   BOOK_CAUTIONS,
   type GradeConnection,
   type KillerQuestionType,
-  type LevelBooks,
 } from '../../data/curriculumStrategies';
 
 interface StudyStrategyTabProps {
