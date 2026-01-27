@@ -3352,6 +3352,81 @@ export const TIME_STRATEGIES: TimeStrategy[] = [
   },
 ];
 
+/**
+ * 분석된 문항수와 학교급에 맞는 동적 시간 배분 전략 생성
+ *
+ * @param totalQuestions - 실제 분석된 문항 수
+ * @param isMiddleSchool - 중학교 여부 (true: 45분, false: 50분)
+ */
+export function generateTimeStrategies(totalQuestions: number, isMiddleSchool: boolean): TimeStrategy[] {
+  const totalMinutes = isMiddleSchool ? 45 : 50;
+
+  // 문항 수 기반 단계별 분배 (약 40% / 35% / 25%)
+  const phase1End = Math.round(totalQuestions * 0.4);
+  const phase2End = Math.round(totalQuestions * 0.75);
+  const phase3End = totalQuestions;
+
+  // 시간 분배: 검토 5분 고정, 나머지를 비율로 분배
+  const reviewMinutes = 5;
+  const solvingMinutes = totalMinutes - reviewMinutes;
+  const phase1Min = Math.round(solvingMinutes * 0.35);
+  const phase2Min = Math.round(solvingMinutes * 0.35);
+  const phase3Min = solvingMinutes - phase1Min - phase2Min;
+
+  // 문제당 시간 계산
+  const phase1Count = phase1End;
+  const phase2Count = phase2End - phase1End;
+  const phase3Count = phase3End - phase2End;
+
+  const perQ1 = phase1Count > 0 ? Math.round(phase1Min / phase1Count * 10) / 10 : 0;
+  const perQ2 = phase2Count > 0 ? Math.round(phase2Min / phase2Count * 10) / 10 : 0;
+  const perQ3 = phase3Count > 0 ? Math.round(phase3Min / phase3Count * 10) / 10 : 0;
+
+  return [
+    {
+      phase: '1단계',
+      questionRange: `기본 유형 (1~${phase1End}번)`,
+      timeAllocation: `${phase1Min}분`,
+      perQuestion: `문제당 약 ${perQ1}분`,
+      tips: [
+        '빠르게 풀되 계산 실수 주의',
+        '확실한 문제로 기본 점수 확보',
+      ],
+    },
+    {
+      phase: '2단계',
+      questionRange: `중간 난이도 (${phase1End + 1}~${phase2End}번)`,
+      timeAllocation: `${phase2Min}분`,
+      perQuestion: `문제당 약 ${perQ2}분`,
+      tips: [
+        '풀이 방향이 바로 안 보이면 별표 표시 후 넘기기',
+        '시간 소모가 큰 문제는 나중에',
+      ],
+    },
+    {
+      phase: '3단계',
+      questionRange: `고난도 (${phase2End + 1}~${phase3End}번)`,
+      timeAllocation: `${phase3Min}분`,
+      perQuestion: `문제당 약 ${perQ3}분`,
+      tips: [
+        '배점 높은 문제 우선 공략',
+        '부분점수 노리는 전략 사용',
+      ],
+    },
+    {
+      phase: '검토',
+      questionRange: '전체',
+      timeAllocation: `${reviewMinutes}분`,
+      perQuestion: '-',
+      tips: [
+        'OMR 마킹 확인',
+        '계산 실수 점검 (특히 부호)',
+        '조건 누락 여부 재확인',
+      ],
+    },
+  ];
+}
+
 // ============================================
 // 서술형 감점 방지 체크리스트
 // ============================================
@@ -3465,6 +3540,63 @@ export const FOUR_WEEK_TIMELINE: StudyTimeline[] = [
     ],
   },
 ];
+
+/**
+ * 분석 결과의 취약 단원을 반영한 동적 4주 학습 타임라인 생성
+ *
+ * @param weakTopics - 취약 단원명 목록 (배점 비중 높은 순)
+ * @param examMinutes - 시험 시간 (45분 또는 50분)
+ */
+export function generateFourWeekTimeline(weakTopics: string[], examMinutes: number): StudyTimeline[] {
+  const weakStr = weakTopics.length > 0
+    ? weakTopics.slice(0, 3).join(', ')
+    : '전체 단원';
+
+  return [
+    {
+      week: '4주 전',
+      title: '계획 및 개념 점검',
+      tasks: [
+        '시험 범위 확인 및 학습 계획표 수립',
+        '개념 전체 훑기 (빠르게 1회독)',
+        weakTopics.length > 0
+          ? `취약 단원 집중 파악: ${weakStr}`
+          : '부족한 단원 파악',
+      ],
+    },
+    {
+      week: '3주 전',
+      title: '개념 완성',
+      tasks: [
+        '교과서 2~3회독으로 개념 완벽 이해',
+        '기본 유형 문제집 1회독',
+        weakTopics.length > 0
+          ? `취약 단원 개념 노트 작성: ${weakStr}`
+          : '공식 정리 노트 작성',
+      ],
+    },
+    {
+      week: '2주 전',
+      title: '유형 및 기출',
+      tasks: [
+        '기출문제 분석 및 풀이',
+        weakTopics.length > 0
+          ? `취약 단원 유형별 집중 풀이: ${weakStr}`
+          : '응용/심화 문제 도전',
+        '오답노트 본격 작성',
+      ],
+    },
+    {
+      week: '1주 전',
+      title: '마무리 및 실전',
+      tasks: [
+        '오답노트 총복습',
+        `실전 모의 시험 (${examMinutes}분 시간 제한)`,
+        '컨디션 조절 및 자신감 유지',
+      ],
+    },
+  ];
+}
 
 // ============================================
 // 학년별 연계 경고 (중→고 연계 핵심 단원)

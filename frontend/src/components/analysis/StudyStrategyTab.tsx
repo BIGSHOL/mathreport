@@ -849,24 +849,42 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
       )}
 
       {/* 학년별 연계 경고 */}
-      {gradeConnections.size > 0 && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-yellow-50">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-gray-900">학년별 연계 경고</h3>
-                <p className="text-xs text-gray-600">선수학습이 중요한 단원과 연계 관계</p>
+      {gradeConnections.size > 0 && (() => {
+        // 필수 연계와 권장 연계로 분리
+        const allEntries = Array.from(gradeConnections.entries());
+        const criticalEntries = allEntries.filter(([_, connections]) =>
+          connections.some(c => c.importance === 'critical')
+        );
+        const recommendedEntries = allEntries.filter(([_, connections]) =>
+          !connections.some(c => c.importance === 'critical')
+        );
+
+        return (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-yellow-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">학년별 연계 경고</h3>
+                    <p className="text-xs text-gray-600">선수학습이 중요한 단원과 연계 관계</p>
+                  </div>
+                </div>
+                {criticalEntries.length > 0 && (
+                  <span className="text-xs font-semibold px-2 py-1 bg-red-100 text-red-700 rounded">
+                    필수 {criticalEntries.length}개
+                  </span>
+                )}
               </div>
             </div>
-          </div>
 
-          <div className="divide-y divide-gray-100">
-            {Array.from(gradeConnections.entries()).slice(0, 5).map(([topic, connections]) => {
+            <div className="divide-y divide-gray-100">
+              {/* 필수 연계 */}
+              {criticalEntries.map(([topic, connections]) => {
               const isExpanded = expandedConnections.has(topic);
               const shortTopic = topic.split(' > ').pop() || topic;
               const criticalCount = connections.filter(c => c.importance === 'critical').length;

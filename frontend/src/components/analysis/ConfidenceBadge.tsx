@@ -77,7 +77,33 @@ export const ConfidenceExplanation = memo(function ConfidenceExplanation({
     <div className="bg-white rounded-lg shadow p-4 mb-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h3 className="text-base font-semibold text-gray-900">AI 분석 신뢰도</h3>
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-base font-semibold text-gray-900">AI 분석 신뢰도</h3>
+            {/* 툴팁 아이콘 */}
+            <div className="relative group">
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-300 text-gray-600 text-[10px] font-bold cursor-help hover:bg-gray-400 transition-colors">
+                ?
+              </span>
+              {/* 툴팁 내용 */}
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                <div className="font-semibold mb-1">신뢰도란?</div>
+                <div className="text-gray-300 leading-relaxed mb-2">
+                  AI가 각 문항의 난이도, 유형, 단원 등을 얼마나 확신하는지 나타내는 수치입니다.
+                  문항별 신뢰도의 평균값으로 계산됩니다.
+                </div>
+                <div className="text-gray-300 leading-relaxed">
+                  <div className="font-semibold mb-1">신뢰도가 낮아지는 경우:</div>
+                  <div className="pl-2">
+                    • 문항 텍스트가 불명확하거나 스캔 품질이 낮음<br />
+                    • 비정형적인 문제 유형이나 출제 형식<br />
+                    • 교육과정에 없는 내용이 포함됨
+                  </div>
+                </div>
+                {/* 말풍선 화살표 */}
+                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
+              </div>
+            </div>
+          </div>
           <ConfidenceBadge confidence={avgConfidence} size="md" showLabel={false} />
           <span className="text-sm text-gray-500">{getMessage()}</span>
         </div>
