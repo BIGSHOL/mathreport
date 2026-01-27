@@ -773,7 +773,7 @@ async def list_security_logs(
     total = len(count_result.data) if count_result.data else 0
 
     # Get paginated data
-    result = await query.range(offset, offset + limit - 1).execute()
+    result = await query.limit(limit).offset(offset).execute()
     logs = result.data or []
 
     return SecurityLogsResponse(
@@ -804,11 +804,11 @@ async def get_security_log_stats(
     errors_24h = await db.table("security_logs").select("id").eq("log_type", "api_error").gte("created_at", day_ago).execute()
 
     # Get top failing IPs (simple aggregation)
-    all_logs = await db.table("security_logs").select("ip_address").not_.is_("ip_address", "null").limit(1000).execute()
+    all_logs = await db.table("security_logs").select("ip_address").limit(1000).execute()
     ip_counts: dict[str, int] = {}
     for log in (all_logs.data or []):
         ip = log.get("ip_address")
-        if ip:
+        if ip:  # Filter out null IPs in Python
             ip_counts[ip] = ip_counts.get(ip, 0) + 1
     top_ips = sorted(ip_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
