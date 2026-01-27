@@ -12,7 +12,7 @@
  * Note: 베타 기간 중 상세 분석 템플릿만 사용
  * 추후 SummaryTemplate, ParentTemplate, PrintTemplate 활성화 예정
  */
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSWRConfig } from 'swr';
 import {
@@ -22,7 +22,7 @@ import {
   useRequestAnswerAnalysis,
   useRequestAnalysis,
 } from '../hooks/useAnalysis';
-import { DetailedTemplate } from '../components/analysis/templates';
+import { DetailedTemplate } from '../components/analysis/templates/DetailedTemplate';
 import { CacheHitBanner } from '../components/analysis/CacheHitBanner';
 import { ExportModal } from '../components/analysis/ExportModal';
 import { AnswerEditor } from '../components/analysis/AnswerEditor';
@@ -78,12 +78,18 @@ export function AnalysisResultPage() {
   // 캐시 히트 여부 (쿼리 파라미터에서 확인)
   const isCacheHit = searchParams.get('cached') === 'true';
 
+  // 크레딧 소비 알림 표시 여부 추적 (rerender-dependencies: ref로 일회성 효과 제어)
+  const creditNotificationShownRef = useRef(false);
+
   // 크레딧 소비 알림 (쿼리 파라미터에서 확인)
   useEffect(() => {
+    if (creditNotificationShownRef.current) return;
+
     const creditsConsumed = searchParams.get('credits_consumed');
     const creditsRemaining = searchParams.get('credits_remaining');
 
     if (creditsConsumed && parseInt(creditsConsumed) > 0) {
+      creditNotificationShownRef.current = true;
       toast.info(
         `${creditsConsumed}크레딧이 차감되었습니다. (남은 크레딧: ${creditsRemaining ?? 0})`,
         5000
@@ -93,8 +99,7 @@ export function AnalysisResultPage() {
       searchParams.delete('credits_remaining');
       setSearchParams(searchParams, { replace: true });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams, setSearchParams, toast]);
 
   // 배너 닫기 핸들러
   const handleBannerDismiss = useCallback(() => {
@@ -305,25 +310,31 @@ export function AnalysisResultPage() {
     isRequestingAnswerAnalysis,
   };
 
-  // 난이도 분포 계산 (4단계 + 3단계)
-  const difficultyDist = {
-    // 4단계 시스템
-    concept: questions.filter(q => q.difficulty === 'concept').length,
-    pattern: questions.filter(q => q.difficulty === 'pattern').length,
-    reasoning: questions.filter(q => q.difficulty === 'reasoning').length,
-    creative: questions.filter(q => q.difficulty === 'creative').length,
-    // 3단계 시스템 (하위 호환)
-    high: questions.filter(q => q.difficulty === 'high').length,
-    medium: questions.filter(q => q.difficulty === 'medium').length,
-    low: questions.filter(q => q.difficulty === 'low').length,
-  };
+  // 난이도 분포 및 서술형 개수 계산 (js-combine-iterations: 단일 루프로 통합)
+  const { difficultyDist, essayCount } = questions.reduce(
+    (acc, q) => {
+      // 난이도 카운트
+      if (q.difficulty) {
+        acc.difficultyDist[q.difficulty] = (acc.difficultyDist[q.difficulty] || 0) + 1;
+      }
+      // 서술형 카운트
+      if (q.question_format === 'essay') {
+        acc.essayCount++;
+      }
+      return acc;
+    },
+    {
+      difficultyDist: {
+        concept: 0, pattern: 0, reasoning: 0, creative: 0,  // 4단계 시스템
+        high: 0, medium: 0, low: 0,  // 3단계 시스템 (하위 호환)
+      } as Record<string, number>,
+      essayCount: 0,
+    }
+  );
 
   // 4단계 시스템 감지
   const is4Level = difficultyDist.concept > 0 || difficultyDist.pattern > 0 ||
                    difficultyDist.reasoning > 0 || difficultyDist.creative > 0;
-
-  // 서술형 개수 계산
-  const essayCount = questions.filter(q => q.question_format === 'essay').length;
 
   // 종합 난이도 등급 계산 (A+~D-, 서술형 가중치 포함)
   const difficultyGrade = is4Level

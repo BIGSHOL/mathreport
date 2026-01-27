@@ -20,11 +20,12 @@ import { DifficultyPointsAreaChart } from '../charts/DifficultyPointsAreaChart';
 import { ConfidenceExplanation } from '../ConfidenceBadge';
 import { EssayAnalysisSection } from '../EssayAnalysisSection';
 import { DiscriminationAnalysis } from '../DiscriminationAnalysis';
+import { StudyStrategyTab } from '../StudyStrategyTab';
 import { TabGroup, type Tab } from '../../ui/TabGroup';
 import { FEATURE_FLAGS } from '../../../lib/featureFlags';
 import { DIFFICULTY_COLORS, QUESTION_TYPE_COLORS } from '../../../styles/tokens';
 
-type ViewMode = 'basic' | 'comments' | 'answers' | 'extended';
+type ViewMode = 'basic' | 'comments' | 'strategy' | 'answers' | 'extended';
 
 export const DetailedTemplate = memo(function DetailedTemplate({
   result,
@@ -91,6 +92,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
     const baseTabs: Tab[] = [
       { id: 'basic', label: '기본 분석' },
       { id: 'comments', label: 'AI 코멘트' },
+      { id: 'strategy', label: '학습 대책' },
     ];
     if (isStudentExam) {
       baseTabs.push(
@@ -113,6 +115,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
 
   const showBasic = isExport || viewMode === 'basic';
   const showComments = isExport || viewMode === 'comments';
+  const showStrategy = !isExport && viewMode === 'strategy';
   const showAnswers = !isExport && viewMode === 'answers';
   const showExtended = !isExport && viewMode === 'extended';
 
@@ -438,6 +441,10 @@ export const DetailedTemplate = memo(function DetailedTemplate({
             </div>
           )}
         </div>
+      )}
+
+      {showStrategy && (
+        <StudyStrategyTab questions={questions} />
       )}
 
       {showAnswers && isStudentExam && (

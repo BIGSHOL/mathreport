@@ -148,7 +148,7 @@ class CommentaryAgent:
             "}",
             "",
             "=== 태그 종류 ===",
-            "고배점, 함정, 시간주의, 킬러, 기본, 연계",
+            "고배점, 함정, 시간주의, 킬러, 기본, 연계, 서술형주의",
             "",
             "=== 가이드라인 ===",
             "1. exam_intent: 누구를 위한 시험인지 추론 (상위권 변별, 중위권 확인, 기초 점검 등)",
@@ -156,6 +156,19 @@ class CommentaryAgent:
             "3. topic_priorities: 단원별 배점 기준 학습 우선순위 (높은 배점 순)",
             "4. strategic_advice: 시험 전략 조언 (어떤 순서로 풀지, 어디서 시간을 아낄지)",
             "5. key_insights: 이미 차트에서 보이는 정보(%)는 피하고, 의미있는 발견만",
+            "",
+            "=== 서술형 문항 분석 가이드 ===",
+            "서술형 문항이 있을 경우 다음 사항을 반영하세요:",
+            "1. 서술형 채점 기준: 풀이과정(40-60%), 최종답(30-40%), 논리적전개(10-20%)",
+            "2. 주요 감점 요인:",
+            "   - 논리적 비약: 중간 단계 생략, 조건 미확인, 풀이 순서 오류",
+            "   - 형식적 요건: 등호 연속 사용, 단위 미표기, 최종답 미표기",
+            "   - 계산 오류: 부호 실수, 괄호 처리 오류, 약분 실수",
+            "3. 서술형 전략:",
+            "   - 풀이 과정 생략 금지 (부분점수 확보)",
+            "   - 동치 기호(⇔) 또는 화살표(→) 활용하여 논리 흐름 명확화",
+            "   - 최종답은 반드시 별도로 표기",
+            "4. 시간 배분: 서술형 1문항당 평균 배점÷2분 할당 권장",
         ])
 
         return "\n".join(prompt_parts)
@@ -371,15 +384,23 @@ class CommentaryAgent:
         for q in questions:
             points = q.get("points", 0) or 0
             difficulty = q.get("difficulty", "")
+            q_format = q.get("question_format", "")
             q_num = q.get("question_number", 0)
 
             # 고배점 문항 (평균의 1.5배 이상)
             if points >= avg_points * 1.5:
-                notable.append(NotableQuestion(
-                    question_number=q_num,
-                    tag="고배점",
-                    reason=f"{points}점 고배점 문항으로 당락에 큰 영향"
-                ))
+                if q_format == "essay":
+                    notable.append(NotableQuestion(
+                        question_number=q_num,
+                        tag="서술형주의",
+                        reason=f"{points}점 고배점 서술형. 풀이 과정 생략 금지, 논리적 비약 주의"
+                    ))
+                else:
+                    notable.append(NotableQuestion(
+                        question_number=q_num,
+                        tag="고배점",
+                        reason=f"{points}점 고배점 문항으로 당락에 큰 영향"
+                    ))
 
             # 킬러 문항 (최상위 난이도 + 고배점)
             elif difficulty in ["creative", "high"] and points >= avg_points * 1.2:
@@ -389,17 +410,30 @@ class CommentaryAgent:
                     reason=f"고난이도 + 고배점({points}점) 조합"
                 ))
 
+            # 서술형 심화 문항 (reasoning/creative + essay)
+            elif difficulty in ["reasoning", "creative"] and q_format == "essay":
+                if len(notable) < 6:
+                    notable.append(NotableQuestion(
+                        question_number=q_num,
+                        tag="서술형주의",
+                        reason="심화 서술형. 단계별 풀이 전개, 부분점수 확보 전략 필수"
+                    ))
+
             # 함정 가능성 (reasoning + 객관식)
-            elif difficulty == "reasoning" and q.get("question_format") == "objective":
-                if len(notable) < 5:  # 최대 5개
+            elif difficulty == "reasoning" and q_format == "objective":
+                if len(notable) < 6:
                     notable.append(NotableQuestion(
                         question_number=q_num,
                         tag="함정",
                         reason="사고력 문항 - 조건 누락 주의"
                     ))
 
-        # 배점 순으로 정렬하고 상위 5개만
-        notable.sort(key=lambda x: -1 if x.tag == "킬러" else (-2 if x.tag == "고배점" else 0))
+        # 우선순위 정렬: 서술형주의 > 킬러 > 고배점 > 함정
+        def sort_priority(x):
+            priority_map = {"서술형주의": -3, "킬러": -2, "고배점": -1, "함정": 0}
+            return priority_map.get(x.tag, 1)
+
+        notable.sort(key=sort_priority)
         return notable[:5]
 
     def _calculate_topic_priorities(self, questions: list) -> list[TopicPriority]:
@@ -438,8 +472,12 @@ class CommentaryAgent:
         if not questions:
             return "문항 정보가 부족합니다."
 
-        # 서술형 문항 수
-        essay_count = len([q for q in questions if q.get("question_format") == "essay"])
+        # 서술형 문항 분석
+        essay_questions = [q for q in questions if q.get("question_format") == "essay"]
+        essay_count = len(essay_questions)
+        essay_points = sum(q.get("points", 0) or 0 for q in essay_questions)
+        total_points = sum(q.get("points", 0) or 0 for q in questions)
+        essay_ratio = essay_points / total_points * 100 if total_points > 0 else 0
         total = len(questions)
 
         # 고난이도 문항 위치 확인
@@ -449,8 +487,21 @@ class CommentaryAgent:
             if diff in ["reasoning", "creative", "high"]:
                 high_diff_positions.append(i + 1)
 
-        if essay_count >= 3:
-            return f"서술형 {essay_count}문항에 충분한 시간 배분이 필요합니다. 객관식을 먼저 빠르게 풀고 서술형에 집중하세요."
+        # 서술형 비중이 높은 경우 (30% 이상)
+        if essay_ratio >= 30:
+            avg_essay_points = essay_points / essay_count if essay_count > 0 else 0
+            time_per_essay = max(5, int(avg_essay_points / 2))  # 배점÷2 = 권장 시간(분)
+            return (
+                f"서술형 배점 비중이 {round(essay_ratio)}%로 높습니다. "
+                f"서술형 1문항당 {time_per_essay}분 이상 배분하고, "
+                f"풀이 과정을 생략하지 말아 부분점수를 확보하세요."
+            )
+        elif essay_count >= 3:
+            return (
+                f"서술형 {essay_count}문항에 충분한 시간 배분이 필요합니다. "
+                f"객관식을 먼저 빠르게 풀고 서술형에 집중하세요. "
+                f"서술형은 풀이 과정을 생략하지 말고 논리적으로 전개하세요."
+            )
         elif high_diff_positions and high_diff_positions[0] <= 5:
             return "초반에 고난이도 문항이 배치되어 있습니다. 어려우면 건너뛰고 나중에 풀어도 됩니다."
         elif len(high_diff_positions) > total * 0.3:
@@ -464,6 +515,43 @@ class CommentaryAgent:
 
         if not questions:
             return ["문항 정보가 부족합니다."]
+
+        # 서술형 문항 분석
+        essay_questions = [q for q in questions if q.get("question_format") == "essay"]
+        essay_count = len(essay_questions)
+
+        if essay_count > 0:
+            # 서술형 난이도 분포 분석
+            essay_difficulties = [q.get("difficulty", "") for q in essay_questions]
+            high_diff_essays = [d for d in essay_difficulties if d in ["reasoning", "creative", "high"]]
+
+            if len(high_diff_essays) == essay_count and essay_count >= 2:
+                insights.append(
+                    f"서술형 {essay_count}문항이 모두 심화 난이도입니다. "
+                    f"풀이 과정의 논리적 전개와 부분점수 확보 전략이 중요합니다."
+                )
+            elif essay_count >= 3:
+                essay_topics = []
+                for q in essay_questions:
+                    topic = q.get("topic", "")
+                    if topic:
+                        parts = topic.split(" > ")
+                        main_topic = parts[1] if len(parts) > 1 else parts[0]
+                        essay_topics.append(main_topic)
+                if essay_topics:
+                    most_common = max(set(essay_topics), key=essay_topics.count)
+                    if essay_topics.count(most_common) >= 2:
+                        insights.append(f"서술형이 '{most_common}' 단원에서 집중 출제되었습니다.")
+
+            # 서술형 배점 분석
+            essay_points = [q.get("points", 0) or 0 for q in essay_questions]
+            if essay_points:
+                max_essay = max(essay_points)
+                if max_essay >= 8:
+                    insights.append(
+                        f"서술형 최고 배점이 {max_essay}점입니다. "
+                        f"감점 요인(논리적 비약, 단위 미표기, 최종답 누락)에 주의하세요."
+                    )
 
         # 단원별 집중도 확인
         topic_counts = defaultdict(int)
@@ -494,7 +582,7 @@ class CommentaryAgent:
                     consecutive = 1
                     prev_topic = main_topic
 
-                if consecutive >= 3 and len(insights) < 3:
+                if consecutive >= 3 and len(insights) < 5:
                     insights.append(f"'{main_topic}' 단원 문항이 연속 배치되어 있어 단원별 이해도가 중요합니다.")
 
         # 배점 분포 특이점

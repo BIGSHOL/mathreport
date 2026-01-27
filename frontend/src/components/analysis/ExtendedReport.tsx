@@ -10,7 +10,8 @@ import type {
   LearningPlan,
   PerformancePrediction,
 } from '../../services/analysis';
-import { CognitiveLevelRadar, ScoreTrajectoryChart } from './charts';
+import { CognitiveLevelRadar } from './charts/CognitiveLevelRadar';
+import { ScoreTrajectoryChart } from './charts/ScoreTrajectoryChart';
 
 interface ExtendedReportProps {
   extension: AnalysisExtension | null;
