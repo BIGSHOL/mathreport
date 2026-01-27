@@ -1,7 +1,7 @@
 """add school_exam_trends table
 
 Revision ID: 20260126_add_school_trends
-Revises: 20260126_add_school_fields
+Revises: 20260128_add_exam_category
 Create Date: 2026-01-26 15:00:00.000000
 """
 from typing import Sequence, Union
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision: str = '20260126_add_school_trends'
-down_revision: Union[str, None] = '20260126_add_school_fields'
+down_revision: Union[str, None] = '20260128_add_exam_category'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -230,9 +230,17 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
                             </td>
                             <td className="px-4 py-2 text-center text-gray-600 whitespace-nowrap">
                               <span className="font-medium">{summary.questionCount}문항</span>
-                              {summary.questionNumbers.length > 0 && (
-                                <span className="ml-1 text-indigo-500 text-xs">
-                                  ({compressNumbers(summary.questionNumbers)})
+                              {(summary.questionNumbers.length > 0 || summary.essayNumbers.length > 0) && (
+                                <span className="ml-1 text-xs">
+                                  (
+                                  {summary.questionNumbers.length > 0 && (
+                                    <span className="text-indigo-500">{compressNumbers(summary.questionNumbers)}</span>
+                                  )}
+                                  {summary.questionNumbers.length > 0 && summary.essayNumbers.length > 0 && ', '}
+                                  {summary.essayNumbers.length > 0 && (
+                                    <span className="text-purple-600">서{compressNumbers(summary.essayNumbers).replace('번', '')}</span>
+                                  )}
+                                  )
                                 </span>
                               )}
                             </td>
@@ -246,10 +254,10 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
                             </td>
                             <td className="px-4 py-2">
                               <div className="flex flex-wrap gap-1">
-                                {/* 서술형: 문항번호로 표시 */}
+                                {/* 서술형 라벨 */}
                                 {summary.essayNumbers.length > 0 && (
                                   <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">
-                                    서술형 {compressNumbers(summary.essayNumbers)}
+                                    서술형
                                   </span>
                                 )}
                                 {/* 나머지 features (서술형 제외) */}

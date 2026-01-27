@@ -127,18 +127,33 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
       summary.totalPoints += q.points || 0;
       if (q.difficulty) summary.difficulties.push(q.difficulty);
       if (q.question_type) summary.types.push(q.question_type);
-      // 문항 번호 수집
-      const qNum = q.question_number != null
-        ? (typeof q.question_number === 'string' ? parseInt(q.question_number, 10) : q.question_number)
-        : NaN;
+      // 서술형 여부 확인 (question_format 또는 question_number 문자열로 판단)
+      const isEssay = q.question_format === 'essay' || q.question_format === 'short_answer' ||
+        (typeof q.question_number === 'string' && /서술|서답|주관/.test(q.question_number));
+
+      // 문항 번호 수집 (숫자 또는 "서술형 1" 형식 모두 지원)
+      let qNum: number = NaN;
+      if (q.question_number != null) {
+        if (typeof q.question_number === 'number') {
+          qNum = q.question_number;
+        } else {
+          // "서술형 1", "주관식2", "21" 등에서 숫자 추출
+          const numMatch = q.question_number.match(/(\d+)/);
+          qNum = numMatch ? parseInt(numMatch[1], 10) : NaN;
+        }
+      }
+
       if (!isNaN(qNum)) {
-        summary.questionNumbers.push(qNum);
-        // 서술형 문항 번호 수집
-        if (q.question_format === 'essay' || q.question_format === 'short_answer') {
+        if (isEssay) {
+          // 서술형은 essayNumbers에만 추가 (questionNumbers와 분리)
           summary.essayCount++;
           summary.essayNumbers.push(qNum);
+        } else {
+          // 객관식/단답형은 questionNumbers에 추가
+          summary.questionNumbers.push(qNum);
         }
-      } else if (q.question_format === 'essay' || q.question_format === 'short_answer') {
+      } else if (isEssay) {
+        // 번호 파싱 실패한 서술형도 카운트
         summary.essayCount++;
       }
     });
@@ -201,6 +216,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
     });
 
     // 대단원별 통계 계산
+    const chapterCount = chapterMap.size;
     chapterMap.forEach((chapter) => {
       chapter.percentage = totalPts > 0 ? (chapter.totalPoints / totalPts) * 100 : 0;
       const allDiffs = chapter.topics.flatMap(t => t.difficulties);
@@ -210,7 +226,8 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
       }
       if (chapter.essayCount > 0) chapter.features.push(`서술형 ${chapter.essayCount}문항`);
       if (chapter.avgDifficulty >= 3) chapter.features.push('고난도 집중');
-      if (chapter.percentage >= 15) chapter.features.push('핵심 대단원');
+      // 대단원이 2개 이상일 때만 '핵심 대단원' 표시 (1개면 의미 없음)
+      if (chapterCount >= 2 && chapter.percentage >= 15) chapter.features.push('핵심 대단원');
       chapter.topics.sort((a, b) => b.totalPoints - a.totalPoints);
     });
 
