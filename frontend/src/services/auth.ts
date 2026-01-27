@@ -40,11 +40,15 @@ export const authService = {
 
   /**
    * Logout current user.
+   * scope: 'local'을 사용하여 서버 측 세션 무효화 요청을 하지 않음
+   * (세션이 이미 만료된 경우 403 에러 방지)
    */
   async logout(): Promise<void> {
     try {
       if (supabase) {
-        await supabase.auth.signOut();
+        // scope: 'local'은 현재 기기에서만 로그아웃 (서버 요청 없음)
+        // 403 에러 방지 및 더 빠른 로그아웃
+        await supabase.auth.signOut({ scope: 'local' });
       }
     } finally {
       this.removeToken();
@@ -73,7 +77,7 @@ export const authService = {
   async deleteAccount(): Promise<void> {
     await api.delete('/api/v1/users/me');
     if (supabase) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
     }
     this.removeToken();
   },
