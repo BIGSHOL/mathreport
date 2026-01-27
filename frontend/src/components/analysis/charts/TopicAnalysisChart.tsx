@@ -320,10 +320,13 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                       {/* 바 */}
                       <div className="flex-1 h-5 rounded-full overflow-hidden bg-gray-100">
                         <div
-                          className="h-full rounded-full flex items-center justify-end pr-2 text-xs font-medium text-white whitespace-nowrap"
+                          className="h-full rounded-l-full flex items-center justify-end pr-2 text-xs font-medium text-white whitespace-nowrap"
                           style={{
-                            width: `${Math.max((chapter.count / maxMiddleCount) * 100, 20)}%`,
+                            width: `${(chapter.count / maxMiddleCount) * 100}%`,
+                            minWidth: '50px',
                             backgroundColor: barColor,
+                            borderTopRightRadius: chapter.count === maxMiddleCount ? '9999px' : '0',
+                            borderBottomRightRadius: chapter.count === maxMiddleCount ? '9999px' : '0',
                           }}
                         >
                           {chapter.count}문항
@@ -331,7 +334,7 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                       </div>
 
                       {/* 배점 */}
-                      <div className="w-14 text-right text-xs text-gray-500 flex-shrink-0">
+                      <div className="w-16 text-right text-xs text-gray-500 flex-shrink-0 tabular-nums">
                         {Number(chapter.points.toFixed(1))}점
                       </div>
                     </div>
@@ -348,10 +351,10 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                             <span className="flex-1 text-gray-600 truncate" title={minor.name}>
                               {minor.name}
                             </span>
-                            <span className="text-xs text-gray-400 flex-shrink-0">
+                            <span className="text-xs text-gray-400 flex-shrink-0 w-12 text-right tabular-nums">
                               {minor.count}문항
                             </span>
-                            <span className="text-xs text-gray-400 flex-shrink-0 w-12 text-right">
+                            <span className="text-xs text-gray-400 flex-shrink-0 w-14 text-right tabular-nums">
                               {Number(minor.points.toFixed(1))}점
                             </span>
                           </div>
