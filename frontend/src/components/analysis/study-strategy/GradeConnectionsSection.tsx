@@ -9,6 +9,7 @@
 import { memo, useState } from 'react';
 import type { GradeConnection } from '../../../data/curriculumStrategies';
 import type { TopicSummary } from './types';
+import { getMajorUnitFromCurriculum } from '../../../data/curriculum/utils';
 
 interface GradeConnectionsSectionProps {
   gradeConnections: Map<string, GradeConnection[]>;
@@ -50,22 +51,11 @@ export const GradeConnectionsSection = memo(function GradeConnectionsSection({
     });
   };
 
-  // 대단원 분류 함수
+  // 대단원 분류 함수 - 교육과정 데이터 기반
+  // topic이 "대단원 > 중단원 > 소단원" 형태이면 첫 번째 부분을 사용
+  // 아니면 교육과정 데이터의 keywords를 검색하여 대단원 반환
   const getMajorUnit = (topic: string): string => {
-    const t = topic.toLowerCase();
-    if (t.includes('지수') || t.includes('로그')) return '지수와 로그';
-    if (t.includes('삼각함수') || t.includes('삼각비') || t.includes('호도법') || t.includes('부채꼴') || t.includes('사인') || t.includes('코사인')) return '삼각함수';
-    if (t.includes('수열') || t.includes('급수') || t.includes('점화식') || t.includes('등차') || t.includes('등비')) return '수열';
-    if (t.includes('함수') || t.includes('합성') || t.includes('역함수')) return '함수';
-    if (t.includes('극한') || t.includes('연속')) return '극한과 연속';
-    if (t.includes('미분') || t.includes('도함수')) return '미분';
-    if (t.includes('적분')) return '적분';
-    if (t.includes('확률') || t.includes('순열') || t.includes('조합')) return '확률과 통계';
-    if (t.includes('벡터') || t.includes('평면')) return '벡터';
-    if (t.includes('행렬')) return '행렬';
-    if (t.includes('방정식') || t.includes('부등식')) return '방정식과 부등식';
-    if (t.includes('집합') || t.includes('명제')) return '집합과 명제';
-    return '기타';
+    return getMajorUnitFromCurriculum(topic);
   };
 
   // 연계가 없으면 렌더링하지 않음

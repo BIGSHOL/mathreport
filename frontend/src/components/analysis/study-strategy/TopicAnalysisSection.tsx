@@ -44,6 +44,10 @@ export interface TopicAnalysisSectionProps {
   is4Level: boolean;
   expandedChapters: Set<string>;
   toggleChapter: (chapterName: string) => void;
+  /** 섹션 펼침 상태 */
+  isSectionExpanded?: boolean;
+  /** 섹션 토글 핸들러 */
+  onToggleSection?: () => void;
 }
 
 export const TopicAnalysisSection = memo(function TopicAnalysisSection({
@@ -53,6 +57,8 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
   is4Level,
   expandedChapters,
   toggleChapter,
+  isSectionExpanded = true,
+  onToggleSection,
 }: TopicAnalysisSectionProps) {
   // 난이도 키 배열
   const diffKeys = is4Level
@@ -61,8 +67,12 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      {/* 헤더 */}
-      <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+      {/* 헤더 - 클릭 시 섹션 접기/펼치기 */}
+      <button
+        onClick={onToggleSection}
+        className="w-full px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors"
+        disabled={!onToggleSection}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
@@ -70,42 +80,55 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
               </svg>
             </div>
-            <div>
+            <div className="text-left">
               <h3 className="text-base font-semibold text-gray-900">출제 영역별 상세 분석</h3>
               <p className="text-xs text-gray-600">
                 {chapterGroups.length}개 대단원, {topicSummaries.length}개 소단원, 총 {Math.round(totalPoints)}점
               </p>
             </div>
           </div>
-          {/* 모두 펼치기/접기 버튼 */}
-          <button
-            onClick={() => {
-              const allExpanded = chapterGroups.every(c => expandedChapters.has(c.chapterName));
-              if (allExpanded) {
-                // 모두 접기
-                toggleChapter(''); // 빈 문자열로 모두 접기 트리거
-                chapterGroups.forEach(c => {
-                  if (expandedChapters.has(c.chapterName)) {
-                    toggleChapter(c.chapterName);
+          <div className="flex items-center gap-2">
+            {/* 모두 펼치기/접기 버튼 (섹션이 펼쳐진 경우에만) */}
+            {isSectionExpanded && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const allExpanded = chapterGroups.every(c => expandedChapters.has(c.chapterName));
+                  if (allExpanded) {
+                    chapterGroups.forEach(c => {
+                      if (expandedChapters.has(c.chapterName)) {
+                        toggleChapter(c.chapterName);
+                      }
+                    });
+                  } else {
+                    chapterGroups.forEach(c => {
+                      if (!expandedChapters.has(c.chapterName)) {
+                        toggleChapter(c.chapterName);
+                      }
+                    });
                   }
-                });
-              } else {
-                // 모두 펼치기
-                chapterGroups.forEach(c => {
-                  if (!expandedChapters.has(c.chapterName)) {
-                    toggleChapter(c.chapterName);
-                  }
-                });
-              }
-            }}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded hover:bg-indigo-50"
-          >
-            {chapterGroups.every(c => expandedChapters.has(c.chapterName)) ? '모두 접기' : '모두 펼치기'}
-          </button>
+                }}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded hover:bg-indigo-50 cursor-pointer"
+              >
+                {chapterGroups.every(c => expandedChapters.has(c.chapterName)) ? '모두 접기' : '모두 펼치기'}
+              </span>
+            )}
+            {onToggleSection && (
+              <svg
+                className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isSectionExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            )}
+          </div>
         </div>
-      </div>
+      </button>
 
-      {/* 대단원 목록 */}
+      {/* 대단원 목록 (섹션이 펼쳐진 경우에만) */}
+      {isSectionExpanded && (
       <div className="divide-y divide-gray-100">
         {chapterGroups.map((chapter) => {
           const isExpanded = expandedChapters.has(chapter.chapterName);
@@ -153,12 +176,18 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
                     {chapter.percentage.toFixed(0)}%
                   </span>
                   <div className="flex gap-1 flex-nowrap min-w-[140px]">
-                    {chapter.features.slice(0, 2).map((feature, i) => (
+                    {/* 서술형: 문항번호로 표시 */}
+                    {chapter.essayNumbers.length > 0 && (
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-purple-100 text-purple-700">
+                        서술형 {compressNumbers(chapter.essayNumbers)}
+                      </span>
+                    )}
+                    {/* 나머지 features (서술형 제외) */}
+                    {chapter.features.filter(f => !f.includes('서술형')).slice(0, chapter.essayNumbers.length > 0 ? 1 : 2).map((feature, i) => (
                       <span
                         key={i}
-                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${feature.includes('서술형')
-                          ? 'bg-purple-100 text-purple-700'
-                          : feature.includes('고난도')
+                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${
+                          feature.includes('고난도')
                             ? 'bg-red-100 text-red-700'
                             : feature.includes('핵심')
                               ? 'bg-blue-100 text-blue-700'
@@ -199,7 +228,7 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
                                 </span>
                               </div>
                             </td>
-                            <td className="px-4 py-2 text-gray-600">
+                            <td className="px-4 py-2 text-center text-gray-600 whitespace-nowrap">
                               <span className="font-medium">{summary.questionCount}문항</span>
                               {summary.questionNumbers.length > 0 && (
                                 <span className="ml-1 text-indigo-500 text-xs">
@@ -207,22 +236,28 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-2 text-center font-medium text-gray-800 w-20">
+                            <td className="px-4 py-2 text-center font-medium text-gray-800 w-16">
                               {summary.totalPoints}점
                             </td>
-                            <td className="px-4 py-2 text-center w-16">
+                            <td className="px-4 py-2 text-center w-12">
                               <span className="text-xs text-gray-500">
                                 {summary.percentage.toFixed(0)}%
                               </span>
                             </td>
-                            <td className="px-4 py-2 w-40">
+                            <td className="px-4 py-2">
                               <div className="flex flex-wrap gap-1">
-                                {summary.features.map((feature, i) => (
+                                {/* 서술형: 문항번호로 표시 */}
+                                {summary.essayNumbers.length > 0 && (
+                                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">
+                                    서술형 {compressNumbers(summary.essayNumbers)}
+                                  </span>
+                                )}
+                                {/* 나머지 features (서술형 제외) */}
+                                {summary.features.filter(f => !f.includes('서술형')).map((feature, i) => (
                                   <span
                                     key={i}
-                                    className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${feature.includes('서술형')
-                                      ? 'bg-purple-100 text-purple-700'
-                                      : feature.includes('고난도')
+                                    className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                      feature.includes('고난도')
                                         ? 'bg-red-100 text-red-700'
                                         : feature.includes('핵심')
                                           ? 'bg-blue-100 text-blue-700'
@@ -248,6 +283,7 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
           );
         })}
       </div>
+      )}
     </div>
   );
 });

@@ -16,6 +16,7 @@ export interface TopicSummary {
   difficulties: string[];
   types: string[];
   essayCount: number;
+  essayNumbers: number[]; // 서술형 문항 번호들
   avgDifficulty: number;
   features: string[];
   questionNumbers: number[]; // 해당 단원의 문항 번호들
@@ -29,6 +30,7 @@ export interface ChapterGroup {
   totalPoints: number;
   percentage: number;
   essayCount: number;
+  essayNumbers: number[]; // 서술형 문항 번호들
   avgDifficulty: number;
   features: string[];
 }

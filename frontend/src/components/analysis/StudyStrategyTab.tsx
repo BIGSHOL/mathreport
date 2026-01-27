@@ -30,6 +30,9 @@ import { KillerPatternsSection } from './study-strategy/KillerPatternsSection';
 import { LevelStrategiesSection } from './study-strategy/LevelStrategiesSection';
 import { TimelineSection } from './study-strategy/TimelineSection';
 
+// 섹션 ID 타입
+type SectionId = 'topicAnalysis' | 'learningStrategies' | 'essay' | 'timeAllocation' | 'mistakes' | 'connections' | 'killer' | 'levelStrategies' | 'timeline';
+
 export const StudyStrategyTab = memo(function StudyStrategyTab({
   questions,
 }: StudyStrategyTabProps) {
@@ -37,6 +40,33 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set()); // 대단원 펼치기 state
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set());
   const [expandedConnectionImportance, setExpandedConnectionImportance] = useState<Map<string, Set<string>>>(new Map());
+
+  // 섹션 접기/펼치기 상태 (기본: 모두 펼침)
+  const [expandedSections, setExpandedSections] = useState<Set<SectionId>>(
+    new Set(['topicAnalysis', 'learningStrategies', 'essay', 'timeAllocation', 'mistakes', 'connections', 'killer', 'levelStrategies', 'timeline'])
+  );
+
+  // 섹션 토글 함수
+  const toggleSection = (sectionId: SectionId) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
+  };
+
+  // 모든 섹션 접기/펼치기
+  const toggleAllSections = (expand: boolean) => {
+    if (expand) {
+      setExpandedSections(new Set(['topicAnalysis', 'learningStrategies', 'essay', 'timeAllocation', 'mistakes', 'connections', 'killer', 'levelStrategies', 'timeline']));
+    } else {
+      setExpandedSections(new Set());
+    }
+  };
 
   // 토픽별 분석 데이터 계산
   const { topicSummaries, chapterGroups, totalPoints, essayQuestions, is4Level } = useMemo(() => {
@@ -62,6 +92,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
           difficulties: [],
           types: [],
           essayCount: 0,
+          essayNumbers: [],
           avgDifficulty: 0,
           features: [],
           questionNumbers: [],
@@ -73,17 +104,19 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
       summary.totalPoints += q.points || 0;
       if (q.difficulty) summary.difficulties.push(q.difficulty);
       if (q.question_type) summary.types.push(q.question_type);
-      if (q.question_format === 'essay' || q.question_format === 'short_answer') {
-        summary.essayCount++;
-      }
       // 문항 번호 수집
-      if (q.question_number != null) {
-        const num = typeof q.question_number === 'string'
-          ? parseInt(q.question_number, 10)
-          : q.question_number;
-        if (!isNaN(num)) {
-          summary.questionNumbers.push(num);
+      const qNum = q.question_number != null
+        ? (typeof q.question_number === 'string' ? parseInt(q.question_number, 10) : q.question_number)
+        : NaN;
+      if (!isNaN(qNum)) {
+        summary.questionNumbers.push(qNum);
+        // 서술형 문항 번호 수집
+        if (q.question_format === 'essay' || q.question_format === 'short_answer') {
+          summary.essayCount++;
+          summary.essayNumbers.push(qNum);
         }
+      } else if (q.question_format === 'essay' || q.question_format === 'short_answer') {
+        summary.essayCount++;
       }
     });
 
@@ -130,6 +163,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
           totalPoints: 0,
           percentage: 0,
           essayCount: 0,
+          essayNumbers: [],
           avgDifficulty: 0,
           features: [],
         });
@@ -140,6 +174,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
       chapter.questionCount += summary.questionCount;
       chapter.totalPoints += summary.totalPoints;
       chapter.essayCount += summary.essayCount;
+      chapter.essayNumbers.push(...summary.essayNumbers);
     });
 
     // 대단원별 통계 계산
@@ -311,6 +346,16 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
   return (
     <div className="space-y-6">
+      {/* 모든 섹션 접기/펼치기 버튼 */}
+      <div className="flex justify-end mb-2">
+        <button
+          onClick={() => toggleAllSections(expandedSections.size === 0)}
+          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1.5 rounded hover:bg-indigo-50 transition-colors"
+        >
+          {expandedSections.size === 0 ? '모든 섹션 펼치기' : '모든 섹션 접기'}
+        </button>
+      </div>
+
       {/* 출제 영역별 상세 분석 - 대단원 그룹핑 아코디언 */}
       <TopicAnalysisSection
         chapterGroups={chapterGroups}
@@ -319,6 +364,8 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
         is4Level={is4Level}
         expandedChapters={expandedChapters}
         toggleChapter={toggleChapter}
+        isSectionExpanded={expandedSections.has('topicAnalysis')}
+        onToggleSection={() => toggleSection('topicAnalysis')}
       />
 
       {/* 영역별 학습 전략 (접이식) */}
@@ -327,16 +374,30 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
         is4Level={is4Level}
         expandedTopics={expandedTopics}
         toggleTopic={toggleTopic}
+        isSectionExpanded={expandedSections.has('learningStrategies')}
+        onToggleSection={() => toggleSection('learningStrategies')}
       />
 
       {/* 서술형 대비 전략 */}
-      <EssayPreparationSection essayQuestions={essayQuestions} />
+      <EssayPreparationSection
+        essayQuestions={essayQuestions}
+        isSectionExpanded={expandedSections.has('essay')}
+        onToggleSection={() => toggleSection('essay')}
+      />
 
       {/* 시험 시간 배분 전략 */}
-      <TimeAllocationSection topicSummaries={topicSummaries} />
+      <TimeAllocationSection
+        topicSummaries={topicSummaries}
+        isSectionExpanded={expandedSections.has('timeAllocation')}
+        onToggleSection={() => toggleSection('timeAllocation')}
+      />
 
       {/* 자주 하는 실수 유형 */}
-      <CommonMistakesSection topicSummaries={topicSummaries} />
+      <CommonMistakesSection
+        topicSummaries={topicSummaries}
+        isSectionExpanded={expandedSections.has('mistakes')}
+        onToggleSection={() => toggleSection('mistakes')}
+      />
 
       {/* 학년별 연계 경고 - 대단원별 그루핑 */}
       {gradeConnections.size > 0 && (() => {
@@ -378,9 +439,15 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
         const totalCritical = Array.from(gradeConnections.values()).flat().filter(c => c.importance === 'critical').length;
 
+        const isSectionExpanded = expandedSections.has('connections');
+
         return (
           <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-yellow-50">
+            {/* 헤더 - 클릭 시 섹션 접기/펼치기 */}
+            <button
+              onClick={() => toggleSection('connections')}
+              className="w-full px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-yellow-50 hover:from-orange-100 hover:to-yellow-100 transition-colors"
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center">
@@ -388,7 +455,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                     </svg>
                   </div>
-                  <div>
+                  <div className="text-left">
                     <h3 className="text-base font-semibold text-gray-900">학년별 연계 경고</h3>
                     <p className="text-xs text-gray-600">선수학습이 중요한 단원 (대단원별)</p>
                   </div>
@@ -400,10 +467,19 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                       필수 {totalCritical}개
                     </span>
                   )}
+                  <svg
+                    className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isSectionExpanded ? 'rotate-180' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
               </div>
-            </div>
+            </button>
 
+            {isSectionExpanded && (
             <div className="divide-y divide-gray-100">
               {sortedGroups.map(([majorUnit, items]) => {
                 const isExpanded = expandedConnections.has(majorUnit);
@@ -509,12 +585,17 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                 );
               })}
             </div>
+            )}
           </div>
         );
       })()}
 
       {/* 킬러 문항 유형 경고 */}
-      <KillerPatternsSection killerPatterns={killerPatterns} />
+      <KillerPatternsSection
+        killerPatterns={killerPatterns}
+        isSectionExpanded={expandedSections.has('killer')}
+        onToggleSection={() => toggleSection('killer')}
+      />
 
 
       {/* 수준별 학습 전략 */}
@@ -522,10 +603,15 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
         topicLevelStrategies={topicLevelStrategies}
         levelEncouragements={levelEncouragements}
         autoLevelRecommendation={autoLevelRecommendation}
+        isSectionExpanded={expandedSections.has('levelStrategies')}
+        onToggleSection={() => toggleSection('levelStrategies')}
       />
 
       {/* 4주 전 학습 타임라인 */}
-      <TimelineSection />
+      <TimelineSection
+        isSectionExpanded={expandedSections.has('timeline')}
+        onToggleSection={() => toggleSection('timeline')}
+      />
     </div>
   );
 });

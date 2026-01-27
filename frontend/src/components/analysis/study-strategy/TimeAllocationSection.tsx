@@ -9,10 +9,16 @@ import type { TopicSummary } from './types';
 
 interface TimeAllocationSectionProps {
   topicSummaries: TopicSummary[];
+  /** 섹션 펼침 상태 */
+  isSectionExpanded?: boolean;
+  /** 섹션 토글 핸들러 */
+  onToggleSection?: () => void;
 }
 
 export const TimeAllocationSection = memo(function TimeAllocationSection({
   topicSummaries,
+  isSectionExpanded = true,
+  onToggleSection,
 }: TimeAllocationSectionProps) {
   if (topicSummaries.length === 0) return null;
 
@@ -56,28 +62,47 @@ export const TimeAllocationSection = memo(function TimeAllocationSection({
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-cyan-50 to-blue-50">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-cyan-600 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
+      {/* 헤더 - 클릭 시 섹션 접기/펼치기 */}
+      <button
+        onClick={onToggleSection}
+        className="w-full px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-cyan-50 to-blue-50 hover:from-cyan-100 hover:to-blue-100 transition-colors"
+        disabled={!onToggleSection}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-cyan-600 flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <div className="text-left">
+              <h3 className="text-base font-semibold text-gray-900">시험 시간 배분 전략</h3>
+              <p className="text-xs text-gray-600">
+                {examDuration === 45 ? '중학교 45분' : '고등학교 50분'} 시험 기준 · 풀이 {solvingTime}
+                분 + 검토 {reviewTime}분
+              </p>
+            </div>
+          </div>
+          {onToggleSection && (
+            <svg
+              className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isSectionExpanded ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-          </div>
-          <div>
-            <h3 className="text-base font-semibold text-gray-900">시험 시간 배분 전략</h3>
-            <p className="text-xs text-gray-600">
-              {examDuration === 45 ? '중학교 45분' : '고등학교 50분'} 시험 기준 · 풀이 {solvingTime}
-              분 + 검토 {reviewTime}분
-            </p>
-          </div>
+          )}
         </div>
-      </div>
+      </button>
 
+      {isSectionExpanded && (
+      <>
       {/* 시간 배분 막대 그래프 */}
       <div className="p-4 space-y-2">
         {topicsWithTime.map((topic, idx) => (
@@ -236,6 +261,8 @@ export const TimeAllocationSection = memo(function TimeAllocationSection({
             </ul>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

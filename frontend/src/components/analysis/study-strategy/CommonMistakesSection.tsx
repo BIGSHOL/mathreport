@@ -9,10 +9,16 @@ import type { TopicSummary } from './types';
 
 interface CommonMistakesSectionProps {
   topicSummaries: TopicSummary[];
+  /** 섹션 펼침 상태 */
+  isSectionExpanded?: boolean;
+  /** 섹션 토글 핸들러 */
+  onToggleSection?: () => void;
 }
 
 export const CommonMistakesSection = memo(function CommonMistakesSection({
   topicSummaries,
+  isSectionExpanded = true,
+  onToggleSection,
 }: CommonMistakesSectionProps) {
   const [expandedMistakes, setExpandedMistakes] = useState<Set<string>>(new Set());
 
@@ -34,20 +40,38 @@ export const CommonMistakesSection = memo(function CommonMistakesSection({
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-red-50 to-pink-50">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      {/* 헤더 - 클릭 시 섹션 접기/펼치기 */}
+      <button
+        onClick={onToggleSection}
+        className="w-full px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-red-50 to-pink-50 hover:from-red-100 hover:to-pink-100 transition-colors"
+        disabled={!onToggleSection}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div className="text-left">
+              <h3 className="text-base font-semibold text-gray-900">자주 하는 실수 유형</h3>
+              <p className="text-xs text-gray-600">해당 단원에서 학생들이 반복적으로 틀리는 유형</p>
+            </div>
+          </div>
+          {onToggleSection && (
+            <svg
+              className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isSectionExpanded ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-          </div>
-          <div>
-            <h3 className="text-base font-semibold text-gray-900">자주 하는 실수 유형</h3>
-            <p className="text-xs text-gray-600">해당 단원에서 학생들이 반복적으로 틀리는 유형</p>
-          </div>
+          )}
         </div>
-      </div>
+      </button>
 
+      {isSectionExpanded && (
       <div className="divide-y divide-gray-100">
         {topicSummaries.slice(0, 5).map((summary) => {
           const mistake = findCommonMistakes(summary.topic);
@@ -108,6 +132,7 @@ export const CommonMistakesSection = memo(function CommonMistakesSection({
           );
         }).filter(Boolean)}
       </div>
+      )}
     </div>
   );
 });

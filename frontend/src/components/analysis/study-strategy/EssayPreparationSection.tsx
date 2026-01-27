@@ -17,10 +17,16 @@ import { DIFFICULTY_LABELS } from './constants';
 
 export interface EssayPreparationSectionProps {
   essayQuestions: QuestionAnalysis[];
+  /** 섹션 펼침 상태 */
+  isSectionExpanded?: boolean;
+  /** 섹션 토글 핸들러 */
+  onToggleSection?: () => void;
 }
 
 export const EssayPreparationSection = memo(function EssayPreparationSection({
   essayQuestions,
+  isSectionExpanded = true,
+  onToggleSection,
 }: EssayPreparationSectionProps) {
   const [showEssayAdvanced, setShowEssayAdvanced] = useState(false);
   const [selectedEssayGuide, setSelectedEssayGuide] = useState<string | null>(null);
@@ -34,22 +40,40 @@ export const EssayPreparationSection = memo(function EssayPreparationSection({
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-orange-50">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-amber-600 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      {/* 헤더 - 클릭 시 섹션 접기/펼치기 */}
+      <button
+        onClick={onToggleSection}
+        className="w-full px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 transition-colors"
+        disabled={!onToggleSection}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-600 flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </div>
+            <div className="text-left">
+              <h3 className="text-base font-semibold text-gray-900">서술형 대비 전략</h3>
+              <p className="text-xs text-gray-600">
+                {essayQuestions.length}문항, 총 {totalPoints}점
+              </p>
+            </div>
+          </div>
+          {onToggleSection && (
+            <svg
+              className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isSectionExpanded ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-          </div>
-          <div>
-            <h3 className="text-base font-semibold text-gray-900">서술형 대비 전략</h3>
-            <p className="text-xs text-gray-600">
-              {essayQuestions.length}문항, 총 {totalPoints}점
-            </p>
-          </div>
+          )}
         </div>
-      </div>
+      </button>
 
+      {isSectionExpanded && (
       <div className="p-4 space-y-4">
         {/* 서술형 문항 요약 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -216,6 +240,7 @@ export const EssayPreparationSection = memo(function EssayPreparationSection({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 });

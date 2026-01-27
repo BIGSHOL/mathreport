@@ -3,40 +3,55 @@
  *
  * 시험 4주 전부터의 체계적인 준비 계획을 시각적으로 표시합니다.
  */
-import { memo, useState } from 'react';
+import { memo } from 'react';
 import { FOUR_WEEK_TIMELINE } from '../../../data/curriculumStrategies';
 
-export const TimelineSection = memo(function TimelineSection() {
-  const [showTimeline, setShowTimeline] = useState(false);
+export interface TimelineSectionProps {
+  /** 섹션 펼침 상태 */
+  isSectionExpanded?: boolean;
+  /** 섹션 토글 핸들러 */
+  onToggleSection?: () => void;
+}
+
+export const TimelineSection = memo(function TimelineSection({
+  isSectionExpanded = true,
+  onToggleSection,
+}: TimelineSectionProps) {
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* 헤더 - 클릭 시 섹션 접기/펼치기 */}
       <button
-        onClick={() => setShowTimeline(!showTimeline)}
-        className="w-full px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-violet-50 flex items-center justify-between"
+        onClick={onToggleSection}
+        className="w-full px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-violet-50 hover:from-indigo-100 hover:to-violet-100 transition-colors"
+        disabled={!onToggleSection}
       >
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div className="text-left">
+              <h3 className="text-base font-semibold text-gray-900">4주 전 학습 타임라인</h3>
+              <p className="text-xs text-gray-600">시험 4주 전부터 체계적인 준비 계획</p>
+            </div>
+          </div>
+          {onToggleSection && (
+            <svg
+              className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${isSectionExpanded ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-          </div>
-          <div className="text-left">
-            <h3 className="text-base font-semibold text-gray-900">4주 전 학습 타임라인</h3>
-            <p className="text-xs text-gray-600">시험 4주 전부터 체계적인 준비 계획</p>
-          </div>
+          )}
         </div>
-        <svg
-          className={`w-5 h-5 text-gray-400 transition-transform ${showTimeline ? 'rotate-180' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
       </button>
 
-      {showTimeline && (
+      {isSectionExpanded && (
         <div className="p-4">
           <div className="relative">
             {/* Timeline line */}

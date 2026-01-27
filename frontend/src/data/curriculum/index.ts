@@ -8,7 +8,7 @@
 export * from './types';
 
 // 유틸리티 함수
-export * from './utils';
+export { isTopicMatch, estimateLevel, filterMessagesByGrade, getMajorUnitFromCurriculum } from './utils';
 
 // 커리큘럼 데이터
 export { MIDDLE_SCHOOL_CURRICULUM } from './middleSchoolCurriculum';
