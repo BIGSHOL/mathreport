@@ -974,6 +974,18 @@ class AIEngine:
 
         # 4. problem_categories + problem_types: 토픽 분류 가이드
         try:
+            # exam_scope에서 단원 키워드 추출 (필터링용)
+            scope_keywords: set[str] = set()
+            if exam_scope:
+                for scope in exam_scope:
+                    # "중1 > 수와 연산 > 정수와 유리수" 형식에서 키워드 추출
+                    parts = scope.split(" > ")
+                    for part in parts:
+                        # 학년 정보 제외 (중1, 고2 등)
+                        if not any(g in part for g in ["중1", "중2", "중3", "고1", "고2", "고3"]):
+                            scope_keywords.add(part.strip())
+                print(f"[Pattern] exam_scope 키워드: {scope_keywords}")
+
             # 활성화된 카테고리와 유형 로드
             cat_result = await db.table("problem_categories").select(
                 "id, name, description"
@@ -981,15 +993,28 @@ class AIEngine:
 
             if cat_result.data:
                 topic_guide_parts = ["\n## [문제 유형 분류 가이드 - DB 기반]"]
+                matched_count = 0
 
                 for cat in cat_result.data:
+                    cat_name = cat.get("name", "")
+                    cat_desc = cat.get("description", "")
+
+                    # exam_scope가 있으면 관련 카테고리만 포함
+                    if scope_keywords:
+                        is_relevant = any(
+                            kw in cat_name or kw in cat_desc
+                            for kw in scope_keywords
+                        )
+                        if not is_relevant:
+                            continue
+
                     # 해당 카테고리의 문제 유형 로드
                     types_result = await db.table("problem_types").select(
                         "name, keywords, core_concepts, grade_levels"
                     ).eq("category_id", cat["id"]).eq("is_active", True).order("display_order").limit(10).execute()
 
                     if types_result.data:
-                        cat_part = f"\n### [{cat.get('name', '')}] {cat.get('description', '')}"
+                        cat_part = f"\n### [{cat_name}] {cat_desc}"
                         for pt in types_result.data:
                             keywords = pt.get("keywords") or []
                             grades = pt.get("grade_levels") or []
@@ -999,10 +1024,14 @@ class AIEngine:
                             if grades:
                                 cat_part += f" [{', '.join(grades)}]"
                         topic_guide_parts.append(cat_part)
+                        matched_count += 1
 
                 if len(topic_guide_parts) > 1:
                     all_additions.append("\n".join(topic_guide_parts))
-                    print(f"[Pattern] 문제 유형 분류 가이드 {len(cat_result.data)}개 카테고리 추가됨")
+                    if scope_keywords:
+                        print(f"[Pattern] 문제 유형 분류 가이드 {matched_count}개 카테고리 추가됨 (전체 {len(cat_result.data)}개 중 필터링)")
+                    else:
+                        print(f"[Pattern] 문제 유형 분류 가이드 {len(cat_result.data)}개 카테고리 추가됨")
         except Exception as e:
             print(f"[Pattern Error] problem_categories/types: {e}")
 
