@@ -586,7 +586,7 @@ export function AnalysisResultPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">AI 시험 총평</h3>
-                <p className="text-xs text-gray-600">시험 전체에 대한 전문가 수준의 종합 평가를 받아보세요</p>
+                <p className="text-xs text-gray-600">시험 전체에 대한 전문가 수준의 종합 평가를 받아보세요 <span className="text-amber-600 font-medium">(크레딧 소모)</span></p>
               </div>
             </div>
             <button
@@ -619,7 +619,7 @@ export function AnalysisResultPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">영역별 학습 전략</h3>
-                <p className="text-xs text-gray-600">취약 단원별로 맞춤 학습 방법과 전략을 제공합니다</p>
+                <p className="text-xs text-gray-600">취약 단원별로 맞춤 학습 방법과 전략을 제공합니다 <span className="text-amber-600 font-medium">(크레딧 소모)</span></p>
               </div>
             </div>
             <button
@@ -653,7 +653,7 @@ export function AnalysisResultPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">점수대별 맞춤 학습 계획</h3>
-                <p className="text-xs text-gray-600">현재 점수를 분석하여 목표 달성을 위한 단계별 계획을 제공합니다</p>
+                <p className="text-xs text-gray-600">현재 점수를 분석하여 목표 달성을 위한 단계별 계획을 제공합니다 <span className="text-amber-600 font-medium">(크레딧 소모)</span></p>
               </div>
             </div>
             <button
@@ -687,7 +687,7 @@ export function AnalysisResultPage() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">시험 대비 전략</h3>
-                <p className="text-xs text-gray-600">다가오는 시험을 위한 D-day 카운트다운 학습 전략을 제공합니다</p>
+                <p className="text-xs text-gray-600">다가오는 시험을 위한 D-day 카운트다운 학습 전략을 제공합니다 <span className="text-amber-600 font-medium">(크레딧 소모)</span></p>
               </div>
             </div>
             <button

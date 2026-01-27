@@ -313,7 +313,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
                   <thead className="bg-gray-50 text-xs text-gray-500 whitespace-nowrap">
                     <tr>
                       <th className="px-3 py-2 text-center w-14">번호</th>
-                      <th className="px-3 py-2 text-center w-16">난이도</th>
+                      <th className="px-3 py-2 text-center w-20">난이도</th>
                       <th className="px-3 py-2 text-center w-20">유형</th>
                       <th className="px-3 py-2 text-left">단원</th>
                       <th className="px-3 py-2 text-right w-14">배점</th>

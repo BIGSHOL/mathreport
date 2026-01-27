@@ -153,7 +153,7 @@ export const QuestionCard = memo(function QuestionCard({
       {/* 난이도 */}
       <td className="px-3 py-2 text-center">
         <span
-          className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white"
+          className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white whitespace-nowrap"
           style={{ backgroundColor: diffConfig.bg }}
         >
           {diffConfig.label}

@@ -412,7 +412,7 @@ export const AnswerAnalysis = memo(function AnswerAnalysis({
                 <tr>
                   <th className="px-3 py-2 text-center w-16">번호</th>
                   <th className="px-3 py-2 text-left">단원</th>
-                  <th className="px-3 py-2 text-center w-16">난이도</th>
+                  <th className="px-3 py-2 text-center w-20">난이도</th>
                   <th className="px-3 py-2 text-center w-20">배점</th>
                   <th className="px-3 py-2 text-center w-28">오류 유형</th>
                   <th className="px-3 py-2 text-left">AI 코멘트</th>
