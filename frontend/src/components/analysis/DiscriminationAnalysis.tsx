@@ -60,15 +60,15 @@ function calculateDiscriminationIndex(
   // 이유 생성 (학부모 관점)
   let reason = '';
   if (difficulty === 'concept' || difficulty === 'low') {
-    reason = '쉬운 문항으로 실력 차이가 잘 드러나지 않아요';
+    reason = '쉬운 문항으로 실력 차이가 잘 드러나지 않습니다';
   } else if (difficulty === 'creative' || (difficulty === 'high' && baseScore < 0.6)) {
-    reason = '어려운 문항으로 대부분 틀릴 수 있어요';
+    reason = '어려운 문항으로 대부분 틀릴 수 있습니다';
   } else if (points < avgPoints * 0.7) {
-    reason = '배점이 낮아 점수 차이에 큰 영향이 없어요';
+    reason = '배점이 낮아 점수 차이에 큰 영향이 없습니다';
   } else if (points > avgPoints * 1.3) {
-    reason = '적절한 난이도와 높은 배점으로 실력 차이가 잘 드러나요';
+    reason = '적절한 난이도와 높은 배점으로 실력 차이가 잘 드러납니다';
   } else {
-    reason = '적절한 난이도로 우리 아이 실력을 잘 평가할 수 있어요';
+    reason = '적절한 난이도로 우리 아이 실력을 잘 평가할 수 있습니다';
   }
 
   return { index: finalIndex, reason };
@@ -225,7 +225,7 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
               <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
                 <div className="font-semibold mb-1">변별력이란?</div>
                 <div className="text-gray-300 leading-relaxed">
-                  시험이 실력에 따라 점수 차이를 잘 만들어내는 정도입니다. 적절한 난이도의 문항이 많을수록 높아요.
+                  시험이 실력에 따라 점수 차이를 잘 만들어내는 정도입니다. 적절한 난이도의 문항이 많을수록 높습니다.
                 </div>
                 {/* 말풍선 화살표 */}
                 <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
