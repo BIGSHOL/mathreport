@@ -149,84 +149,83 @@ async def get_exams(
     analysis_map: dict[str, AnalysisBrief] = {}
 
     if completed_exam_ids:
-        # Query analysis results for completed exams
-        for exam_id in completed_exam_ids:
-            result = await db.table("analysis_results").select("*").eq("exam_id", exam_id).maybe_single().execute()
+        # Query analysis results for completed exams in a single batch query (N+1 fix)
+        results = await db.table("analysis_results").select("*").in_("exam_id", completed_exam_ids).execute()
 
-            if result.data:
-                analysis = result.data
-                questions = analysis.get("questions") or []
-                total_questions = len(questions)
-                # 부동소수점 오류 방지: 소수점 1자리까지 반올림
-                total_points = round(sum(q.get("points", 0) or 0 for q in questions), 1)
+        for analysis in (results.data or []):
+            exam_id = str(analysis.get("exam_id"))
+            questions = analysis.get("questions") or []
+            total_questions = len(questions)
+            # 부동소수점 오류 방지: 소수점 1자리까지 반올림
+            total_points = round(sum(q.get("points", 0) or 0 for q in questions), 1)
 
-                # Calculate confidence
-                confidences = [q.get("confidence") for q in questions if q.get("confidence") is not None]
-                avg_confidence = sum(confidences) / len(confidences) if confidences else None
+            # Calculate confidence
+            confidences = [q.get("confidence") for q in questions if q.get("confidence") is not None]
+            avg_confidence = sum(confidences) / len(confidences) if confidences else None
 
-                # 배점 검증 기반 신뢰도 페널티 적용 (섹션 구분 시험지 예외 처리)
-                if avg_confidence is not None:
-                    points_diff = abs(100 - total_points)
+            # 배점 검증 기반 신뢰도 페널티 적용 (섹션 구분 시험지 예외 처리)
+            if avg_confidence is not None:
+                points_diff = abs(100 - total_points)
 
-                    # 섹션 구분 시험지 감지 (예: 객관식 100점 + 서술형 100점 = 200점)
-                    is_sectioned_exam = False
-                    if total_points % 100 == 0 and total_points >= 200:
-                        # 문항 유형별 배점 합계 계산
-                        essay_points = sum(q.get("points", 0) for q in questions if q.get("question_format") == "essay")
-                        non_essay_points = sum(q.get("points", 0) for q in questions if q.get("question_format") != "essay")
+                # 섹션 구분 시험지 감지 (예: 객관식 100점 + 서술형 100점 = 200점)
+                is_sectioned_exam = False
+                if total_points % 100 == 0 and total_points >= 200:
+                    # 문항 유형별 배점 합계 계산
+                    essay_points = sum(q.get("points", 0) for q in questions if q.get("question_format") == "essay")
+                    non_essay_points = sum(q.get("points", 0) for q in questions if q.get("question_format") != "essay")
 
-                        # 각 섹션이 100의 배수로 명확히 구분되면 정상 시험지로 간주
-                        if (essay_points % 100 == 0 and essay_points >= 100) or \
-                           (non_essay_points % 100 == 0 and non_essay_points >= 100):
-                            is_sectioned_exam = True
+                    # 각 섹션이 100의 배수로 명확히 구분되면 정상 시험지로 간주
+                    if (essay_points % 100 == 0 and essay_points >= 100) or \
+                       (non_essay_points % 100 == 0 and non_essay_points >= 100):
+                        is_sectioned_exam = True
 
-                    # 섹션 구분 시험지는 페널티 면제
-                    if is_sectioned_exam:
-                        pass
-                    elif points_diff <= 5:
-                        # 95~105점: 페널티 없음
-                        pass
-                    elif points_diff <= 15:
-                        # 85~94점 또는 106~115점: 20% 감소
-                        avg_confidence *= 0.8
-                    elif points_diff <= 25:
-                        # 75~84점 또는 116~125점: 40% 감소
-                        avg_confidence *= 0.6
-                    elif points_diff <= 50:
-                        # 50~74점 또는 126~150점: 60% 감소
-                        avg_confidence *= 0.4
-                    else:
-                        # 50점 미만 또는 150점 초과: 80% 감소 (거의 확실한 오분석)
-                        avg_confidence *= 0.2
+                # 섹션 구분 시험지는 페널티 면제
+                if is_sectioned_exam:
+                    pass
+                elif points_diff <= 5:
+                    # 95~105점: 페널티 없음
+                    pass
+                elif points_diff <= 15:
+                    # 85~94점 또는 106~115점: 20% 감소
+                    avg_confidence *= 0.8
+                elif points_diff <= 25:
+                    # 75~84점 또는 116~125점: 40% 감소
+                    avg_confidence *= 0.6
+                elif points_diff <= 50:
+                    # 50~74점 또는 126~150점: 60% 감소
+                    avg_confidence *= 0.4
+                else:
+                    # 50점 미만 또는 150점 초과: 80% 감소 (거의 확실한 오분석)
+                    avg_confidence *= 0.2
 
-                # Calculate difficulty distribution (4단계 + 3단계 하위호환)
-                # 4단계 시스템
-                diff_concept = sum(1 for q in questions if q.get("difficulty") == "concept")
-                diff_pattern = sum(1 for q in questions if q.get("difficulty") == "pattern")
-                diff_reasoning = sum(1 for q in questions if q.get("difficulty") == "reasoning")
-                diff_creative = sum(1 for q in questions if q.get("difficulty") == "creative")
+            # Calculate difficulty distribution (4단계 + 3단계 하위호환)
+            # 4단계 시스템
+            diff_concept = sum(1 for q in questions if q.get("difficulty") == "concept")
+            diff_pattern = sum(1 for q in questions if q.get("difficulty") == "pattern")
+            diff_reasoning = sum(1 for q in questions if q.get("difficulty") == "reasoning")
+            diff_creative = sum(1 for q in questions if q.get("difficulty") == "creative")
 
-                # 3단계 시스템 (하위 호환)
-                diff_high = sum(1 for q in questions if q.get("difficulty") == "high")
-                diff_medium = sum(1 for q in questions if q.get("difficulty") == "medium")
-                diff_low = sum(1 for q in questions if q.get("difficulty") == "low")
+            # 3단계 시스템 (하위 호환)
+            diff_high = sum(1 for q in questions if q.get("difficulty") == "high")
+            diff_medium = sum(1 for q in questions if q.get("difficulty") == "medium")
+            diff_low = sum(1 for q in questions if q.get("difficulty") == "low")
 
-                # Calculate format distribution (서술형 개수)
-                format_essay = sum(1 for q in questions if q.get("question_format") == "essay")
+            # Calculate format distribution (서술형 개수)
+            format_essay = sum(1 for q in questions if q.get("question_format") == "essay")
 
-                analysis_map[exam_id] = AnalysisBrief(
-                    total_questions=total_questions,
-                    total_points=total_points,
-                    avg_confidence=avg_confidence,
-                    difficulty_concept=diff_concept,
-                    difficulty_pattern=diff_pattern,
-                    difficulty_reasoning=diff_reasoning,
-                    difficulty_creative=diff_creative,
-                    difficulty_high=diff_high,
-                    difficulty_medium=diff_medium,
-                    difficulty_low=diff_low,
-                    format_essay=format_essay,
-                )
+            analysis_map[exam_id] = AnalysisBrief(
+                total_questions=total_questions,
+                total_points=total_points,
+                avg_confidence=avg_confidence,
+                difficulty_concept=diff_concept,
+                difficulty_pattern=diff_pattern,
+                difficulty_reasoning=diff_reasoning,
+                difficulty_creative=diff_creative,
+                difficulty_high=diff_high,
+                difficulty_medium=diff_medium,
+                difficulty_low=diff_low,
+                format_essay=format_essay,
+            )
 
     # Convert to response with briefs
     exam_list = []
