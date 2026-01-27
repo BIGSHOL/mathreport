@@ -29,6 +29,22 @@ const DIFFICULTY_LEVEL_COLORS: Record<string, string> = {
   하: 'bg-green-100 text-green-700',
 };
 
+// 문제 유형 라벨
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  // 한글 유형
+  객관식: '객관식',
+  단답형: '단답형',
+  서술형: '서술형',
+  // 영어 유형 (호환성)
+  geometry: '도형',
+  application: '활용',
+  calculation: '계산',
+  proof: '증명',
+  'multiple-choice': '객관식',
+  'short-answer': '단답형',
+  essay: '서술형',
+};
+
 export function AdminSchoolTrendsPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -456,7 +472,7 @@ export function AdminSchoolTrendsPage() {
               <div className="flex gap-2">
                 {Object.entries(detailModal.trend.question_type_distribution).map(([key, value]) => (
                   <div key={key} className="px-3 py-2 bg-blue-50 rounded">
-                    <span className="text-sm text-blue-700">{key}</span>
+                    <span className="text-sm text-blue-700">{QUESTION_TYPE_LABELS[key] || key}</span>
                     <span className="ml-2 font-bold text-blue-900">{value}</span>
                   </div>
                 ))}
