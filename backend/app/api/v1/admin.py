@@ -605,7 +605,7 @@ async def aggregate_school_trends(
     admin: AdminUser,
     db: DbDep,
     school_name: str | None = None,
-    min_sample_count: int = 3,
+    min_sample_count: int = 1,
 ):
     """학교별 출제 경향 집계 실행 (관리자 전용).
 
@@ -613,7 +613,7 @@ async def aggregate_school_trends(
 
     Args:
         school_name: 특정 학교만 집계 (선택)
-        min_sample_count: 경향 생성에 필요한 최소 시험 수 (기본 3)
+        min_sample_count: 경향 생성에 필요한 최소 시험 수 (기본 1)
     """
     if _aggregation_lock.locked():
         raise HTTPException(
