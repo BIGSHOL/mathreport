@@ -47,6 +47,10 @@ export function AdminSchoolTrendsPage() {
   const [filterRegion, setFilterRegion] = useState('');
   const [filterGrade, setFilterGrade] = useState('');
 
+  // 페이지네이션
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+
   // 상세 보기 모달
   const [detailModal, setDetailModal] = useState<{
     isOpen: boolean;
@@ -73,7 +77,8 @@ export function AdminSchoolTrendsPage() {
           school_name: searchSchool || undefined,
           school_region: filterRegion || undefined,
           grade: filterGrade || undefined,
-          limit: 100,
+          limit: PAGE_SIZE,
+          offset: (page - 1) * PAGE_SIZE,
         }),
         adminService.getRegionSummary(),
         adminService.getAvailableRegions(),
@@ -88,7 +93,7 @@ export function AdminSchoolTrendsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [searchSchool, filterRegion, filterGrade]);
+  }, [searchSchool, filterRegion, filterGrade, page]);
 
   useEffect(() => {
     loadData();
@@ -103,10 +108,24 @@ export function AdminSchoolTrendsPage() {
     setIsAggregating(true);
     try {
       const result = await adminService.aggregateSchoolTrends();
-      alert(`집계 완료\n\n- 새로 생성: ${result.created}개\n- 업데이트: ${result.updated}개\n- 처리된 학교: ${result.total_schools_processed}개`);
+
+      if (result.created === 0 && result.updated === 0) {
+        alert(
+          `집계 완료\n\n처리된 학교: ${result.total_schools_processed}개\n\n` +
+          `⚠️ 집계된 데이터가 없습니다.\n\n` +
+          `가능한 원인:\n` +
+          `- 완료된 시험(status=completed)이 없음\n` +
+          `- 학교명(school_name)이 입력되지 않은 시험만 존재\n` +
+          `- 분석 결과가 없는 시험만 존재`
+        );
+      } else {
+        alert(`집계 완료\n\n- 새로 생성: ${result.created}개\n- 업데이트: ${result.updated}개\n- 처리된 학교: ${result.total_schools_processed}개`);
+      }
+
       loadData();
-    } catch (err) {
-      alert('집계에 실패했습니다.');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || '알 수 없는 오류';
+      alert(`집계에 실패했습니다.\n\n원인: ${detail}`);
       console.error(err);
     } finally {
       setIsAggregating(false);
@@ -122,8 +141,9 @@ export function AdminSchoolTrendsPage() {
     try {
       await adminService.deleteSchoolTrend(trend.id);
       loadData();
-    } catch (err) {
-      alert('삭제에 실패했습니다.');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || '알 수 없는 오류';
+      alert(`삭제에 실패했습니다.\n\n원인: ${detail}`);
       console.error(err);
     }
   };
@@ -213,6 +233,7 @@ export function AdminSchoolTrendsPage() {
               setSearchSchool('');
               setFilterRegion('');
               setFilterGrade('');
+              setPage(1);
             }}
             className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
           >
@@ -336,6 +357,34 @@ export function AdminSchoolTrendsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* 페이지네이션 */}
+          {total > PAGE_SIZE && (
+            <div className="flex items-center justify-between mt-4 px-2">
+              <div className="text-sm text-gray-500">
+                {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, total)} / {total}건
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  이전
+                </button>
+                <span className="px-3 py-1.5 text-sm text-gray-700">
+                  {page} / {Math.ceil(total / PAGE_SIZE)}
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(Math.ceil(total / PAGE_SIZE), p + 1))}
+                  disabled={page >= Math.ceil(total / PAGE_SIZE)}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  다음
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
