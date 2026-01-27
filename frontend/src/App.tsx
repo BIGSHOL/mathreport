@@ -21,6 +21,7 @@ const AdminPatternPage = lazy(() => import('./pages/AdminPatternPage').then(m =>
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then(m => ({ default: m.AdminUsersPage })));
 const AdminSchoolTrendsPage = lazy(() => import('./pages/AdminSchoolTrendsPage').then(m => ({ default: m.AdminSchoolTrendsPage })));
 const TrendsPage = lazy(() => import('./pages/TrendsPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
 
 // Loading fallback (rendering-hoist-jsx)
 const PageLoading = <div className="flex items-center justify-center min-h-screen">로딩 중...</div>;
@@ -86,6 +87,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/exams" element={<ExamDashboardPage />} />
             <Route path="/analysis/:id" element={<AnalysisResultPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
           </Route>
 
           {/* Admin Only Routes - 관리자 전용 (출제 경향 등) */}

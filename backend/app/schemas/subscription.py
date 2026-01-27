@@ -54,18 +54,18 @@ class SubscribeResponse(BaseModel):
     message: str
 
 
-# 크레딧 패키지 정의 (기본 단가: 500원/회)
-# 1, 3, 5회: 할인 없음 | 10회: 10% 할인 | 30회: 20% 할인
+# 크레딧 패키지 정의 (기본 단가: 300원/크레딧)
+# 1, 3, 5크레딧: 할인 없음 | 10크레딧: ~17% 할인 | 30크레딧: ~33% 할인
 CREDIT_PACKAGES = {
-    "1": {"credits": 1, "price": 500, "unit_price": 500},
-    "3": {"credits": 3, "price": 1500, "unit_price": 500},
-    "5": {"credits": 5, "price": 2500, "unit_price": 500},
-    "10": {"credits": 10, "price": 4500, "unit_price": 450},  # 10% 할인
-    "30": {"credits": 30, "price": 12000, "unit_price": 400},  # 20% 할인
+    "1": {"credits": 1, "price": 300, "unit_price": 300},
+    "3": {"credits": 3, "price": 900, "unit_price": 300},
+    "5": {"credits": 5, "price": 1500, "unit_price": 300},
+    "10": {"credits": 10, "price": 2500, "unit_price": 250, "original_price": 3000},
+    "30": {"credits": 30, "price": 6000, "unit_price": 200, "original_price": 9000},
 }
 
 # 구독 가격 정의
 SUBSCRIPTION_PRICES = {
     SubscriptionTier.BASIC: {"price": 9900, "name": "베이직"},
-    SubscriptionTier.PRO: {"price": 19900, "name": "프로"},
+    SubscriptionTier.PRO: {"price": 19900, "original_price": 29900, "name": "프로"},
 }

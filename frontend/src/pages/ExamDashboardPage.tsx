@@ -284,6 +284,16 @@ export function ExamDashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* 베타 기간 안내 */}
+      <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3">
+        <svg className="h-5 w-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span className="text-sm text-amber-800">
+          현재 <strong>베타 서비스</strong> 기간입니다. 일부 기능이 불안정할 수 있으며, 서비스 개선을 위해 피드백을 환영합니다.
+        </span>
+      </div>
+
       {/* 무료 티어 데이터 사용 알림 */}
       {showDataUsageNotice && (
         <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
@@ -310,28 +320,7 @@ export function ExamDashboardPage() {
             시험지 관리
           </h2>
         </div>
-        {/* 선택 모드 토글 버튼 */}
-        <div className="mt-4 md:mt-0 flex items-center gap-3">
-          {selectionMode && selectedExamIds.size >= 2 && (
-            <button
-              onClick={handleMergeAnalyses}
-              disabled={isMerging}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
-            >
-              {isMerging ? '병합 중...' : `분석 병합 (${selectedExamIds.size}개)`}
-            </button>
-          )}
-          <button
-            onClick={toggleSelectionMode}
-            className={`inline-flex items-center px-3 py-2 border text-sm font-medium rounded-md ${
-              selectionMode
-                ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
-                : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
-            }`}
-          >
-            {selectionMode ? '선택 취소' : '분석 병합'}
-          </button>
-        </div>
+        {/* 분석 병합 버튼 - 베타 기간 중 숨김 */}
       </div>
 
       <UploadForm onUpload={handleUpload} isUploading={isUploading} />

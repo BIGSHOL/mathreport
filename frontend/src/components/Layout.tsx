@@ -1,15 +1,9 @@
-import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 
 export function Layout() {
-    const { user, logout } = useAuthStore();
-    const navigate = useNavigate();
+    const { user } = useAuthStore();
     const location = useLocation();
-
-    const handleLogout = async () => {
-        await logout();
-        navigate('/login');
-    };
 
     const isActive = (path: string) => location.pathname === path;
 
@@ -56,15 +50,37 @@ export function Layout() {
                                         )}
                                     </>
                                 )}
-                                <Link
-                                    to="/pricing"
-                                    className={`${isActive('/pricing')
-                                        ? 'border-indigo-500 text-gray-900'
-                                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                                        } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                                >
-                                    요금제
-                                </Link>
+                                {/* 요금제: 마스터 계정만 활성화, 일반 사용자는 비활성 표시 */}
+                                {user?.role === 'admin' ? (
+                                    <Link
+                                        to="/pricing"
+                                        className={`${isActive('/pricing')
+                                            ? 'border-indigo-500 text-gray-900'
+                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                                            } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                                    >
+                                        요금제
+                                    </Link>
+                                ) : (
+                                    <span
+                                        className="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-gray-300 cursor-not-allowed"
+                                        title="결제 시스템 준비 중"
+                                    >
+                                        요금제
+                                        <span className="ml-1 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">준비중</span>
+                                    </span>
+                                )}
+                                {user && (
+                                    <Link
+                                        to="/profile"
+                                        className={`${isActive('/profile')
+                                            ? 'border-indigo-500 text-gray-900'
+                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                                            } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                                    >
+                                        내 정보
+                                    </Link>
+                                )}
                                 {user?.role === 'admin' && (
                                     <>
                                         <Link
@@ -101,17 +117,9 @@ export function Layout() {
                         <div className="flex items-center space-x-4">
                             {/* Explicit conditional render (rendering-conditional-render) */}
                             {user ? (
-                                <>
-                                    <span className="text-sm text-gray-700">
-                                        환영합니다, <strong>{user.nickname}</strong>
-                                    </span>
-                                    <button
-                                        onClick={handleLogout}
-                                        className="text-sm font-medium text-gray-500 hover:text-gray-700"
-                                    >
-                                        로그아웃
-                                    </button>
-                                </>
+                                <span className="text-sm text-gray-700">
+                                    환영합니다, <strong>{user.nickname}</strong>
+                                </span>
                             ) : location.pathname !== '/login' && location.pathname !== '/register' ? (
                                 <div className="space-x-4">
                                     <Link to="/login" className="text-sm font-medium text-gray-500 hover:text-gray-900">

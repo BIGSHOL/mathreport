@@ -20,14 +20,17 @@ TIER_LIMITS = {
     SubscriptionTier.FREE: {
         "monthly_analysis": 5,
         "monthly_extended": 0,  # 미리보기만
+        "weekly_credits": 10,
     },
     SubscriptionTier.BASIC: {
         "monthly_analysis": 20,
         "monthly_extended": 5,
+        "weekly_credits": 30,
     },
     SubscriptionTier.PRO: {
         "monthly_analysis": -1,  # 무제한
         "monthly_extended": -1,  # 무제한
+        "weekly_credits": 100,
     },
 }
 

@@ -66,8 +66,10 @@ async def get_plans():
             "tier": tier.value,
             "name": "무료" if tier == SubscriptionTier.FREE else SUBSCRIPTION_PRICES.get(tier, {}).get("name", tier.value),
             "price": 0 if tier == SubscriptionTier.FREE else SUBSCRIPTION_PRICES.get(tier, {}).get("price", 0),
+            "original_price": SUBSCRIPTION_PRICES.get(tier, {}).get("original_price"),
             "monthly_analysis": limits["monthly_analysis"],
             "monthly_extended": limits["monthly_extended"],
+            "weekly_credits": limits.get("weekly_credits", 0),
             "features": _get_tier_features(tier),
         }
         plans.append(plan)
@@ -85,6 +87,7 @@ async def get_credit_packages():
             "credits": value["credits"],
             "price": value["price"],
             "unit_price": value["unit_price"],
+            "original_price": value.get("original_price"),
         })
     return {"packages": packages}
 
@@ -143,25 +146,25 @@ async def get_credit_history(
 
 
 def _get_tier_features(tier: SubscriptionTier) -> list[str]:
-    """티어별 기능 목록"""
+    """티어별 기능 목록 (점진적 구조: Free → Basic → Pro)"""
     if tier == SubscriptionTier.FREE:
         return [
-            "주 3회 기본 분석",
-            "출제현황 분석",
-            "확장 분석 미리보기",
+            "시험지 출제현황 분석",
+            "AI 시험 총평",
+            "문항별 난이도·유형 분석",
             "전체 이력 보관",
         ]
     elif tier == SubscriptionTier.BASIC:
         return [
-            "주 10회 기본 분석",
-            "출제현황 분석",
-            "주 2회 확장 분석",
-            "기본형 학습 계획",
+            "Free 전체 기능 포함",
+            "학생 답안 정오답 분석",
+            "영역별 학습 전략",
+            "점수대별 학습 계획",
         ]
     else:  # PRO
         return [
-            "무제한 기본 분석",
-            "출제현황 분석",
-            "무제한 확장 분석",
-            "맞춤형 학습 계획",
+            "Basic 전체 기능 포함",
+            "4단계 확장 분석 리포트",
+            "시험 대비 D-day 전략",
+            "맞춤형 성과 예측",
         ]

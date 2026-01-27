@@ -43,10 +43,10 @@ export function UpgradeModal({ isOpen, onClose, type }: UpgradeModalProps) {
 
     if (!isOpen) return null;
 
-    const title = type === 'analysis' ? '분석 한도 초과' : '확장 분석 한도 초과';
+    const title = type === 'analysis' ? '크레딧 부족' : '확장 분석 크레딧 부족';
     const description = type === 'analysis'
-        ? '이번 달 무료 분석 횟수를 모두 사용했습니다.'
-        : '이번 달 확장 분석 횟수를 모두 사용했습니다.';
+        ? '크레딧이 부족합니다. 크레딧을 충전하거나 구독을 업그레이드하세요.'
+        : '확장 분석에 필요한 크레딧이 부족합니다.';
 
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -91,7 +91,7 @@ export function UpgradeModal({ isOpen, onClose, type }: UpgradeModalProps) {
                             className="w-full py-4 px-6 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                         >
                             <div className="text-lg">베이직 구독하기</div>
-                            <div className="text-sm text-indigo-200">월 9,900원 · 주 10회 분석</div>
+                            <div className="text-sm text-indigo-200">월 9,900원 · 주당 30크레딧 지급</div>
                         </button>
                     </div>
 
@@ -113,7 +113,7 @@ export function UpgradeModal({ isOpen, onClose, type }: UpgradeModalProps) {
                                 disabled={isLoading}
                                 className="py-3 px-2 border-2 border-gray-200 rounded-xl hover:border-indigo-300 disabled:opacity-50 transition-colors"
                             >
-                                <div className="text-lg font-bold text-indigo-600">{pkg.credits}회</div>
+                                <div className="text-lg font-bold text-indigo-600">{pkg.credits}크레딧</div>
                                 <div className="text-sm text-gray-900">₩{pkg.price.toLocaleString()}</div>
                             </button>
                         ))}

@@ -124,9 +124,28 @@ class SubscriptionService:
             weekly_credits = TIER_CREDITS[tier]["weekly_credits"]
             max_credits = TIER_CREDITS[tier]["max_credits"]
 
+            # 가입 첫 주 일할 계산: 가입일이 이번 초기화 주간 내에 있으면
+            # 남은 일수에 비례하여 크레딧 지급 (악용 방지)
+            created_at_str = user.get("created_at")
+            grants_credits = weekly_credits
+            is_prorated = False
+            if created_at_str:
+                if isinstance(created_at_str, str):
+                    created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00").replace("+00:00", ""))
+                else:
+                    created_at = created_at_str
+                # 가입일이 지난주 월요일 이후 ~ 이번주 월요일 이전이면 첫 주
+                prev_monday = last_monday - timedelta(days=7)
+                if created_at > prev_monday:
+                    # 가입일부터 이번 월요일까지 남은 일수 (0~6)
+                    days_remaining = max(0, (last_monday - created_at).days)
+                    if days_remaining < 7:
+                        grants_credits = max(1, round(weekly_credits * days_remaining / 7))
+                        is_prorated = True
+
             current_credits = user.get("credits", 0)
             # 최대 크레딧 한도 적용
-            new_credits = min(current_credits + weekly_credits, max_credits)
+            new_credits = min(current_credits + grants_credits, max_credits)
             # 실제 지급된 크레딧 (한도로 인해 일부만 지급될 수 있음)
             actual_granted = new_credits - current_credits
 
@@ -140,7 +159,9 @@ class SubscriptionService:
             # 크레딧 지급 로그 기록 (실제 지급량 기록)
             credit_log_service = get_credit_log_service(self.db)
             description = f"{tier.value.upper()} 티어 주간 크레딧 지급"
-            if actual_granted < weekly_credits:
+            if is_prorated:
+                description += f" (첫 주 일할 계산: {grants_credits}/{weekly_credits})"
+            elif actual_granted < grants_credits:
                 description += f" (최대 한도 {max_credits} 적용)"
 
             await credit_log_service.log(
@@ -157,10 +178,12 @@ class SubscriptionService:
             user["monthly_analysis_count"] = 0
             user["monthly_extended_count"] = 0
 
-            if actual_granted < weekly_credits:
-                print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {actual_granted}/{weekly_credits} 크레딧 지급 (최대 한도 {max_credits} 도달, 잔액: {new_credits})")
+            if is_prorated:
+                print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {grants_credits}/{weekly_credits} 크레딧 지급 (첫 주 일할 계산, 잔액: {new_credits})")
+            elif actual_granted < grants_credits:
+                print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {actual_granted}/{grants_credits} 크레딧 지급 (최대 한도 {max_credits} 도달, 잔액: {new_credits})")
             else:
-                print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {weekly_credits} 크레딧 지급 (잔액: {new_credits})")
+                print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {grants_credits} 크레딧 지급 (잔액: {new_credits})")
             return True
         return False
 

@@ -24,8 +24,10 @@ export interface Plan {
     tier: SubscriptionTier;
     name: string;
     price: number;
+    original_price?: number | null;  // 할인 전 가격 (취소선 표시용)
     weekly_analysis: number;
     weekly_extended: number;
+    weekly_credits: number;  // -1 = 무제한
     features: string[];
 }
 
@@ -34,6 +36,7 @@ export interface CreditPackage {
     credits: number;
     price: number;
     unit_price: number;
+    original_price?: number | null;  // 할인 전 가격 (취소선 표시용)
 }
 
 export interface PurchaseCreditsResponse {

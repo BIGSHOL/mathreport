@@ -16,7 +16,7 @@ class SchoolTrendsService:
     async def aggregate_school_trends(
         self,
         school_name: str | None = None,
-        min_sample_count: int = 3,
+        min_sample_count: int = 1,
     ) -> dict:
         """Aggregate exam trends for schools.
 
