@@ -1466,7 +1466,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '정수와 유리수',
     mistakes: [
       {
-        keywords: ['정수와 유리수', '정수와', '유리수'],
+        keywords: ['정수와 유리수'],
         mistakes: [
           '음수끼리의 곱셈/나눗셈 결과를 음수로 착각 (실제로는 양수)',
           '0을 양수 또는 음수로 분류함',
@@ -1483,7 +1483,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '문자의 사용과 식',
     mistakes: [
       {
-        keywords: ['문자의 사용과 식', '문자의', '사용과', '식'],
+        keywords: ['문자의 사용과 식', '문자와 식'],
         mistakes: [
           '문자에 음수 대입 시 괄호 누락 (x²에 x=-2 대입 시 -2² = -4로 계산)',
           '곱셈 기호 생략 규칙에서 숫자를 문자 뒤에 씀 (a×3을 a3으로 표기)',
@@ -1517,7 +1517,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '좌표와 그래프',
     mistakes: [
       {
-        keywords: ['좌표와 그래프', '좌표와', '그래프'],
+        keywords: ['좌표와 그래프', '좌표평면', '순서쌍'],
         mistakes: [
           '좌표 순서를 (y, x)로 잘못 씀',
           '사분면 번호를 시계 방향으로 착각 (실제로는 반시계 방향)',
@@ -1534,7 +1534,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '정비례와 반비례',
     mistakes: [
       {
-        keywords: ['정비례와 반비례', '정비례와', '반비례'],
+        keywords: ['정비례와 반비례', '정비례', '반비례'],
         mistakes: [
           '정비례 y=ax에서 a의 부호와 그래프 방향을 반대로 이해',
           '반비례 y=a/x의 그래프를 직선으로 그림',
@@ -1551,7 +1551,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '기본 도형',
     mistakes: [
       {
-        keywords: ['기본 도형', '기본', '도형'],
+        keywords: ['기본 도형', '동위각', '엇각', '맞꼭지각', '평행선'],
         mistakes: [
           '동위각과 엇각을 혼동하여 잘못된 각도 계산',
           '평행선이 아닌 상황에서 동위각/엇각이 같다고 가정',
@@ -1568,7 +1568,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '작도와 합동',
     mistakes: [
       {
-        keywords: ['작도와 합동', '작도와', '합동'],
+        keywords: ['작도와 합동', '삼각형의 합동'],
         mistakes: [
           '삼각형 합동 조건 SSA를 합동 조건으로 착각 (SSS, SAS, ASA만 가능)',
           '대응하는 변과 각의 순서를 틀리게 표기',
@@ -1585,7 +1585,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '평면도형의 성질',
     mistakes: [
       {
-        keywords: ['평면도형의 성질', '평면도형의', '성질'],
+        keywords: ['평면도형의 성질', '다각형의 내각', '다각형의 외각', '부채꼴'],
         mistakes: [
           '내각의 합 공식 180°×(n-2)에서 n 대신 변의 개수-1을 대입',
           '정다각형의 한 외각 크기를 구할 때 360°/n 대신 180°/n으로 계산',
@@ -1602,7 +1602,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '입체도형의 성질',
     mistakes: [
       {
-        keywords: ['입체도형의 성질', '입체도형의', '성질'],
+        keywords: ['입체도형의 성질', '다면체', '회전체', '원기둥', '원뿔'],
         mistakes: [
           '원기둥의 옆면을 원으로 착각 (실제로는 직사각형)',
           '원뿔의 전개도에서 부채꼴의 호의 길이와 밑면 둘레의 관계 무시',
@@ -1619,7 +1619,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '자료의 정리와 해석',
     mistakes: [
       {
-        keywords: ['자료의 정리와 해석', '자료의', '정리와', '해석'],
+        keywords: ['자료의 정리와 해석', '줄기와 잎', '히스토그램', '도수분포', '상대도수'],
         mistakes: [
           '줄기와 잎 그림에서 잎의 개수를 잘못 세어 도수 오류',
           '히스토그램에서 계급의 양 끝값 중복 처리 실수 (이상/미만 구분)',
@@ -1636,7 +1636,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '유리수와 순환소수',
     mistakes: [
       {
-        keywords: ['유리수와 순환소수', '유리수와', '순환소수'],
+        keywords: ['유리수와 순환소수', '순환소수', '유한소수'],
         mistakes: [
           '분모에 2, 5 외의 소인수가 있어도 유한소수로 판별',
           '순환소수를 분수로 바꿀 때 9의 개수와 0의 개수를 혼동',
@@ -1653,7 +1653,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '식의 계산',
     mistakes: [
       {
-        keywords: ['식의 계산', '식의', '계산'],
+        keywords: ['식의 계산', '지수법칙', '단항식', '다항식의 계산'],
         mistakes: [
           '지수법칙에서 aᵐ × aⁿ = aᵐˣⁿ으로 착각 (실제로는 aᵐ⁺ⁿ)',
           '(aᵐ)ⁿ = aᵐ⁺ⁿ으로 착각 (실제로는 aᵐˣⁿ)',
@@ -1704,7 +1704,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '일차함수와 그래프',
     mistakes: [
       {
-        keywords: ['일차함수와 그래프', '일차함수와', '그래프'],
+        keywords: ['일차함수와 그래프', '일차함수의 그래프', 'y=ax+b'],
         mistakes: [
           '기울기가 음수일 때 그래프가 오른쪽 위로 향하게 그림',
           'y절편을 x절편으로 착각하여 점의 위치 오류',
@@ -1721,7 +1721,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '일차함수와 일차방정식의 관계',
     mistakes: [
       {
-        keywords: ['일차함수와 일차방정식의 관계', '일차함수와', '일차방정식의', '관계'],
+        keywords: ['일차함수와 일차방정식의 관계', '두 직선의 위치관계'],
         mistakes: [
           '두 직선이 평행인데 기울기가 다르다고 판단',
           '연립방정식의 해와 두 직선의 교점이 다르다고 생각',
@@ -1738,7 +1738,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '삼각형의 성질',
     mistakes: [
       {
-        keywords: ['삼각형의 성질', '삼각형의', '성질'],
+        keywords: ['삼각형의 성질', '이등변삼각형', '외심', '내심', '직각삼각형의 외심'],
         mistakes: [
           '이등변삼각형에서 꼭지각의 이등분선이 밑변을 "이등분만" 한다고 생각 (수직이등분)',
           '외심과 내심의 정의를 반대로 기억',
@@ -1755,7 +1755,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '사각형의 성질',
     mistakes: [
       {
-        keywords: ['사각형의 성질', '사각형의', '성질'],
+        keywords: ['사각형의 성질', '평행사변형', '직사각형', '마름모', '정사각형'],
         mistakes: [
           '평행사변형의 조건 5가지 중 일부만 알고 있음',
           '직사각형의 대각선이 서로를 수직이등분한다고 착각 (이등분만 함)',
@@ -1772,7 +1772,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '도형의 닮음',
     mistakes: [
       {
-        keywords: ['도형의 닮음', '도형의', '닮음'],
+        keywords: ['도형의 닮음', '닮음비', '닮음의 활용'],
         mistakes: [
           '닮음비와 넓이비를 같다고 생각 (넓이비 = 닮음비²)',
           'AA 닮음에서 세 각이 모두 같아야 한다고 착각 (두 각만 같으면 됨)',
@@ -1789,7 +1789,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '피타고라스 정리',
     mistakes: [
       {
-        keywords: ['피타고라스 정리', '피타고라스', '정리'],
+        keywords: ['피타고라스 정리', '피타고라스'],
         mistakes: [
           '빗변이 아닌 변을 가장 긴 변으로 잡고 공식 적용',
           'a² + b² = c²에서 c를 임의의 변으로 설정',
@@ -1806,7 +1806,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '경우의 수',
     mistakes: [
       {
-        keywords: ['경우의 수', '경우의', '수'],
+        keywords: ['경우의 수', '합의 법칙', '곱의 법칙'],
         mistakes: [
           '합의 법칙(또는)과 곱의 법칙(그리고)을 반대로 적용',
           '중복되는 경우를 빼지 않고 합의 법칙 적용',
@@ -1840,7 +1840,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '제곱근과 실수',
     mistakes: [
       {
-        keywords: ['제곱근과 실수', '제곱근과', '실수'],
+        keywords: ['제곱근과 실수', '제곱근', '무리수'],
         mistakes: [
           '√4 = ±2로 착각 (√4 = 2, 4의 제곱근이 ±2)',
           '√a²을 항상 a로 계산 (a < 0이면 √a² = -a)',
@@ -1857,7 +1857,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '근호를 포함한 식의 계산',
     mistakes: [
       {
-        keywords: ['근호를 포함한 식의 계산', '근호를', '포함한', '식의', '계산'],
+        keywords: ['근호를 포함한 식의 계산', '분모의 유리화', '근호의 계산'],
         mistakes: [
           '√a + √b = √(a+b)로 착각 (틀림!)',
           '분모의 유리화에서 분자에 같은 수를 곱하지 않음',
@@ -1874,7 +1874,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '다항식의 곱셈',
     mistakes: [
       {
-        keywords: ['다항식의 곱셈', '다항식의', '곱셈'],
+        keywords: ['다항식의 곱셈', '곱셈 공식', '완전제곱식'],
         mistakes: [
           '(a+b)² = a² + b²로 착각 (중간항 2ab 누락)',
           '(a-b)² = a² - b²로 착각 ((a-b)(a+b) = a² - b²와 혼동)',
@@ -1908,7 +1908,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '이차방정식의 풀이',
     mistakes: [
       {
-        keywords: ['이차방정식의 풀이', '이차방정식의', '풀이'],
+        keywords: ['이차방정식의 풀이', '근의 공식', '판별식'],
         mistakes: [
           '근의 공식에서 분모 2a를 a로 착각',
           '판별식 D = b² - 4ac에서 부호 실수 (-4ac를 +4ac로)',
@@ -1925,7 +1925,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '이차방정식의 활용',
     mistakes: [
       {
-        keywords: ['이차방정식의 활용', '이차방정식의', '활용'],
+        keywords: ['이차방정식의 활용'],
         mistakes: [
           '문제에서 요구하는 것과 다른 값을 미지수로 설정',
           '이차방정식의 두 근 중 문제 조건에 맞지 않는 근을 답으로 선택',
@@ -1959,7 +1959,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '이차함수의 활용',
     mistakes: [
       {
-        keywords: ['이차함수의 활용', '이차함수의', '활용'],
+        keywords: ['이차함수의 활용', '이차함수와 최댓값', '이차함수와 최솟값'],
         mistakes: [
           '최댓값/최솟값이 항상 꼭짓점에서 나온다고 가정 (정의역 제한 시 다를 수 있음)',
           '이차함수와 x축의 교점 개수를 구할 때 판별식 부호 판단 오류',
@@ -1993,7 +1993,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '삼각비의 활용',
     mistakes: [
       {
-        keywords: ['삼각비의 활용', '삼각비의', '활용'],
+        keywords: ['삼각비의 활용', '높이 구하기', '거리 구하기'],
         mistakes: [
           '직각삼각형이 아닌 삼각형에 직접 삼각비 적용',
           '삼각형 넓이 공식 (1/2)ab sin C에서 1/2를 빠뜨림',
@@ -2010,7 +2010,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '원의 성질',
     mistakes: [
       {
-        keywords: ['원의 성질', '원의', '성질'],
+        keywords: ['원의 성질', '원주각', '중심각', '접선'],
         mistakes: [
           '원주각과 중심각의 관계에서 "절반"을 반대로 적용 (원주각 = 중심각의 절반)',
           '같은 호에 대한 원주각이 위치에 따라 다르다고 착각 (모두 같음)',
@@ -2214,7 +2214,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '경우의 수',
     mistakes: [
       {
-        keywords: ['경우의 수', '경우의', '수'],
+        keywords: ['경우의 수', '여사건'],
         mistakes: [
           '합의 법칙과 곱의 법칙을 상황에 맞지 않게 적용',
           '중복되는 경우를 제외하지 않음',
@@ -2231,7 +2231,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '순열과 조합',
     mistakes: [
       {
-        keywords: ['순열과 조합', '순열과', '조합'],
+        keywords: ['순열과 조합', '순열', '원순열'],
         mistakes: [
           '순서가 중요한 상황에서 조합(C)을 사용하거나 그 반대',
           '같은 것이 있는 순열에서 나누는 것을 잊음 (n!/p!q!...)',
@@ -2571,7 +2571,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '삼각함수의 활용',
     mistakes: [
       {
-        keywords: ['삼각함수의 활용', '삼각함수의', '활용'],
+        keywords: ['삼각함수의 활용', '사인법칙', '코사인법칙'],
         mistakes: [
           '사인법칙과 코사인법칙을 적용해야 할 상황을 혼동',
           '코사인법칙에서 부호 실수 (a² = b² + c² - 2bc cos A에서 -2bc를 +로)',
@@ -2707,7 +2707,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '도함수의 활용',
     mistakes: [
       {
-        keywords: ['도함수의 활용', '도함수의', '활용'],
+        keywords: ['도함수의 활용', '극대', '극소', '최댓값', '최솟값'],
         mistakes: [
           'f\'(a) = 0인 점이 항상 극값이라고 착각 (부호 변화 확인 필요)',
           '접선의 방정식에서 기울기를 f(a)로 착각 (f\'(a)가 맞음)',
@@ -2775,7 +2775,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '정적분의 활용',
     mistakes: [
       {
-        keywords: ['정적분의 활용', '정적분의', '활용'],
+        keywords: ['정적분의 활용', '넓이', '부피', '회전체의 부피'],
         mistakes: [
           '곡선이 x축 아래에 있는 부분을 양수로 계산 (절댓값 또는 음수 처리 필요)',
           '두 곡선 사이 넓이에서 위, 아래 곡선 구분 오류',
@@ -2792,7 +2792,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '순열과 조합',
     mistakes: [
       {
-        keywords: ['순열과 조합', '순열과', '조합'],
+        keywords: ['순열과 조합', '중복순열', '중복조합'],
         mistakes: [
           '중복순열 n^r과 중복조합 nHr = ₙ₊ᵣ₋₁Cᵣ를 혼동',
           '같은 것이 있는 순열에서 나누는 팩토리얼 개수 오류',
@@ -2826,7 +2826,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '확률의 뜻과 활용',
     mistakes: [
       {
-        keywords: ['확률의 뜻과 활용', '확률의', '뜻과', '활용'],
+        keywords: ['확률의 뜻과 활용', '덧셈정리', '곱셈정리'],
         mistakes: [
           '덧셈정리에서 P(A∩B)를 빼지 않음 (배반이 아닐 때)',
           '여사건 확률 P(A^c) = 1 - P(A)에서 부호 오류',
@@ -2979,7 +2979,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '도함수의 활용',
     mistakes: [
       {
-        keywords: ['도함수의 활용', '도함수의', '활용'],
+        keywords: ['도함수의 활용', '극대', '극소', '최댓값', '최솟값'],
         mistakes: [
           '변곡점 조건 f\'\'(x) = 0만 확인하고 f\'\'(x)의 부호 변화를 확인하지 않음',
           'f\'\'(x) > 0이면 위로 볼록이라고 착각 (아래로 볼록이 맞음)',
@@ -3013,7 +3013,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '정적분의 활용',
     mistakes: [
       {
-        keywords: ['정적분의 활용', '정적분의', '활용'],
+        keywords: ['정적분의 활용', '넓이', '부피', '회전체의 부피'],
         mistakes: [
           '회전체 부피 공식 π∫{f(x)}²dx에서 π를 빠뜨림',
           'x축 회전과 y축 회전의 공식을 혼동',
