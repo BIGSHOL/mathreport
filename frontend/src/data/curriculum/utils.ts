@@ -383,9 +383,16 @@ function buildKeywordToUnitMap(): Map<string, string> {
  * @returns 대단원명 또는 '기타'
  */
 export function getMajorUnitFromCurriculum(topic: string): string {
-  // 1. "대단원 > 중단원 > 소단원" 형태이면 첫 번째 부분 사용
+  // 1. "과목 > 대단원 > 소단원" 또는 "대단원 > 소단원" 형태 처리
   const parts = topic.split(' > ');
   if (parts.length >= 2) {
+    // 첫 번째 부분이 과목명인지 확인 (공통수학1, 공통수학2, 대수, 미적분 등)
+    const subjectNames = ['공통수학1', '공통수학2', '대수', '미적분', '미적분Ⅰ', '미적분Ⅱ', '확률과 통계', '기하'];
+    if (subjectNames.includes(parts[0].trim())) {
+      // 과목명이면 두 번째 부분이 대단원
+      return parts[1]?.trim() || parts[0].trim();
+    }
+    // 과목명이 아니면 첫 번째 부분이 대단원
     return parts[0].trim();
   }
 
