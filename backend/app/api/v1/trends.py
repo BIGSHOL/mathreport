@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.core.deps import CurrentUser, DbDep
 from app.db.supabase_client import SupabaseClient
+from app.services.subscription import get_subscription_service
 
 router = APIRouter(prefix="/trends", tags=["trends"])
 
@@ -86,6 +87,9 @@ class TrendsResponse(BaseModel):
     question_formats: list[QuestionFormatStat] = Field(description="문항 형식 분포")
     textbooks: list[TextbookStat] = Field(description="교과서별 통계")
     insights: TrendInsights | None = Field(None, description="AI 기반 인사이트 (선택적)")
+    # 크레딧 정보 (인사이트 생성 시)
+    credits_consumed: int = Field(default=0, description="소비된 크레딧")
+    credits_remaining: int | None = Field(default=None, description="남은 크레딧")
 
 
 # ============================================
@@ -244,18 +248,36 @@ async def get_trends(
             points = q.get("points", 0) or 0
             difficulty_points[diff].append(points)
 
-    difficulty_list = []
-    for diff in ["high", "medium", "low"]:
-        count = difficulty_counter.get(diff, 0)
-        percentage = (count / total_questions) * 100 if total_questions > 0 else 0
-        avg_pts = sum(difficulty_points[diff]) / len(difficulty_points[diff]) if difficulty_points[diff] else 0
+    # 4단계 시스템 감지 (concept, pattern, reasoning, creative 중 하나라도 있으면)
+    is_4level = any(d in difficulty_counter for d in ["concept", "pattern", "reasoning", "creative"])
 
-        difficulty_list.append(DifficultyTrendStat(
-            difficulty=diff,
-            count=count,
-            percentage=round(percentage, 1),
-            avg_points=round(avg_pts, 1)
-        ))
+    difficulty_list = []
+    if is_4level:
+        # 4단계 시스템
+        for diff in ["concept", "pattern", "reasoning", "creative"]:
+            count = difficulty_counter.get(diff, 0)
+            percentage = (count / total_questions) * 100 if total_questions > 0 else 0
+            avg_pts = sum(difficulty_points[diff]) / len(difficulty_points[diff]) if difficulty_points[diff] else 0
+
+            difficulty_list.append(DifficultyTrendStat(
+                difficulty=diff,
+                count=count,
+                percentage=round(percentage, 1),
+                avg_points=round(avg_pts, 1)
+            ))
+    else:
+        # 3단계 시스템 (하위 호환)
+        for diff in ["high", "medium", "low"]:
+            count = difficulty_counter.get(diff, 0)
+            percentage = (count / total_questions) * 100 if total_questions > 0 else 0
+            avg_pts = sum(difficulty_points[diff]) / len(difficulty_points[diff]) if difficulty_points[diff] else 0
+
+            difficulty_list.append(DifficultyTrendStat(
+                difficulty=diff,
+                count=count,
+                percentage=round(percentage, 1),
+                avg_points=round(avg_pts, 1)
+            ))
 
     # 문항 유형별 통계
     type_counter = Counter()
@@ -332,8 +354,30 @@ async def get_trends(
 
     # AI 인사이트 생성 (요청 시에만)
     insights_data = None
+    credits_consumed = 0
+    credits_remaining = None
+
     if with_insights:
         from app.services.agents.trends_insights_agent import get_trends_insights_agent
+
+        # 크레딧 차감
+        subscription_service = get_subscription_service(db)
+        consume_result = await subscription_service.consume_ai_insights(
+            user_id=current_user["id"],
+            insight_type="trends"
+        )
+
+        if not consume_result["success"]:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={
+                    "message": "크레딧이 부족합니다. AI 인사이트 생성에는 1크레딧이 필요합니다.",
+                    "credits_remaining": consume_result["credits_remaining"]
+                }
+            )
+
+        credits_consumed = consume_result["credits_consumed"]
+        credits_remaining = consume_result["credits_remaining"]
 
         try:
             agent = get_trends_insights_agent()
@@ -363,7 +407,7 @@ async def get_trends(
             )
         except Exception as e:
             print(f"[Trends] AI insights generation failed: {e}")
-            # 실패해도 통계는 반환
+            # 실패해도 통계는 반환 (크레딧은 이미 차감됨)
 
     # 응답 생성
     return TrendsResponse(
@@ -379,5 +423,7 @@ async def get_trends(
         question_types=types_list,
         question_formats=formats_list,
         textbooks=textbooks_list,
-        insights=insights_data
+        insights=insights_data,
+        credits_consumed=credits_consumed,
+        credits_remaining=credits_remaining
     )

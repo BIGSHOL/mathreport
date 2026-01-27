@@ -19,21 +19,7 @@ export const EssayAnalysisSection = memo(function EssayAnalysisSection({
     [questions]
   );
 
-  // 서술형 문항이 없으면 렌더링하지 않음
-  if (essayQuestions.length === 0) {
-    return null;
-  }
-
-  // 총 문항 수 및 배점
-  const totalQuestions = questions.length;
-  const totalPoints = questions.reduce((sum, q) => sum + (q.points || 0), 0);
-  const essayPoints = essayQuestions.reduce((sum, q) => sum + (q.points || 0), 0);
-
-  // 서술형 비율
-  const essayPercentage = (essayQuestions.length / totalQuestions) * 100;
-  const essayPointsPercentage = totalPoints > 0 ? (essayPoints / totalPoints) * 100 : 0;
-
-  // 난이도 분포 계산
+  // 난이도 분포 계산 (hooks는 early return 전에 호출되어야 함)
   const difficultyDist = useMemo(() => {
     const dist = {
       concept: 0,
@@ -104,6 +90,20 @@ export const EssayAnalysisSection = memo(function EssayAnalysisSection({
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5); // 상위 5개만
   }, [essayQuestions]);
+
+  // 서술형 문항이 없으면 렌더링하지 않음 (모든 hooks 호출 후 early return)
+  if (essayQuestions.length === 0) {
+    return null;
+  }
+
+  // 총 문항 수 및 배점 (부동소수점 오류 방지를 위해 반올림)
+  const totalQuestions = questions.length;
+  const totalPoints = Math.round(questions.reduce((sum, q) => sum + (q.points || 0), 0) * 10) / 10;
+  const essayPoints = Math.round(essayQuestions.reduce((sum, q) => sum + (q.points || 0), 0) * 10) / 10;
+
+  // 서술형 비율
+  const essayPercentage = (essayQuestions.length / totalQuestions) * 100;
+  const essayPointsPercentage = totalPoints > 0 ? (essayPoints / totalPoints) * 100 : 0;
 
   return (
     <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg p-6 mb-4 border-2 border-amber-200">

@@ -34,15 +34,26 @@ export function Layout() {
                                         >
                                             시험지 관리
                                         </Link>
-                                        <Link
-                                            to="/trends"
-                                            className={`${isActive('/trends')
-                                                ? 'border-indigo-500 text-gray-900'
-                                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                                                } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
-                                        >
-                                            출제 경향
-                                        </Link>
+                                        {/* 출제 경향: 마스터 계정만 활성화, 일반 사용자는 비활성 표시 */}
+                                        {user?.role === 'admin' ? (
+                                            <Link
+                                                to="/trends"
+                                                className={`${isActive('/trends')
+                                                    ? 'border-indigo-500 text-gray-900'
+                                                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                                                    } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
+                                            >
+                                                출제 경향
+                                            </Link>
+                                        ) : (
+                                            <span
+                                                className="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-gray-300 cursor-not-allowed"
+                                                title="데이터 누적 후 오픈 예정"
+                                            >
+                                                출제 경향
+                                                <span className="ml-1 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">준비중</span>
+                                            </span>
+                                        )}
                                     </>
                                 )}
                                 <Link

@@ -18,12 +18,13 @@ export function useExams(page = 1, pageSize = 100) {
     () => examService.getList(page, pageSize),
     {
       revalidateOnFocus: false,
-      revalidateOnMount: true, // 마운트 시 항상 최신 데이터 fetch (뒤로가기 시 stale 방지)
-      dedupingInterval: 2000, // 중복 요청 방지 간격 (2초)
-      // 분석 중인 exam이 있으면 5초마다 폴링 (백엔드 부하 감소)
+      revalidateOnReconnect: false,
+      revalidateIfStale: false, // stale 데이터여도 자동 재요청 안함
+      dedupingInterval: 10000, // 중복 요청 방지 간격 (10초)
+      // 분석 중인 exam이 있을 때만 10초마다 폴링
       refreshInterval: (latestData) => {
         const hasAnalyzing = latestData?.data?.some((exam) => exam.status === 'analyzing');
-        return hasAnalyzing ? 5000 : 0;
+        return hasAnalyzing ? 10000 : 0;
       },
     }
   );

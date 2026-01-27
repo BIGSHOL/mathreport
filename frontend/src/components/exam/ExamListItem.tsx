@@ -2,10 +2,46 @@
  * Exam list item component - 분석 요약 포함
  * Implements: rerender-memo (memoized component)
  */
-import { memo, useState, useEffect, useRef, useCallback } from 'react';
+import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import type { Exam } from '../../services/exam';
 import { calculateDifficultyGrade } from '../../styles/tokens';
+
+// 출제범위를 대단원 > 중단원 > 소단원으로 파싱
+function parseExamScope(scope: string[]): Map<string, Map<string, string[]>> {
+  const hierarchy = new Map<string, Map<string, string[]>>();
+
+  scope.forEach(item => {
+    const parts = item.split(' > ');
+    if (parts.length >= 3) {
+      const [major, middle, minor] = parts;
+      if (!hierarchy.has(major)) {
+        hierarchy.set(major, new Map());
+      }
+      const middleMap = hierarchy.get(major)!;
+      if (!middleMap.has(middle)) {
+        middleMap.set(middle, []);
+      }
+      middleMap.get(middle)!.push(minor);
+    } else if (parts.length === 2) {
+      const [major, middle] = parts;
+      if (!hierarchy.has(major)) {
+        hierarchy.set(major, new Map());
+      }
+      const middleMap = hierarchy.get(major)!;
+      if (!middleMap.has(middle)) {
+        middleMap.set(middle, []);
+      }
+    } else {
+      // 단일 항목
+      if (!hierarchy.has(item)) {
+        hierarchy.set(item, new Map());
+      }
+    }
+  });
+
+  return hierarchy;
+}
 
 interface ExamListItemProps {
   exam: Exam;
@@ -66,6 +102,17 @@ export const ExamListItem = memo(function ExamListItem({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // 출제범위 툴팁 상태
+  const [showScopeTooltip, setShowScopeTooltip] = useState(false);
+  const [scopeTooltipPos, setScopeTooltipPos] = useState({ top: 0, left: 0 });
+  const scopeBadgeRef = useRef<HTMLSpanElement>(null);
+
+  // 출제범위 파싱 (memoized)
+  const parsedScope = useMemo(() => {
+    if (!exam.exam_scope || exam.exam_scope.length === 0) return null;
+    return parseExamScope(exam.exam_scope);
+  }, [exam.exam_scope]);
+
   // 드롭다운 위치 계산
   const updateDropdownPosition = useCallback(() => {
     if (buttonRef.current) {
@@ -85,6 +132,31 @@ export const ExamListItem = memo(function ExamListItem({
         });
       }
     }
+  }, []);
+
+  // 출제범위 툴팁 위치 계산
+  const updateScopeTooltipPosition = useCallback(() => {
+    if (scopeBadgeRef.current) {
+      const rect = scopeBadgeRef.current.getBoundingClientRect();
+      const tooltipWidth = 320;
+      const tooltipHeight = 300;
+      const spaceBelow = window.innerHeight - rect.bottom;
+
+      setScopeTooltipPos({
+        top: spaceBelow >= tooltipHeight ? rect.bottom + 8 : rect.top - tooltipHeight - 8,
+        left: Math.min(rect.left, window.innerWidth - tooltipWidth - 16),
+      });
+    }
+  }, []);
+
+  // 출제범위 툴팁 마우스 이벤트
+  const handleScopeMouseEnter = useCallback(() => {
+    updateScopeTooltipPosition();
+    setShowScopeTooltip(true);
+  }, [updateScopeTooltipPosition]);
+
+  const handleScopeMouseLeave = useCallback(() => {
+    setShowScopeTooltip(false);
   }, []);
 
   // 외부 클릭 시 드롭다운 닫기
@@ -293,15 +365,73 @@ export const ExamListItem = memo(function ExamListItem({
                 </span>
               )}
               {exam.exam_scope && exam.exam_scope.length > 0 && (
-                <span
-                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100 cursor-help"
-                  title={`출제범위: ${exam.exam_scope.join(', ')}`}
-                >
-                  <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                  출제범위 {exam.exam_scope.length}개
-                </span>
+                <>
+                  <span
+                    ref={scopeBadgeRef}
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100 cursor-help transition-colors hover:bg-amber-100"
+                    onMouseEnter={handleScopeMouseEnter}
+                    onMouseLeave={handleScopeMouseLeave}
+                  >
+                    <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    출제범위 {exam.exam_scope.length}개
+                  </span>
+
+                  {/* 출제범위 계층 툴팁 */}
+                  {showScopeTooltip && parsedScope && createPortal(
+                    <div
+                      className="fixed z-[9999] w-80 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
+                      style={{ top: scopeTooltipPos.top, left: scopeTooltipPos.left }}
+                      onMouseEnter={handleScopeMouseEnter}
+                      onMouseLeave={handleScopeMouseLeave}
+                    >
+                      <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100">
+                        <h4 className="font-semibold text-amber-800 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          출제범위 ({exam.exam_scope.length}개 단원)
+                        </h4>
+                      </div>
+                      <div className="p-3 max-h-64 overflow-y-auto">
+                        {Array.from(parsedScope.entries()).map(([major, middleMap]) => (
+                          <div key={major} className="mb-3 last:mb-0">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="w-2 h-2 rounded-full bg-amber-500" />
+                              <span className="font-semibold text-sm text-gray-800">{major}</span>
+                            </div>
+                            {middleMap.size > 0 && (
+                              <div className="ml-4 space-y-1.5">
+                                {Array.from(middleMap.entries()).map(([middle, minors]) => (
+                                  <div key={middle} className="text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                      <span className="text-gray-700">{middle}</span>
+                                    </div>
+                                    {minors.length > 0 && (
+                                      <div className="ml-4 mt-1 flex flex-wrap gap-1">
+                                        {minors.map((minor, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full"
+                                          >
+                                            {minor}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>,
+                    document.body
+                  )}
+                </>
               )}
             </div>
           )}

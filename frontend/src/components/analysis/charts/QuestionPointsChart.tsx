@@ -67,6 +67,7 @@ export const QuestionPointsChart = memo(function QuestionPointsChart({
           points: q.points,
           difficultyScore,
           difficulty: q.difficulty,
+          format: q.question_format,
         };
       });
 
@@ -80,8 +81,15 @@ export const QuestionPointsChart = memo(function QuestionPointsChart({
     return null;
   }
 
-  // 평균 배점 계산
-  const avgPoints = (data.reduce((sum, d) => sum + d.points, 0) / data.length).toFixed(1);
+  // 객관식/서술형 평균 배점 계산
+  const objectiveItems = data.filter((d) => d.format === 'objective');
+  const essayItems = data.filter((d) => d.format === 'essay' || d.format === 'short_answer');
+  const avgObjective = objectiveItems.length > 0
+    ? (objectiveItems.reduce((sum, d) => sum + d.points, 0) / objectiveItems.length).toFixed(1)
+    : null;
+  const avgEssay = essayItems.length > 0
+    ? (essayItems.reduce((sum, d) => sum + d.points, 0) / essayItems.length).toFixed(1)
+    : null;
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
@@ -94,13 +102,20 @@ export const QuestionPointsChart = memo(function QuestionPointsChart({
           </div>
           <h3 className="text-sm font-semibold text-gray-800">문항별 배점</h3>
         </div>
-        <div className="flex items-center gap-3 text-[10px]">
-          <span className="text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
-            평균 {avgPoints}점
-          </span>
+        <div className="flex items-center gap-2 text-[10px]">
+          {avgObjective && (
+            <span className="text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+              객관식 {avgObjective}점
+            </span>
+          )}
+          {avgEssay && (
+            <span className="text-gray-500 bg-blue-50 px-2 py-0.5 rounded-full">
+              서술형 {avgEssay}점
+            </span>
+          )}
           {data.length > 25 && (
             <span className="text-amber-600">
-              {data.length}문항 중 25개 표시
+              {data.length}문항 중 25개
             </span>
           )}
         </div>

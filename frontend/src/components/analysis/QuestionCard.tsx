@@ -161,7 +161,7 @@ export const QuestionCard = memo(function QuestionCard({
       </td>
 
       {/* 유형 */}
-      <td className="px-3 py-2 whitespace-nowrap">
+      <td className="px-3 py-2 text-center whitespace-nowrap">
         <span className="text-sm text-gray-700">
           {getQuestionTypeLabel(q.question_type)}
         </span>

@@ -42,6 +42,8 @@ export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart
       (q) => ['concept', 'pattern', 'reasoning', 'creative'].includes(q.difficulty)
     );
 
+    const totalCount = sortedQuestions.length;
+
     sortedQuestions.forEach((q, idx) => {
       const points = q.points || 0;
 
@@ -49,29 +51,32 @@ export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart
         cumulative[q.difficulty as keyof typeof cumulative] += points;
       }
 
-      // 5문항마다 또는 마지막 문항에 데이터 포인트 추가
+      // 5문항마다 또는 마지막 문항에 데이터 포인트 추가 (부동소수점 오류 방지를 위해 반올림)
       if ((idx + 1) % 5 === 0 || idx === sortedQuestions.length - 1) {
+        const round = (v: number) => Math.round(v * 10) / 10;
         result.push({
-          range: `~${q.question_number}`,
+          range: `(${idx + 1}/${totalCount})`,
           ...(is4Level
             ? {
-                개념: cumulative.concept,
-                유형: cumulative.pattern,
-                심화: cumulative.reasoning,
-                최상위: cumulative.creative,
+                개념: round(cumulative.concept),
+                유형: round(cumulative.pattern),
+                심화: round(cumulative.reasoning),
+                최상위: round(cumulative.creative),
               }
             : {
-                하: cumulative.low,
-                중: cumulative.medium,
-                상: cumulative.high,
+                하: round(cumulative.low),
+                중: round(cumulative.medium),
+                상: round(cumulative.high),
               }),
         });
       }
     });
 
+    // 부동소수점 오류 방지를 위해 반올림
+    const round = (v: number) => Math.round(v * 10) / 10;
     const totals = is4Level
-      ? { 개념: cumulative.concept, 유형: cumulative.pattern, 심화: cumulative.reasoning, 최상위: cumulative.creative }
-      : { 하: cumulative.low, 중: cumulative.medium, 상: cumulative.high };
+      ? { 개념: round(cumulative.concept), 유형: round(cumulative.pattern), 심화: round(cumulative.reasoning), 최상위: round(cumulative.creative) }
+      : { 하: round(cumulative.low), 중: round(cumulative.medium), 상: round(cumulative.high) };
 
     return { data: result, is4Level, totals };
   }, [questions]);
@@ -80,8 +85,8 @@ export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart
     return null;
   }
 
-  // 총점 계산
-  const totalPoints = Object.values(totals).reduce((a, b) => a + b, 0);
+  // 총점 계산 (부동소수점 오류 방지)
+  const totalPoints = Math.round(Object.values(totals).reduce((a, b) => a + b, 0) * 10) / 10;
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
@@ -99,41 +104,55 @@ export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart
         </span>
       </div>
 
-      {/* 미니 레전드 */}
+      {/* 미니 레전드 - 0인 항목 숨김 */}
       <div className="flex gap-3 mb-2 text-[10px]">
         {is4Level ? (
           <>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.concept.bg }} />
-              <span className="text-gray-500">개념</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.pattern.bg }} />
-              <span className="text-gray-500">유형</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.reasoning.bg }} />
-              <span className="text-gray-500">심화</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.creative.bg }} />
-              <span className="text-gray-500">최상위</span>
-            </span>
+            {totals.개념 > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.concept.bg }} />
+                <span className="text-gray-500">개념</span>
+              </span>
+            )}
+            {totals.유형 > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.pattern.bg }} />
+                <span className="text-gray-500">유형</span>
+              </span>
+            )}
+            {totals.심화 > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.reasoning.bg }} />
+                <span className="text-gray-500">심화</span>
+              </span>
+            )}
+            {totals.최상위 > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.creative.bg }} />
+                <span className="text-gray-500">최상위</span>
+              </span>
+            )}
           </>
         ) : (
           <>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
-              <span className="text-gray-500">하</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
-              <span className="text-gray-500">중</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
-              <span className="text-gray-500">상</span>
-            </span>
+            {totals.하 > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
+                <span className="text-gray-500">하</span>
+              </span>
+            )}
+            {totals.중 > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
+                <span className="text-gray-500">중</span>
+              </span>
+            )}
+            {totals.상 > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
+                <span className="text-gray-500">상</span>
+              </span>
+            )}
           </>
         )}
       </div>
@@ -141,7 +160,7 @@ export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart
       <ResponsiveContainer width="100%" height={180}>
         <AreaChart
           data={data}
-          margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+          margin={{ top: 5, right: 5, left: 0, bottom: 0 }}
         >
           <defs>
             {is4Level ? (
@@ -180,7 +199,7 @@ export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart
               </>
             )}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={true} />
           <XAxis
             dataKey="range"
             tick={{ fill: '#9ca3af', fontSize: 9 }}
@@ -194,29 +213,40 @@ export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart
             width={30}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: 'white',
-              border: 'none',
-              borderRadius: '10px',
-              padding: '8px 12px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-              fontSize: '12px',
+            content={({ active, payload, label }) => {
+              if (!active || !payload) return null;
+              // 0이 아닌 항목만 필터링
+              const filtered = payload.filter((p: any) => p.value > 0);
+              if (filtered.length === 0) return null;
+              // 총점 계산 (부동소수점 오류 방지)
+              const total = Math.round(filtered.reduce((sum: number, p: any) => sum + (p.value || 0), 0) * 10) / 10;
+              return (
+                <div className="bg-white rounded-lg shadow-lg px-3 py-2 border-0" style={{ fontSize: '12px' }}>
+                  <p className="font-semibold mb-1">{label}</p>
+                  {filtered.map((p: any) => (
+                    <p key={p.dataKey} style={{ color: p.color }}>
+                      {p.dataKey} : {p.value}점
+                    </p>
+                  ))}
+                  <p className="font-semibold mt-1 pt-1 border-t border-gray-200 text-gray-700">
+                    총점 : {total}점
+                  </p>
+                </div>
+              );
             }}
-            formatter={(value: number | undefined) => value != null ? `${value}점` : ''}
-            labelStyle={{ fontWeight: 600, marginBottom: '4px' }}
           />
           {is4Level ? (
             <>
-              <Area type="monotone" dataKey="개념" stackId="1" stroke={DIFFICULTY_COLORS.concept.bg} fill="url(#gradConcept)" strokeWidth={0} />
-              <Area type="monotone" dataKey="유형" stackId="1" stroke={DIFFICULTY_COLORS.pattern.bg} fill="url(#gradPattern)" strokeWidth={0} />
-              <Area type="monotone" dataKey="심화" stackId="1" stroke={DIFFICULTY_COLORS.reasoning.bg} fill="url(#gradReasoning)" strokeWidth={0} />
-              <Area type="monotone" dataKey="최상위" stackId="1" stroke={DIFFICULTY_COLORS.creative.bg} fill="url(#gradCreative)" strokeWidth={0} />
+              {totals.개념 > 0 && <Area type="monotone" dataKey="개념" stackId="1" stroke={DIFFICULTY_COLORS.concept.bg} fill="url(#gradConcept)" strokeWidth={0} />}
+              {totals.유형 > 0 && <Area type="monotone" dataKey="유형" stackId="1" stroke={DIFFICULTY_COLORS.pattern.bg} fill="url(#gradPattern)" strokeWidth={0} />}
+              {totals.심화 > 0 && <Area type="monotone" dataKey="심화" stackId="1" stroke={DIFFICULTY_COLORS.reasoning.bg} fill="url(#gradReasoning)" strokeWidth={0} />}
+              {totals.최상위 > 0 && <Area type="monotone" dataKey="최상위" stackId="1" stroke={DIFFICULTY_COLORS.creative.bg} fill="url(#gradCreative)" strokeWidth={0} />}
             </>
           ) : (
             <>
-              <Area type="monotone" dataKey="하" stackId="1" stroke={DIFFICULTY_COLORS.low.bg} fill="url(#gradLow)" strokeWidth={0} />
-              <Area type="monotone" dataKey="중" stackId="1" stroke={DIFFICULTY_COLORS.medium.bg} fill="url(#gradMedium)" strokeWidth={0} />
-              <Area type="monotone" dataKey="상" stackId="1" stroke={DIFFICULTY_COLORS.high.bg} fill="url(#gradHigh)" strokeWidth={0} />
+              {totals.하 > 0 && <Area type="monotone" dataKey="하" stackId="1" stroke={DIFFICULTY_COLORS.low.bg} fill="url(#gradLow)" strokeWidth={0} />}
+              {totals.중 > 0 && <Area type="monotone" dataKey="중" stackId="1" stroke={DIFFICULTY_COLORS.medium.bg} fill="url(#gradMedium)" strokeWidth={0} />}
+              {totals.상 > 0 && <Area type="monotone" dataKey="상" stackId="1" stroke={DIFFICULTY_COLORS.high.bg} fill="url(#gradHigh)" strokeWidth={0} />}
             </>
           )}
         </AreaChart>

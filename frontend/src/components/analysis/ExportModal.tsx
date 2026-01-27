@@ -12,6 +12,8 @@ import { createPortal } from 'react-dom';
 import type { AnalysisResult } from '../../services/analysis';
 import { DIFFICULTY_COLORS } from '../../styles/tokens';
 import { toPng } from 'html-to-image';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { DetailedTemplate } from './templates/DetailedTemplate';
 
 type ChartMode = 'bar' | 'donut';
@@ -24,8 +26,6 @@ interface ExportModalProps {
   examGrade?: string;
   examSubject?: string;
   isAnswered?: boolean;
-  onExport: (format: 'html' | 'image', sections: string[]) => Promise<void>;
-  isExporting?: boolean;
 }
 
 export function ExportModal({
@@ -36,9 +36,8 @@ export function ExportModal({
   examGrade,
   examSubject = '수학',
   isAnswered = false,
-  onExport,
-  isExporting = false,
 }: ExportModalProps) {
+  const [isExporting, setIsExporting] = useState(false);
   // 섹션 선택
   const [showHeader, setShowHeader] = useState(true);
   const [showSummary, setShowSummary] = useState(true);
@@ -84,6 +83,7 @@ export function ExportModal({
 
   const handleImageDownload = async () => {
     if (previewRef.current) {
+      setIsExporting(true);
       try {
         // html-to-image를 사용하여 최신 CSS(oklch 등) 지원
         const dataUrl = await toPng(previewRef.current, {
@@ -99,26 +99,71 @@ export function ExportModal({
       } catch (err) {
         console.error('Image export failed:', err);
         alert(`이미지 내보내기에 실패했습니다: ${err}`);
+      } finally {
+        setIsExporting(false);
       }
       return;
     }
   };
 
-  const handleExport = async (format: 'html' | 'image') => {
-    if (format === 'image' && previewRef.current) {
-      await handleImageDownload();
-      return;
-    }
+  const handlePdfDownload = async () => {
+    if (!previewRef.current) return;
 
-    const sections: string[] = [];
-    if (showHeader) sections.push('header');
-    if (showSummary) sections.push('summary');
-    if (showDifficulty) sections.push('difficulty');
-    if (showType) sections.push('type');
-    if (showTopic) sections.push('topic');
-    if (showQuestions) sections.push('questions');
-    if (showComments) sections.push('comments');
-    await onExport(format, sections);
+    setIsExporting(true);
+    try {
+      // html2canvas로 캡처 (고해상도)
+      const canvas = await html2canvas(previewRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+
+      // A4 크기 (mm)
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const margin = 10;
+
+      // 이미지 비율 계산
+      const contentWidth = pdfWidth - (margin * 2);
+      const ratio = contentWidth / imgWidth;
+      const scaledHeight = imgHeight * ratio;
+
+      // PDF 생성
+      const pdf = new jsPDF({
+        orientation: scaledHeight > pdfHeight - (margin * 2) ? 'portrait' : 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      // 여러 페이지가 필요한 경우 처리
+      const pageHeight = pdfHeight - (margin * 2);
+      let heightLeft = scaledHeight;
+      let position = margin;
+
+      // 첫 페이지
+      pdf.addImage(imgData, 'PNG', margin, position, contentWidth, scaledHeight);
+      heightLeft -= pageHeight;
+
+      // 추가 페이지
+      while (heightLeft > 0) {
+        position = margin - (scaledHeight - heightLeft);
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', margin, position, contentWidth, scaledHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`${examTitle}_분석보고서.pdf`);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      alert(`PDF 내보내기에 실패했습니다: ${err}`);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const selectAllComments = () => {
@@ -321,7 +366,7 @@ export function ExportModal({
           {/* 푸터 */}
           <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50">
             <div className="text-sm text-gray-500">
-              미리보기는 실제 출력과 다를 수 있습니다
+              미리보기 그대로 내보내집니다
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -331,17 +376,17 @@ export function ExportModal({
                 취소
               </button>
               <button
-                onClick={() => handleExport('html')}
+                onClick={handlePdfDownload}
                 disabled={isExporting}
-                className="px-5 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                className="px-5 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
-                {isExporting ? '내보내는 중...' : 'HTML 다운로드'}
+                {isExporting ? '내보내는 중...' : 'PDF 다운로드'}
               </button>
               <button
-                onClick={() => handleExport('image')}
+                onClick={handleImageDownload}
                 disabled={isExporting}
                 className="px-5 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-2"
               >

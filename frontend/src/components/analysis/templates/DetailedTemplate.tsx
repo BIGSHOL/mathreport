@@ -22,7 +22,7 @@ import { EssayAnalysisSection } from '../EssayAnalysisSection';
 import { DiscriminationAnalysis } from '../DiscriminationAnalysis';
 import { TabGroup, type Tab } from '../../ui/TabGroup';
 import { FEATURE_FLAGS } from '../../../lib/featureFlags';
-import { DIFFICULTY_COLORS, getQuestionTypeLabel } from '../../../styles/tokens';
+import { DIFFICULTY_COLORS, QUESTION_TYPE_COLORS } from '../../../styles/tokens';
 
 type ViewMode = 'basic' | 'comments' | 'answers' | 'extended';
 
@@ -142,7 +142,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
             <span>·</span>
             <span>총 {questions.length}문항</span>
             <span>·</span>
-            <span>{questions.reduce((sum, q) => sum + (q.points || 0), 0)}점 만점</span>
+            <span>{Math.round(questions.reduce((sum, q) => sum + (q.points || 0), 0) * 10) / 10}점 만점</span>
           </div>
         </div>
       )}
@@ -278,7 +278,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
           {/* 고급 인사이트 차트 (Recharts) */}
           {isSectionVisible('showType') && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-              <TypeRadarChart distribution={summary.type_distribution} />
+              <TypeRadarChart distribution={summary.type_distribution} isExport={isExport} />
               <DifficultyPointsAreaChart questions={questions} />
             </div>
           )}
@@ -309,14 +309,14 @@ export const DetailedTemplate = memo(function DetailedTemplate({
                 <table className="w-full">
                   <thead className="bg-gray-50 text-xs text-gray-500 whitespace-nowrap">
                     <tr>
-                      <th className="px-3 py-2 text-center w-16">번호</th>
+                      <th className="px-3 py-2 text-center w-14">번호</th>
                       <th className="px-3 py-2 text-center w-16">난이도</th>
-                      <th className="px-3 py-2 text-left w-28">유형</th>
+                      <th className="px-3 py-2 text-center w-20">유형</th>
                       <th className="px-3 py-2 text-left">단원</th>
-                      <th className="px-3 py-2 text-right w-16">배점</th>
+                      <th className="px-3 py-2 text-right w-14">배점</th>
                       {/* 내보내기 시 신뢰도와 피드백 숨김 */}
-                      {!isExport && <th className="px-3 py-2 text-center w-20">신뢰도</th>}
-                      {!isExport && <th className="px-3 py-2 text-center w-20">피드백</th>}
+                      {!isExport && <th className="px-3 py-2 text-center w-16">신뢰도</th>}
+                      {!isExport && <th className="px-3 py-2 text-center w-16">피드백</th>}
                     </tr>
                   </thead>
                   <tbody className="text-sm">
@@ -381,10 +381,8 @@ export const DetailedTemplate = memo(function DetailedTemplate({
               <table className="w-full">
                 <thead className="bg-gray-50 text-xs text-gray-500 whitespace-nowrap">
                   <tr>
-                    <th className="px-3 py-2 text-center w-20">번호</th>
-                    <th className="px-3 py-2 text-center w-14">난이도</th>
-                    <th className="px-3 py-2 text-left w-16">유형</th>
-                    <th className="px-3 py-2 text-left w-32">단원</th>
+                    <th className="px-3 py-2 text-center w-16">번호</th>
+                    <th className="px-3 py-2 text-left w-40">단원</th>
                     <th className="px-3 py-2 text-left">AI 코멘트</th>
                     {!isExport && <th className="px-3 py-2 text-center w-20">피드백</th>}
                   </tr>
@@ -395,42 +393,33 @@ export const DetailedTemplate = memo(function DetailedTemplate({
                       <td className="px-3 py-2 text-center whitespace-nowrap">
                         <span className="font-semibold text-gray-700">{q.question_number}</span>
                       </td>
-                      <td className="px-3 py-2 text-center">
-                        {(() => {
-                          const diffConfig = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || DIFFICULTY_COLORS.pattern;
-                          return (
-                            <span
-                              className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-bold text-white"
-                              style={{ backgroundColor: diffConfig.bg }}
-                            >
-                              {diffConfig.label}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
-                        {getQuestionTypeLabel(q.question_type)}
-                      </td>
-                      <td className="px-3 py-2 text-gray-600">
+                      <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
                         {q.topic?.split(' > ').pop() || '-'}
                       </td>
                       <td className="px-3 py-2">
-                        {showDifficultyReason && q.difficulty_reason && (() => {
+                        {showAiComment && (() => {
                           const diffConfig = DIFFICULTY_COLORS[q.difficulty as keyof typeof DIFFICULTY_COLORS] || DIFFICULTY_COLORS.pattern;
+                          const typeConfig = QUESTION_TYPE_COLORS[q.question_type] || { color: '#9ca3af', label: q.question_type };
                           return (
-                            <p className="text-xs text-gray-500 mb-1">
+                            <p className="text-gray-700">
                               <span
-                                className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1"
+                                className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1 align-middle"
                                 style={{ backgroundColor: `${diffConfig.bg}20`, color: diffConfig.bg }}
                               >
                                 {diffConfig.label}
                               </span>
-                              {q.difficulty_reason}
+                              <span
+                                className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1.5 align-middle"
+                                style={{ backgroundColor: `${typeConfig.color}20`, color: typeConfig.color }}
+                              >
+                                {typeConfig.label}
+                              </span>
+                              {q.ai_comment}
                             </p>
                           );
                         })()}
-                        {showAiComment && (
-                          <p className="text-gray-700">{q.ai_comment}</p>
+                        {showDifficultyReason && q.difficulty_reason && (
+                          <p className="text-xs text-gray-500 mt-1">{q.difficulty_reason}</p>
                         )}
                       </td>
                       {!isExport && (

@@ -262,34 +262,78 @@ class AnalysisErrorResponse(BaseModel):
 # ============================================
 
 
+class NotableQuestion(BaseModel):
+    """주목할 문항"""
+    question_number: int | str = Field(description="문항 번호")
+    reason: str = Field(description="주목 이유")
+    tag: str = Field(description="태그 (고배점, 함정, 시간주의 등)")
+
+
+class TopicPriority(BaseModel):
+    """학습 우선순위"""
+    topic: str = Field(description="단원명")
+    question_count: int = Field(description="문항 수")
+    total_points: float = Field(description="총 배점")
+    priority: int = Field(description="우선순위 (1이 가장 높음)")
+
+
 class ExamCommentary(BaseModel):
     """AI 시험 총평
 
     시험 전체에 대한 AI 종합 평가 및 분석
+    - 중복 정보(난이도%, 서술형%) 대신 고유 인사이트 제공
     """
 
-    overall_assessment: str = Field(
-        description="전체 평가 (시험의 전반적인 특징과 수준)"
+    # 종합 요약 (분석 결과를 3줄 내외로 요약)
+    overview_summary: str | None = Field(
+        None,
+        description="시험 분석 종합 요약 (문항수, 서술형 비율, 난이도, 집중 단원 등 핵심 정보)"
     )
-    difficulty_balance: str = Field(
-        description="난이도 균형 분석 (출제 난이도 분포와 적절성)"
+
+    # 핵심: 출제 의도 추론 (새로운 고유 가치)
+    exam_intent: str = Field(
+        description="출제 의도 추론 (상위권 변별, 기초 확인, 균형 평가 등)"
     )
-    question_quality: str = Field(
-        description="문항 품질 평가 (변별력, 타당성, 적절성)"
+
+    # 주목할 문항 (고배점, 함정, 시간배분 주의 등)
+    notable_questions: list[NotableQuestion] = Field(
+        default_factory=list,
+        description="주목할 문항 목록 (최대 5개)"
     )
+
+    # 단원별 학습 우선순위
+    topic_priorities: list[TopicPriority] = Field(
+        default_factory=list,
+        description="단원별 학습 우선순위 (배점 기준, 최대 5개)"
+    )
+
+    # 핵심 인사이트 (기존 유지, 내용 개선)
     key_insights: list[str] = Field(
-        description="핵심 인사이트 (주요 출제 특징 3-5개)"
+        default_factory=list,
+        description="핵심 인사이트 (중복되지 않는 고유 특징 3-5개)"
     )
-    recommendations: list[str] = Field(
-        description="개선 권장사항 (출제자 관점, 빈 시험지인 경우)"
+
+    # 전략적 조언
+    strategic_advice: str | None = Field(
+        None,
+        description="전략적 조언 (시간 배분, 풀이 순서 등)"
     )
+
+    # 학습 가이던스 (답안지용)
     study_guidance: list[str] | None = Field(
         None,
         description="학습 가이던스 (학생 관점, 답안지인 경우)"
     )
+
     generated_at: datetime | str = Field(
         description="총평 생성 시각"
     )
+
+    # 하위 호환성을 위해 기존 필드 유지 (deprecated)
+    overall_assessment: str | None = Field(None, description="[deprecated] 전체 평가")
+    difficulty_balance: str | None = Field(None, description="[deprecated] 난이도 균형")
+    question_quality: str | None = Field(None, description="[deprecated] 문항 품질")
+    recommendations: list[str] | None = Field(None, description="[deprecated] 개선 권장사항")
 
     model_config = ConfigDict(from_attributes=True)
 

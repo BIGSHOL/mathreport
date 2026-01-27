@@ -66,8 +66,8 @@ async def get_plans():
             "tier": tier.value,
             "name": "무료" if tier == SubscriptionTier.FREE else SUBSCRIPTION_PRICES.get(tier, {}).get("name", tier.value),
             "price": 0 if tier == SubscriptionTier.FREE else SUBSCRIPTION_PRICES.get(tier, {}).get("price", 0),
-            "weekly_analysis": limits["weekly_analysis"],
-            "weekly_extended": limits["weekly_extended"],
+            "monthly_analysis": limits["monthly_analysis"],
+            "monthly_extended": limits["monthly_extended"],
             "features": _get_tier_features(tier),
         }
         plans.append(plan)

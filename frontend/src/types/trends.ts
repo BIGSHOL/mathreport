@@ -95,6 +95,9 @@ export interface TrendsResponse {
   question_formats: QuestionFormatStat[];
   textbooks: TextbookStat[];
   insights?: TrendInsights | null; // AI 기반 인사이트 (선택적)
+  // 크레딧 정보 (인사이트 생성 시)
+  credits_consumed?: number;
+  credits_remaining?: number | null;
 }
 
 // ============================================

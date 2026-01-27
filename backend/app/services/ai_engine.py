@@ -10,9 +10,14 @@
 """
 import asyncio
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any
+
+# Google GenAI 로깅 숨기기 (AFC 로그 등)
+logging.getLogger("google_genai.models").setLevel(logging.WARNING)
+logging.getLogger("google_genai").setLevel(logging.WARNING)
 
 from google import genai
 from google.genai import types
@@ -1449,6 +1454,39 @@ class AIEngine:
 """
                         continue  # 다음 attempt로 재시도 (retry_prompt_addition 포함됨)
 
+                    # 재분석 후에도 누락된 문항이 있으면 placeholder 추가
+                    final_missing = validated_result.get("_missing_questions", [])
+                    if final_missing:
+                        print(f"[Analysis] 재분석 후에도 누락: {final_missing}, placeholder 추가")
+                        questions = validated_result.get("questions", [])
+
+                        # 기존 문항들의 평균 배점 계산 (placeholder 기본값용)
+                        existing_points = [q.get("points", 4) for q in questions if q.get("points")]
+                        avg_points = round(sum(existing_points) / len(existing_points), 1) if existing_points else 4.0
+
+                        for num in final_missing:
+                            placeholder_q = {
+                                "question_number": num,
+                                "difficulty": "pattern",  # 기본값
+                                "question_type": "calculation",  # 기본값
+                                "question_format": "objective",  # 기본값
+                                "topic": "분석 실패 > 수동 확인 필요",
+                                "points": avg_points,
+                                "confidence": 0.3,  # 낮은 신뢰도
+                                "confidence_reason": "AI가 이 문항을 인식하지 못했습니다. 수동 확인이 필요합니다.",
+                                "ai_comment": "⚠️ 이 문항은 AI가 인식하지 못해 자동 생성된 placeholder입니다.",
+                                "_is_placeholder": True,
+                            }
+                            questions.append(placeholder_q)
+
+                        # 문항 번호순 정렬
+                        questions.sort(key=lambda q: (
+                            int(q["question_number"]) if str(q.get("question_number", "")).isdigit()
+                            else float('inf')
+                        ))
+                        validated_result["questions"] = questions
+                        print(f"[Analysis] Placeholder 추가 완료. 총 {len(questions)}개 문항")
+
                     return validated_result
 
                 except json.JSONDecodeError as e:
@@ -1590,6 +1628,29 @@ class AIEngine:
                     issues.append(f"누락된 문항: {sorted(missing_nums)}")
                     result["_missing_questions"] = sorted(missing_nums)
                     print(f"[Validation] ⚠️ 누락된 문항 번호: {sorted(missing_nums)}")
+
+        # 3.5. 총점 100점 검증
+        if result.get("questions"):
+            total_points = sum(q.get("points", 0) for q in result["questions"])
+            result["_total_points"] = total_points
+
+            # 총점이 100점이 아니면 신뢰도 감소
+            if total_points != 100:
+                # 오차 범위에 따라 신뢰도 감소
+                point_diff = abs(100 - total_points)
+                if point_diff <= 2:
+                    # 2점 이내 오차: 경미한 감점
+                    confidence -= 0.05
+                    issues.append(f"총점 오차: {total_points}점 (100점 기준)")
+                elif point_diff <= 10:
+                    # 10점 이내 오차: 중간 감점
+                    confidence -= 0.15
+                    issues.append(f"총점 불일치: {total_points}점 (100점 기준)")
+                else:
+                    # 10점 초과 오차: 큰 감점
+                    confidence -= 0.25
+                    issues.append(f"총점 크게 불일치: {total_points}점 (100점 기준)")
+                print(f"[Validation] ⚠️ 총점 불일치: {total_points}점 (100점 기준, 오차 {point_diff}점)")
 
         # 4. 분포 일치 검증
         if result.get("questions"):

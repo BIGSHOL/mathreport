@@ -68,14 +68,39 @@ export interface AnalysisSummary {
     dominant_type: string;
 }
 
+// 주목할 문항
+export interface NotableQuestion {
+    question_number: number | string;
+    reason: string;
+    tag: string;  // 고배점, 함정, 시간주의, 킬러, 기본, 연계 등
+}
+
+// 학습 우선순위
+export interface TopicPriority {
+    topic: string;
+    question_count: number;
+    total_points: number;
+    priority: number;
+}
+
 export interface ExamCommentary {
-    overall_assessment: string;  // 전체 평가
-    difficulty_balance: string;  // 난이도 균형 분석
-    question_quality: string;    // 문항 품질 평가
-    key_insights: string[];      // 핵심 인사이트
-    recommendations: string[];   // 개선 권장사항
-    study_guidance: string[] | null;  // 학습 가이던스 (답안지인 경우)
-    generated_at: string;        // 총평 생성 시각
+    // 종합 요약 (분석 결과를 3줄 내외로 요약)
+    overview_summary?: string | null;        // 시험 분석 종합 요약
+
+    // 새로운 필드 (고유 가치)
+    exam_intent?: string;                    // 출제 의도 추론
+    notable_questions?: NotableQuestion[];   // 주목할 문항
+    topic_priorities?: TopicPriority[];      // 학습 우선순위
+    strategic_advice?: string | null;        // 전략적 조언
+    key_insights: string[];                  // 핵심 인사이트
+    study_guidance: string[] | null;         // 학습 가이던스 (답안지인 경우)
+    generated_at: string;                    // 총평 생성 시각
+
+    // 하위 호환성 (deprecated)
+    overall_assessment?: string;   // [deprecated] 전체 평가
+    difficulty_balance?: string;   // [deprecated] 난이도 균형 분석
+    question_quality?: string;     // [deprecated] 문항 품질 평가
+    recommendations?: string[];    // [deprecated] 개선 권장사항
 }
 
 // ============================================

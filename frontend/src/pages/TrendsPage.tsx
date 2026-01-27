@@ -12,6 +12,7 @@ const TrendsPage: React.FC = () => {
   const [filters, setFilters] = useState<TrendsRequest>({});
   const [withInsights, setWithInsights] = useState(false);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
 
   // SWR로 트렌드 데이터 가져오기
   const { data, error, isLoading, mutate } = useSWR<TrendsResponse>(
@@ -30,8 +31,14 @@ const TrendsPage: React.FC = () => {
     }
   };
 
+  // AI 인사이트 재생성 확인 모달 표시
+  const handleShowRegenerateConfirm = () => {
+    setShowRegenerateConfirm(true);
+  };
+
   // AI 인사이트 재생성 핸들러
   const handleRegenerateInsights = async () => {
+    setShowRegenerateConfirm(false);
     setIsLoadingInsights(true);
     try {
       // 캐시 무시하고 강제 재조회
@@ -214,6 +221,12 @@ const TrendsPage: React.FC = () => {
               }}
             >
               <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>
+                {/* 4단계 시스템 */}
+                {d.difficulty === 'concept' && '개념'}
+                {d.difficulty === 'pattern' && '유형'}
+                {d.difficulty === 'reasoning' && '심화'}
+                {d.difficulty === 'creative' && '최상위'}
+                {/* 3단계 시스템 (하위 호환) */}
                 {d.difficulty === 'high' && '상'}
                 {d.difficulty === 'medium' && '중'}
                 {d.difficulty === 'low' && '하'}
@@ -284,6 +297,12 @@ const TrendsPage: React.FC = () => {
                     background: '#f0f0f0',
                   }}
                 >
+                  {/* 4단계 시스템 */}
+                  {qt.avg_difficulty === 'concept' && '개념'}
+                  {qt.avg_difficulty === 'pattern' && '유형'}
+                  {qt.avg_difficulty === 'reasoning' && '심화'}
+                  {qt.avg_difficulty === 'creative' && '최상위'}
+                  {/* 3단계 시스템 */}
                   {qt.avg_difficulty === 'high' && '상'}
                   {qt.avg_difficulty === 'medium' && '중'}
                   {qt.avg_difficulty === 'low' && '하'}
@@ -369,52 +388,54 @@ const TrendsPage: React.FC = () => {
             borderRadius: '12px',
             border: '1px solid rgb(216, 180, 254)',
             padding: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
-                flexShrink: 0,
-                width: '40px',
-                height: '40px',
-                background: 'rgb(147, 51, 234)',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <svg style={{ width: '24px', height: '24px', color: 'white' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  flexShrink: 0,
+                  width: '40px',
+                  height: '40px',
+                  background: 'rgb(147, 51, 234)',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <svg style={{ width: '24px', height: '24px', color: 'white' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', marginBottom: '2px' }}>
+                    AI 트렌드 인사이트
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'rgb(107, 114, 128)' }}>
+                    출제 경향 데이터를 AI가 분석하여 전문가 수준의 인사이트를 제공합니다
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', marginBottom: '2px' }}>
-                  AI 트렌드 인사이트
-                </h3>
-                <p style={{ fontSize: '12px', color: 'rgb(107, 114, 128)' }}>
-                  출제 경향 데이터를 AI가 분석하여 전문가 수준의 인사이트를 제공합니다
-                </p>
-              </div>
+              <button
+                onClick={handleGenerateInsights}
+                style={{
+                  padding: '8px 16px',
+                  background: 'rgb(147, 51, 234)',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgb(126, 34, 206)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgb(147, 51, 234)'}
+              >
+                인사이트 생성 (1크레딧)
+              </button>
             </div>
-            <button
-              onClick={handleGenerateInsights}
-              style={{
-                padding: '8px 16px',
-                background: 'rgb(147, 51, 234)',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: '500',
-                borderRadius: '8px',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'background 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgb(126, 34, 206)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'rgb(147, 51, 234)'}
-            >
-              인사이트 생성
-            </button>
+            <p style={{ fontSize: '11px', color: 'rgb(161, 98, 7)', marginTop: '8px', textAlign: 'right' }}>
+              ⚠️ 인사이트 생성 시 1크레딧이 소모됩니다
+            </p>
           </div>
         </div>
       )}
@@ -423,8 +444,102 @@ const TrendsPage: React.FC = () => {
           <TrendInsightsSection
             insights={data.insights || null}
             isLoading={isLoadingInsights}
-            onRegenerate={handleRegenerateInsights}
+            onRegenerate={handleShowRegenerateConfirm}
           />
+        </div>
+      )}
+
+      {/* 인사이트 재생성 확인 모달 */}
+      {showRegenerateConfirm && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 50
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            padding: '24px',
+            maxWidth: '400px',
+            margin: '0 16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                backgroundColor: 'rgb(254, 243, 199)',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <svg style={{ width: '20px', height: '20px', color: 'rgb(217, 119, 6)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h4 style={{ fontSize: '18px', fontWeight: 'bold', color: 'rgb(17, 24, 39)' }}>
+                인사이트 재생성
+              </h4>
+            </div>
+            <p style={{ fontSize: '14px', color: 'rgb(75, 85, 99)', marginBottom: '8px', lineHeight: '1.5' }}>
+              AI 인사이트를 재생성하시겠습니까?
+            </p>
+            <div style={{
+              backgroundColor: 'rgb(254, 252, 232)',
+              border: '1px solid rgb(253, 224, 71)',
+              borderRadius: '8px',
+              padding: '12px',
+              marginBottom: '20px'
+            }}>
+              <p style={{ fontSize: '13px', color: 'rgb(161, 98, 7)', fontWeight: '500' }}>
+                ⚠️ 재생성 시 1크레딧이 소모됩니다
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setShowRegenerateConfirm(false)}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  fontSize: '14px',
+                  color: 'rgb(75, 85, 99)',
+                  backgroundColor: 'rgb(243, 244, 246)',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(229, 231, 235)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(243, 244, 246)'}
+              >
+                취소
+              </button>
+              <button
+                onClick={handleRegenerateInsights}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  fontSize: '14px',
+                  color: 'white',
+                  backgroundColor: 'rgb(147, 51, 234)',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(126, 34, 206)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(147, 51, 234)'}
+              >
+                재생성 (1크레딧)
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -628,6 +743,12 @@ const TrendsPage: React.FC = () => {
                       {topic.percentage.toFixed(1)}%
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px' }}>
+                      {/* 4단계 시스템 */}
+                      {topic.avg_difficulty === 'concept' && '개념'}
+                      {topic.avg_difficulty === 'pattern' && '유형'}
+                      {topic.avg_difficulty === 'reasoning' && '심화'}
+                      {topic.avg_difficulty === 'creative' && '최상위'}
+                      {/* 3단계 시스템 */}
                       {topic.avg_difficulty === 'high' && '상'}
                       {topic.avg_difficulty === 'medium' && '중'}
                       {topic.avg_difficulty === 'low' && '하'}

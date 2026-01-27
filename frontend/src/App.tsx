@@ -7,7 +7,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
 import { Layout } from './components/Layout';
-import { ProtectedRoute, PublicRoute } from './components/ProtectedRoute';
+import { ProtectedRoute, PublicRoute, AdminRoute } from './components/ProtectedRoute';
 import { useAuthStore } from './stores/auth';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 
@@ -86,6 +86,10 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/exams" element={<ExamDashboardPage />} />
             <Route path="/analysis/:id" element={<AnalysisResultPage />} />
+          </Route>
+
+          {/* Admin Only Routes - 관리자 전용 (출제 경향 등) */}
+          <Route element={<AdminRoute />}>
             <Route path="/trends" element={<TrendsPage />} />
             <Route path="/admin/patterns" element={<AdminPatternPage />} />
             <Route path="/admin/users" element={<AdminUsersPage />} />

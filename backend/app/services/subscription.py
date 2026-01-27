@@ -488,6 +488,61 @@ class SubscriptionService:
 
         return False
 
+    async def consume_ai_insights(self, user_id: str, insight_type: str = "trends") -> dict:
+        """AI 인사이트 생성 1회 소비 (1크레딧 차감)
+
+        Args:
+            user_id: 사용자 ID
+            insight_type: 인사이트 유형 (trends, commentary 등)
+
+        Returns:
+            dict: {
+                "success": bool,
+                "credits_consumed": int,
+                "credits_remaining": int
+            }
+        """
+        user = await self.get_user(user_id)
+        await self.check_and_grant_weekly_credits(user)
+
+        credits = user.get("credits", 0)
+        credit_log_service = get_credit_log_service(self.db)
+
+        # MASTER는 무제한 (크레딧 차감 없음)
+        if user.get("is_superuser", False):
+            # 무료 사용 기록
+            description = "AI 트렌드 인사이트" if insight_type == "trends" else f"AI {insight_type} 인사이트"
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=0,
+                balance_before=credits,
+                balance_after=credits,
+                action_type="ai_insights",
+                description=description,
+            )
+            return {"success": True, "credits_consumed": 0, "credits_remaining": credits}
+
+        # 일반 사용자: 크레딧 차감 (1크레딧)
+        if credits >= 1:
+            new_credits = credits - 1
+            await self._update_user(user["id"], {
+                "credits": new_credits,
+            })
+            # 크레딧 차감 기록
+            description = "AI 트렌드 인사이트" if insight_type == "trends" else f"AI {insight_type} 인사이트"
+            await credit_log_service.log(
+                user_id=user_id,
+                change_amount=-1,
+                balance_before=credits,
+                balance_after=new_credits,
+                action_type="ai_insights",
+                description=description,
+            )
+            return {"success": True, "credits_consumed": 1, "credits_remaining": new_credits}
+
+        # 크레딧 부족
+        return {"success": False, "credits_consumed": 0, "credits_remaining": credits}
+
     async def cancel_subscription(self, user_id: str) -> dict:
         """구독 취소 (만료일까지는 유지)"""
         user = await self.get_user(user_id)

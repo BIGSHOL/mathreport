@@ -20,7 +20,6 @@ import {
   useExtendedAnalysis,
   useGenerateExtendedAnalysis,
   useRequestAnswerAnalysis,
-  useExportAnalysis,
   useRequestAnalysis,
 } from '../hooks/useAnalysis';
 import { DetailedTemplate } from '../components/analysis/templates';
@@ -49,7 +48,6 @@ export function AnalysisResultPage() {
   const { extension, mutate: mutateExtension } = useExtendedAnalysis(id);
   const { generateExtended, isGenerating } = useGenerateExtendedAnalysis();
   const { requestAnswerAnalysis, isRequesting: isRequestingAnswerAnalysis } = useRequestAnswerAnalysis();
-  const { exportAnalysis, isExporting } = useExportAnalysis();
   const { requestAnalysis, isRequesting: isReanalyzing } = useRequestAnalysis();
 
   const [exam, setExam] = useState<Exam | null>(null);
@@ -252,44 +250,6 @@ export function AnalysisResultPage() {
       throw error;
     }
   }, [id, result, mutateResult, toast]);
-
-  // 내보내기 핸들러
-  const handleExport = useCallback(async (format: 'html' | 'image', sections: string[]) => {
-    if (!id || !result) return;
-
-    try {
-      const response = await exportAnalysis({
-        analysisId: id,
-        sections,
-        format,
-        examTitle: exam?.suggested_title || exam?.title,
-        examGrade: exam?.extracted_grade || exam?.grade,
-        examSubject: exam?.detected_subject || exam?.subject,
-      });
-
-      if (response?.success && response.html) {
-        // HTML 다운로드
-        const blob = new Blob([response.html], { type: 'text/html;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = response.filename || 'report.html';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        setShowExportModal(false);
-      }
-    } catch (error) {
-      const axiosError = error as { response?: { status?: number } };
-      if (axiosError?.response?.status === 402) {
-        alert('크레딧이 부족합니다. 크레딧을 구매해주세요.');
-      } else {
-        alert('내보내기에 실패했습니다.');
-      }
-    }
-  }, [id, result, exam, exportAnalysis]);
 
   // 재분석 핸들러
   const handleReanalyze = useCallback(async () => {
@@ -502,18 +462,20 @@ export function AnalysisResultPage() {
                 </button>
               )}
 
-              {/* 재분석 버튼 */}
-              <button
-                onClick={handleReanalyze}
-                disabled={isReanalyzing}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="4단계 난이도 시스템으로 다시 분석합니다"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                {isReanalyzing ? '분석 중...' : '재분석'}
-              </button>
+              {/* 재분석 버튼 (4단계 시스템으로 이미 분석된 경우 숨김) */}
+              {!is4Level && (
+                <button
+                  onClick={handleReanalyze}
+                  disabled={isReanalyzing}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="4단계 난이도 시스템으로 다시 분석합니다"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {isReanalyzing ? '분석 중...' : '재분석'}
+                </button>
+              )}
 
               {/* 내보내기 버튼 */}
               <button
@@ -630,7 +592,6 @@ export function AnalysisResultPage() {
           <ExamCommentarySection
             commentary={commentary}
             isLoading={isGeneratingCommentary}
-            onRegenerate={() => handleGenerateCommentary(true)}
           />
         </div>
       )}
@@ -804,8 +765,6 @@ export function AnalysisResultPage() {
         examGrade={displayGrade}
         examSubject={displaySubject}
         isAnswered={hasAnswerAnalysis}
-        onExport={handleExport}
-        isExporting={isExporting}
       />
 
       {/* 정오답 수정 모달 */}

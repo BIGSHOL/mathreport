@@ -31,6 +31,8 @@ export function PrintTemplate({ result, examType }: TemplateProps) {
         else if (q.is_correct === false) wrongCount++;
         earnedPoints += q.earned_points || 0;
       });
+      // 부동소수점 오류 방지를 위해 반올림
+      earnedPoints = Math.round(earnedPoints * 10) / 10;
     }
 
     return { totalPoints, correctCount, wrongCount, earnedPoints };

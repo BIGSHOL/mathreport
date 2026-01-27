@@ -1071,11 +1071,24 @@ def generate_export_html(
     # 통계 계산
     total_points = round(sum(q.get("points", 0) or 0 for q in questions), 1)
 
-    diff_dist = {
+    # 4단계 난이도 분포
+    diff_dist_4level = {
+        "concept": len([q for q in questions if q.get("difficulty") == "concept"]),
+        "pattern": len([q for q in questions if q.get("difficulty") == "pattern"]),
+        "reasoning": len([q for q in questions if q.get("difficulty") == "reasoning"]),
+        "creative": len([q for q in questions if q.get("difficulty") == "creative"]),
+    }
+
+    # 3단계 난이도 분포 (하위 호환)
+    diff_dist_3level = {
         "high": len([q for q in questions if q.get("difficulty") == "high"]),
         "medium": len([q for q in questions if q.get("difficulty") == "medium"]),
         "low": len([q for q in questions if q.get("difficulty") == "low"]),
     }
+
+    # 4단계 시스템 감지
+    is_4level = sum(diff_dist_4level.values()) > 0
+    diff_dist = diff_dist_4level if is_4level else diff_dist_3level
 
     type_dist = {}
     for q in questions:
@@ -1088,12 +1101,21 @@ def generate_export_html(
         topic_dist[topic] = topic_dist.get(topic, 0) + 1
 
     # 평균 난이도
-    total_diff = diff_dist["high"] + diff_dist["medium"] + diff_dist["low"]
-    if total_diff > 0:
-        diff_score = (diff_dist["high"] * 3 + diff_dist["medium"] * 2 + diff_dist["low"]) / total_diff
-        avg_diff = "상" if diff_score >= 2.5 else ("중" if diff_score >= 1.5 else "하")
+    if is_4level:
+        total_diff = sum(diff_dist_4level.values())
+        if total_diff > 0:
+            diff_score = (diff_dist_4level["creative"] * 4 + diff_dist_4level["reasoning"] * 3 +
+                         diff_dist_4level["pattern"] * 2 + diff_dist_4level["concept"]) / total_diff
+            avg_diff = "최상위" if diff_score >= 3.5 else ("심화" if diff_score >= 2.5 else ("유형" if diff_score >= 1.5 else "개념"))
+        else:
+            avg_diff = "-"
     else:
-        avg_diff = "-"
+        total_diff = sum(diff_dist_3level.values())
+        if total_diff > 0:
+            diff_score = (diff_dist_3level["high"] * 3 + diff_dist_3level["medium"] * 2 + diff_dist_3level["low"]) / total_diff
+            avg_diff = "상" if diff_score >= 2.5 else ("중" if diff_score >= 1.5 else "하")
+        else:
+            avg_diff = "-"
 
     # 정답률 (답안지인 경우)
     answered_qs = [q for q in questions if q.get("is_correct") is not None]
@@ -1109,7 +1131,14 @@ def generate_export_html(
     }
 
     # 난이도 색상
-    diff_colors = {"high": "#dc2626", "medium": "#f59e0b", "low": "#22c55e"}
+    diff_colors_4level = {"concept": "#22c55e", "pattern": "#3b82f6", "reasoning": "#f59e0b", "creative": "#dc2626"}
+    diff_colors_3level = {"high": "#dc2626", "medium": "#f59e0b", "low": "#22c55e"}
+    diff_colors = diff_colors_4level if is_4level else diff_colors_3level
+
+    # 난이도 라벨
+    diff_labels_4level = {"concept": "개념", "pattern": "유형", "reasoning": "심화", "creative": "최상위"}
+    diff_labels_3level = {"high": "상", "medium": "중", "low": "하"}
+    diff_labels = diff_labels_4level if is_4level else diff_labels_3level
 
     # HTML 생성
     html_parts = ["""<!DOCTYPE html>
@@ -1214,32 +1243,38 @@ td { padding: 4px; border-bottom: 1px solid #f3f4f6; }
 
     # Difficulty distribution
     if "difficulty" in sections:
-        total = diff_dist["high"] + diff_dist["medium"] + diff_dist["low"]
-        low_pct = (diff_dist["low"] / total * 100) if total > 0 else 0
-        med_pct = (diff_dist["medium"] / total * 100) if total > 0 else 0
-        high_pct = (diff_dist["high"] / total * 100) if total > 0 else 0
+        total = sum(diff_dist.values())
 
         html_parts.append(f"""
 <div class="section">
 <div class="section-title">난이도 분포</div>
 <div class="diff-bar">
 """)
-        if diff_dist["low"] > 0:
-            html_parts.append(f'<div style="width: {low_pct}%; background: {diff_colors["low"]};">{diff_dist["low"]}</div>')
-        if diff_dist["medium"] > 0:
-            html_parts.append(f'<div style="width: {med_pct}%; background: {diff_colors["medium"]};">{diff_dist["medium"]}</div>')
-        if diff_dist["high"] > 0:
-            html_parts.append(f'<div style="width: {high_pct}%; background: {diff_colors["high"]};">{diff_dist["high"]}</div>')
+        if is_4level:
+            # 4단계 난이도 바 (개념 → 유형 → 심화 → 최상위)
+            for key in ["concept", "pattern", "reasoning", "creative"]:
+                if diff_dist.get(key, 0) > 0:
+                    pct = (diff_dist[key] / total * 100) if total > 0 else 0
+                    html_parts.append(f'<div style="width: {pct}%; background: {diff_colors[key]};">{diff_dist[key]}</div>')
+        else:
+            # 3단계 난이도 바 (하 → 중 → 상)
+            for key in ["low", "medium", "high"]:
+                if diff_dist.get(key, 0) > 0:
+                    pct = (diff_dist[key] / total * 100) if total > 0 else 0
+                    html_parts.append(f'<div style="width: {pct}%; background: {diff_colors[key]};">{diff_dist[key]}</div>')
 
-        html_parts.append(f"""
-</div>
-<div class="diff-legend">
-<span>하 {diff_dist["low"]}</span>
-<span>중 {diff_dist["medium"]}</span>
-<span>상 {diff_dist["high"]}</span>
-</div>
-</div>
-""")
+        html_parts.append("</div>\n<div class=\"diff-legend\">")
+
+        if is_4level:
+            for key in ["concept", "pattern", "reasoning", "creative"]:
+                if diff_dist.get(key, 0) > 0:
+                    html_parts.append(f'<span style="color: {diff_colors[key]};">{diff_labels[key]} {diff_dist[key]}</span>')
+        else:
+            html_parts.append(f'<span>하 {diff_dist["low"]}</span>')
+            html_parts.append(f'<span>중 {diff_dist["medium"]}</span>')
+            html_parts.append(f'<span>상 {diff_dist["high"]}</span>')
+
+        html_parts.append("</div>\n</div>\n")
 
     # Type & Topic distribution (2-column row)
     if "type" in sections or "topic" in sections:
@@ -1289,8 +1324,8 @@ td { padding: 4px; border-bottom: 1px solid #f3f4f6; }
         html_parts.append("</tr></thead><tbody>")
 
         for q in questions[:20]:
-            diff = q.get("difficulty", "medium")
-            diff_label = "상" if diff == "high" else ("중" if diff == "medium" else "하")
+            diff = q.get("difficulty", "pattern" if is_4level else "medium")
+            diff_label = diff_labels.get(diff, diff)
             topic = (q.get("topic") or "-").split(" > ")[-1]
 
             html_parts.append(f"""
