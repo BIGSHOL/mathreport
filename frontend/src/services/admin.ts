@@ -179,6 +179,7 @@ export interface SecurityLogStats {
   api_errors_24h: number;
   top_failing_ips: Array<{ ip: string; count: number }>;
   top_failing_endpoints: Array<{ endpoint: string; count: number }>;
+  top_failing_users: Array<{ email: string; count: number }>;
 }
 
 // ============================================

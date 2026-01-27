@@ -735,6 +735,7 @@ class SecurityLogStats(BaseModel):
     api_errors_24h: int
     top_failing_ips: list[dict]
     top_failing_endpoints: list[dict]
+    top_failing_users: list[dict]
 
 
 # ============================================
@@ -821,6 +822,15 @@ async def get_security_log_stats(
             endpoint_counts[ep] = endpoint_counts.get(ep, 0) + 1
     top_endpoints = sorted(endpoint_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
+    # Get top failing users (by email)
+    user_logs = await db.table("security_logs").select("email").limit(1000).execute()
+    user_counts: dict[str, int] = {}
+    for log in (user_logs.data or []):
+        email = log.get("email")
+        if email:
+            user_counts[email] = user_counts.get(email, 0) + 1
+    top_users = sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+
     return SecurityLogStats(
         total_auth_failures=len(auth_failures.data) if auth_failures.data else 0,
         total_api_errors=len(api_errors.data) if api_errors.data else 0,
@@ -829,6 +839,7 @@ async def get_security_log_stats(
         api_errors_24h=len(errors_24h.data) if errors_24h.data else 0,
         top_failing_ips=[{"ip": ip, "count": count} for ip, count in top_ips],
         top_failing_endpoints=[{"endpoint": ep, "count": count} for ep, count in top_endpoints],
+        top_failing_users=[{"email": email, "count": count} for email, count in top_users],
     )
 
 

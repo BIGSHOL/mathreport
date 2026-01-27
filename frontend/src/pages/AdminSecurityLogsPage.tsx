@@ -204,9 +204,9 @@ export function AdminSecurityLogsPage() {
           </div>
         )}
 
-        {/* Top IP / Endpoints */}
-        {stats && (stats.top_failing_ips.length > 0 || stats.top_failing_endpoints.length > 0) && (
-          <div className="grid md:grid-cols-2 gap-4">
+        {/* Top IP / Users / Endpoints */}
+        {stats && (stats.top_failing_ips.length > 0 || stats.top_failing_users?.length > 0 || stats.top_failing_endpoints.length > 0) && (
+          <div className="grid md:grid-cols-3 gap-4">
             {stats.top_failing_ips.length > 0 && (
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="font-semibold text-gray-700 mb-3">Top 실패 IP</h3>
@@ -217,6 +217,24 @@ export function AdminSecurityLogsPage() {
                       className="flex justify-between items-center text-sm"
                     >
                       <span className="font-mono text-gray-600">{item.ip}</span>
+                      <span className="text-red-600 font-semibold">
+                        {item.count}회
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {stats.top_failing_users?.length > 0 && (
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="font-semibold text-gray-700 mb-3">Top 실패 사용자</h3>
+                <div className="space-y-2">
+                  {stats.top_failing_users.slice(0, 5).map((item, i) => (
+                    <div
+                      key={i}
+                      className="flex justify-between items-center text-sm"
+                    >
+                      <span className="text-gray-600 truncate max-w-[150px]">{item.email}</span>
                       <span className="text-red-600 font-semibold">
                         {item.count}회
                       </span>
@@ -329,6 +347,9 @@ export function AdminSecurityLogsPage() {
                       심각도
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-gray-600">
+                      사용자
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-600">
                       IP
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-gray-600">
@@ -367,6 +388,9 @@ export function AdminSecurityLogsPage() {
                           >
                             {sevConfig.label}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 text-xs truncate max-w-[150px]">
+                          {log.email || '-'}
                         </td>
                         <td className="px-4 py-3 font-mono text-gray-600 text-xs">
                           {log.ip_address || '-'}
