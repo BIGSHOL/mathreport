@@ -26,16 +26,16 @@ class SubscriptionTier(str, Enum):
 # 티어별 주간 크레딧 지급량 (매주 월요일 오전 9시 KST에 지급)
 TIER_CREDITS = {
     SubscriptionTier.FREE: {
-        "weekly_credits": 3,      # 주 3 크레딧 지급
-        "max_credits": 30,        # 최대 보유 한도 (주간 크레딧의 10배)
+        "weekly_credits": 10,     # 주 10 크레딧 지급
+        "max_credits": 10,        # 최대 보유 한도 (주간 지급량과 동일)
     },
     SubscriptionTier.BASIC: {
-        "weekly_credits": 10,     # 주 10 크레딧 지급
-        "max_credits": 100,       # 최대 보유 한도 (주간 크레딧의 10배)
+        "weekly_credits": 30,     # 주 30 크레딧 지급
+        "max_credits": 30,        # 최대 보유 한도 (주간 지급량과 동일)
     },
     SubscriptionTier.PRO: {
         "weekly_credits": 100,    # 주 100 크레딧 지급 (사실상 무제한)
-        "max_credits": 1000,      # 최대 보유 한도 (주간 크레딧의 10배)
+        "max_credits": 100,       # 최대 보유 한도 (주간 지급량과 동일)
     },
 }
 
@@ -144,11 +144,18 @@ class SubscriptionService:
                         is_prorated = True
 
             current_credits = user.get("credits", 0)
-            # 최대 크레딧 한도 적용
-            new_credits = min(current_credits + grants_credits, max_credits)
-            # 실제 지급된 크레딧 (한도로 인해 일부만 지급될 수 있음)
-            actual_granted = new_credits - current_credits
 
+            # 주간 지급 시에만 최대 한도 체크 (구매/관리자 지급으로 얻은 크레딧은 한도 초과 가능)
+            if current_credits >= max_credits:
+                # 이미 최대 한도 이상 보유 중이면 주간 지급 안 함
+                actual_granted = 0
+                new_credits = current_credits
+            else:
+                # 최대 한도까지만 지급
+                actual_granted = min(grants_credits, max_credits - current_credits)
+                new_credits = current_credits + actual_granted
+
+            # usage_reset_at는 항상 업데이트 (다음 주 지급 체크를 위해)
             await self._update_user(user["id"], {
                 "credits": new_credits,
                 "monthly_analysis_count": 0,  # 통계용 카운터 리셋
@@ -156,29 +163,33 @@ class SubscriptionService:
                 "usage_reset_at": last_monday.isoformat(),
             })
 
-            # 크레딧 지급 로그 기록 (실제 지급량 기록)
-            credit_log_service = get_credit_log_service(self.db)
-            description = f"{tier.value.upper()} 티어 주간 크레딧 지급"
-            if is_prorated:
-                description += f" (첫 주 일할 계산: {grants_credits}/{weekly_credits})"
-            elif actual_granted < grants_credits:
-                description += f" (최대 한도 {max_credits} 적용)"
+            # 실제로 크레딧이 지급된 경우에만 로그 기록
+            if actual_granted > 0:
+                credit_log_service = get_credit_log_service(self.db)
+                description = f"{tier.value.upper()} 티어 주간 크레딧 지급"
+                if is_prorated:
+                    description += f" (첫 주 일할 계산: {grants_credits}/{weekly_credits})"
+                elif actual_granted < grants_credits:
+                    description += f" (최대 한도 {max_credits} 적용)"
 
-            await credit_log_service.log(
-                user_id=user["id"],
-                change_amount=actual_granted,
-                balance_before=current_credits,
-                balance_after=new_credits,
-                action_type="weekly_grant",
-                description=description,
-            )
+                await credit_log_service.log(
+                    user_id=user["id"],
+                    change_amount=actual_granted,
+                    balance_before=current_credits,
+                    balance_after=new_credits,
+                    action_type="weekly_grant",
+                    description=description,
+                )
 
             # 로컬 객체도 업데이트
             user["credits"] = new_credits
             user["monthly_analysis_count"] = 0
             user["monthly_extended_count"] = 0
 
-            if is_prorated:
+            # 로그 출력
+            if actual_granted == 0:
+                print(f"[Weekly Credits] {tier.value} 티어 사용자 주간 지급 스킵 (이미 최대 한도 {max_credits} 이상 보유: {current_credits})")
+            elif is_prorated:
                 print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {grants_credits}/{weekly_credits} 크레딧 지급 (첫 주 일할 계산, 잔액: {new_credits})")
             elif actual_granted < grants_credits:
                 print(f"[Weekly Credits] {tier.value} 티어 사용자에게 {actual_granted}/{grants_credits} 크레딧 지급 (최대 한도 {max_credits} 도달, 잔액: {new_credits})")
