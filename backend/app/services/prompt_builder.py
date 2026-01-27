@@ -69,6 +69,7 @@ class PromptBuilder:
             exam_paper_type=context.exam_paper_type,
             subject=context.subject or "수학",
             grade_level=context.grade_level,
+            category=context.category,
         )
 
         return BuildPromptResponse(
@@ -424,6 +425,7 @@ class PromptBuilder:
         exam_paper_type: str = "blank",
         subject: str = "수학",
         grade_level: str | None = None,
+        category: str | None = None,
     ) -> str:
         """모든 프롬프트 요소 조합"""
         parts = [base_prompt]
@@ -443,51 +445,67 @@ class PromptBuilder:
             parts.append(examples)
 
         # JSON 출력 스키마 추가 (필수!)
-        json_schema = self._get_json_schema(exam_paper_type, subject, grade_level)
+        json_schema = self._get_json_schema(exam_paper_type, subject, grade_level, category)
         parts.append(json_schema)
 
         return "\n".join(parts)
 
-    def _get_json_schema(self, exam_paper_type: str, subject: str = "수학", grade_level: str | None = None) -> str:
+    def _get_json_schema(self, exam_paper_type: str, subject: str = "수학", grade_level: str | None = None, category: str | None = None) -> str:
         """분석 결과 JSON 스키마 반환 (과목별 분기)"""
         if subject == "영어":
             return self._get_english_json_schema(exam_paper_type)
-        return self._get_math_json_schema(exam_paper_type, grade_level)
+        return self._get_math_json_schema(exam_paper_type, grade_level, category)
 
-    def _get_math_json_schema(self, exam_paper_type: str, grade_level: str | None = None) -> str:
+    # 과목별 예시 토픽 매핑
+    CATEGORY_TOPIC_EXAMPLES = {
+        "공통수학1": "공통수학1 > 다항식 > 다항식의 연산",
+        "공통수학2": "공통수학2 > 도형의 방정식 > 평면좌표",
+        "대수": "대수 > 지수함수와 로그함수 > 지수함수",
+        "미적분Ⅰ": "미적분Ⅰ > 미분 > 미분계수와 도함수",
+        "미적분I": "미적분I > 미분 > 미분계수와 도함수",
+        "미적분Ⅱ": "미적분Ⅱ > 여러 가지 미분법 > 여러 가지 함수의 미분",
+        "미적분II": "미적분II > 여러 가지 미분법 > 여러 가지 함수의 미분",
+        "확률과 통계": "확률과 통계 > 확률 > 조건부 확률",
+        "기하": "기하 > 이차곡선 > 포물선",
+    }
+
+    def _get_math_json_schema(self, exam_paper_type: str, grade_level: str | None = None, category: str | None = None) -> str:
         """수학 과목 JSON 스키마 (학년별 선택적 콘텐츠 포함)"""
-        base_schema = """
+        # 예시 토픽 동적 결정
+        example_topic = self.CATEGORY_TOPIC_EXAMPLES.get(category, "공통수학1 > 다항식 > 다항식의 연산") if category else "공통수학1 > 다항식 > 다항식의 연산"
+
+        base_schema = f"""
 ## 필수 응답 형식 (JSON)
 
 반드시 아래 형식으로 정확하게 출력하세요:
 
-{
-    "exam_info": {
+{{
+    "exam_info": {{
         "total_questions": 21,
         "total_points": 100,
-        "format_distribution": {
+        "format_distribution": {{
             "objective": 16,
             "short_answer": 0,
             "essay": 5
-        }
-    },
-    "summary": {
-        "difficulty_distribution": {"concept": 0, "pattern": 0, "reasoning": 0, "creative": 0},
-        "type_distribution": {
+        }}
+    }},
+    "summary": {{
+        "difficulty_distribution": {{"concept": 0, "pattern": 0, "reasoning": 0, "creative": 0}},
+        "type_distribution": {{
             "calculation": 0, "geometry": 0, "application": 0,
             "proof": 0, "graph": 0, "statistics": 0
-        },
+        }},
         "average_difficulty": "pattern",
         "dominant_type": "calculation"
-    },
+    }},
     "questions": [
-        {
+        {{
             "question_number": 1,
             "question_format": "objective",
             "difficulty": "concept",
             "question_type": "calculation",
             "points": 3,
-            "topic": "공통수학1 > 다항식 > 다항식의 연산",
+            "topic": "{example_topic}",
             "ai_comment": "핵심 개념. 주의사항.",
             "confidence": 0.95,
             "difficulty_reason": "기본 개념 확인"
