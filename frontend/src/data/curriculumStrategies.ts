@@ -9165,6 +9165,203 @@ export const BOOK_SELECTION_GUIDE = {
 };
 
 /**
+ * 시험 분석 결과 기반 자동 수준 판정
+ */
+export interface LevelRecommendation {
+  level: '하위권' | '중위권' | '상위권';
+  confidence: number; // 0~100
+  reason: string;
+  weakPoints: string[];
+  recommendedBookTypes: string[];
+}
+
+export function recommendLevelByPerformance(questions: any[]): LevelRecommendation {
+  // 정답 여부가 있는 문제만 필터링 (학생 답안지 분석 시)
+  const answeredQuestions = questions.filter(q => q.is_correct !== undefined && q.is_correct !== null);
+
+  // 답안지가 아니면 null 반환 (수동 선택만 가능)
+  if (answeredQuestions.length === 0) {
+    return {
+      level: '중위권',
+      confidence: 0,
+      reason: '답안 분석 데이터 없음',
+      weakPoints: [],
+      recommendedBookTypes: [],
+    };
+  }
+
+  // 1. 전체 정답률 계산
+  const correctCount = answeredQuestions.filter(q => q.is_correct).length;
+  const totalCorrectRate = (correctCount / answeredQuestions.length) * 100;
+
+  // 2. 난이도별 정답률 계산 (4단계 시스템)
+  const difficultyStats: Record<string, { correct: number; total: number }> = {
+    concept: { correct: 0, total: 0 },
+    pattern: { correct: 0, total: 0 },
+    reasoning: { correct: 0, total: 0 },
+    creative: { correct: 0, total: 0 },
+    low: { correct: 0, total: 0 },
+    medium: { correct: 0, total: 0 },
+    high: { correct: 0, total: 0 },
+  };
+
+  answeredQuestions.forEach(q => {
+    const diff = q.difficulty;
+    if (difficultyStats[diff]) {
+      difficultyStats[diff].total++;
+      if (q.is_correct) {
+        difficultyStats[diff].correct++;
+      }
+    }
+  });
+
+  const getRate = (diff: string) => {
+    const stat = difficultyStats[diff];
+    return stat.total > 0 ? (stat.correct / stat.total) * 100 : null;
+  };
+
+  // 3. 난이도별 정답률
+  const conceptRate = getRate('concept') ?? getRate('low') ?? 0;
+  const patternRate = getRate('pattern') ?? getRate('medium') ?? 0;
+  const reasoningRate = getRate('reasoning') ?? getRate('high') ?? 0;
+  const creativeRate = getRate('creative') ?? 0;
+
+  // 4. 시험 난이도 파악 (어려운 문제 비율)
+  const hardQuestions = answeredQuestions.filter(q =>
+    q.difficulty === 'reasoning' || q.difficulty === 'creative' || q.difficulty === 'high'
+  );
+  const hardQuestionsRate = (hardQuestions.length / answeredQuestions.length) * 100;
+
+  // 5. 수준 판정 로직
+  const weakPoints: string[] = [];
+  const recommendedBookTypes: string[] = [];
+  let level: '하위권' | '중위권' | '상위권';
+  let reason = '';
+  let confidence = 0;
+
+  // 개념(쉬운 문제) 정답률이 낮으면 → 하위권
+  if (conceptRate < 60) {
+    level = '하위권';
+    reason = `기초 개념 문제 정답률 ${Math.round(conceptRate)}% - 개념 보강 필요`;
+    weakPoints.push('기초 개념 이해 부족');
+    recommendedBookTypes.push('개념서', '기초유형');
+    confidence = 85;
+  }
+  // 전체 정답률이 50% 미만 → 하위권
+  else if (totalCorrectRate < 50) {
+    level = '하위권';
+    reason = `전체 정답률 ${Math.round(totalCorrectRate)}% - 기초부터 다시 학습`;
+    weakPoints.push('전반적인 실력 부족');
+    recommendedBookTypes.push('개념서', '기본유형');
+    confidence = 90;
+  }
+  // 유형(중간 문제) 정답률 낮으면 → 중위권
+  else if (patternRate < 70) {
+    level = '중위권';
+    reason = `유형 문제 정답률 ${Math.round(patternRate)}% - 유형 연습 필요`;
+    weakPoints.push('유형별 문제 풀이 연습 부족');
+    recommendedBookTypes.push('유형서', '기본유형');
+    confidence = 80;
+  }
+  // 전체 정답률 50~75% → 중위권
+  else if (totalCorrectRate >= 50 && totalCorrectRate < 75) {
+    level = '중위권';
+    reason = `전체 정답률 ${Math.round(totalCorrectRate)}% - 유형 숙달로 2등급 목표`;
+    if (patternRate < 80) {
+      weakPoints.push('응용 유형 문제 약점');
+      recommendedBookTypes.push('유형서', '응용유형');
+    }
+    confidence = 75;
+  }
+  // 추론/창의(어려운 문제) 정답률 낮으면 → 상위권 (하지만 개선 필요)
+  else if (reasoningRate < 60 || (creativeRate > 0 && creativeRate < 60)) {
+    level = '상위권';
+    reason = `고난도 문제 정답률 낮음 - 심화 학습 필요`;
+    weakPoints.push('킬러 문항 대비 부족');
+    recommendedBookTypes.push('심화서', '기출문제');
+    confidence = 70;
+  }
+  // 전체 정답률 75% 이상 → 상위권
+  else if (totalCorrectRate >= 75) {
+    level = '상위권';
+    reason = `전체 정답률 ${Math.round(totalCorrectRate)}% - 1등급 목표 가능`;
+    if (hardQuestionsRate > 30 && reasoningRate < 80) {
+      weakPoints.push('킬러 문항 완성도 부족');
+      recommendedBookTypes.push('심화서', '극심화');
+    } else {
+      weakPoints.push('실수 방지');
+      recommendedBookTypes.push('심화서', '기출문제');
+    }
+    confidence = 85;
+  }
+  // 기본값
+  else {
+    level = '중위권';
+    reason = '표준 학습 수준';
+    recommendedBookTypes.push('유형서');
+    confidence = 60;
+  }
+
+  // 6. 추가 취약점 분석
+  if (conceptRate > 0 && conceptRate < 70) {
+    weakPoints.push('개념 이해 보완 필요');
+    if (!recommendedBookTypes.includes('개념서')) {
+      recommendedBookTypes.unshift('개념서');
+    }
+  }
+
+  return {
+    level,
+    confidence,
+    reason,
+    weakPoints,
+    recommendedBookTypes,
+  };
+}
+
+/**
+ * 취약점 기반 스마트 교재 추천
+ */
+export function getPersonalizedBookRecommendations(
+  level: '하위권' | '중위권' | '상위권',
+  preferredTypes: string[] = [],
+  count: number = 3
+): RecommendedBook[] {
+  const levelBooks = getBooksByLevel(level);
+  if (!levelBooks) return [];
+
+  const books = [...levelBooks.books];
+  const selected: RecommendedBook[] = [];
+  const usedPublishers = new Set<string>();
+
+  // 선호 타입이 있으면 우선 선택
+  if (preferredTypes.length > 0) {
+    for (const prefType of preferredTypes) {
+      const matchedBook = books.find(b =>
+        b.type.includes(prefType) && !usedPublishers.has(b.publisher)
+      );
+      if (matchedBook && selected.length < count) {
+        selected.push(matchedBook);
+        usedPublishers.add(matchedBook.publisher);
+      }
+    }
+  }
+
+  // 부족하면 기존 스마트 추천 로직 활용
+  if (selected.length < count) {
+    const remaining = getSmartBookRecommendations(level, count);
+    for (const book of remaining) {
+      if (selected.length >= count) break;
+      if (!selected.find(s => s.name === book.name)) {
+        selected.push(book);
+      }
+    }
+  }
+
+  return selected.slice(0, count);
+}
+
+/**
  * 교재 선택 주의사항
  */
 export const BOOK_CAUTIONS = [

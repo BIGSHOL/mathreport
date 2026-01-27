@@ -16,6 +16,8 @@ import {
   findKillerPatterns,
   getBooksByLevel,
   getSmartBookRecommendations,
+  recommendLevelByPerformance,
+  getPersonalizedBookRecommendations,
   LEVEL_STRATEGIES,
   TIME_STRATEGIES,
   ESSAY_CHECKLIST,
@@ -26,6 +28,7 @@ import {
   ENCOURAGEMENT_MESSAGES,
   type GradeConnection,
   type KillerQuestionType,
+  type LevelRecommendation,
 } from '../../data/curriculumStrategies';
 
 interface StudyStrategyTabProps {
@@ -317,6 +320,13 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
       '상위권': getMessageForLevel('상위권', 2),
     };
   }, [questions]); // questions가 변경되면 재계산 (같은 시험지면 같은 메시지)
+
+  // 자동 수준 추천 (답안지 분석 기반)
+  const autoLevelRecommendation = useMemo<LevelRecommendation | null>(() => {
+    const recommendation = recommendLevelByPerformance(questions);
+    // confidence가 0이면 답안 데이터가 없는 것
+    return recommendation.confidence > 0 ? recommendation : null;
+  }, [questions]);
 
   // 학습 전략 생성 (교육과정 기반 + 규칙 기반)
   const generateStrategy = (summary: TopicSummary): string[] => {
@@ -1172,6 +1182,63 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
         {showLevelStrategy && (
           <div className="p-4 space-y-4">
+            {/* 자동 수준 추천 배너 */}
+            {autoLevelRecommendation && (
+              <div className={`rounded-lg p-4 border-2 ${
+                autoLevelRecommendation.level === '하위권' ? 'bg-blue-50 border-blue-300' :
+                autoLevelRecommendation.level === '중위권' ? 'bg-yellow-50 border-yellow-300' :
+                'bg-red-50 border-red-300'
+              }`}>
+                <div className="flex items-start gap-3">
+                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+                    autoLevelRecommendation.level === '하위권' ? 'bg-blue-500' :
+                    autoLevelRecommendation.level === '중위권' ? 'bg-yellow-500' :
+                    'bg-red-500'
+                  }`}>
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className={`text-sm font-bold ${
+                        autoLevelRecommendation.level === '하위권' ? 'text-blue-900' :
+                        autoLevelRecommendation.level === '중위권' ? 'text-yellow-900' :
+                        'text-red-900'
+                      }`}>
+                        분석 결과 기반 추천: {autoLevelRecommendation.level} 교재
+                      </h4>
+                      <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full">
+                        신뢰도 {autoLevelRecommendation.confidence}%
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-700 mb-2">
+                      {autoLevelRecommendation.reason}
+                    </p>
+                    {autoLevelRecommendation.weakPoints.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {autoLevelRecommendation.weakPoints.map((point, i) => (
+                          <span key={i} className="text-[10px] px-2 py-0.5 bg-white rounded-full text-gray-600 border border-gray-200">
+                            {point}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => setSelectedBookLevel(autoLevelRecommendation.level)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded ${
+                        autoLevelRecommendation.level === '하위권' ? 'bg-blue-500 hover:bg-blue-600' :
+                        autoLevelRecommendation.level === '중위권' ? 'bg-yellow-500 hover:bg-yellow-600' :
+                        'bg-red-500 hover:bg-red-600'
+                      } text-white transition-colors`}
+                    >
+                      추천 교재 보기
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 수준별 카드 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {LEVEL_STRATEGIES.map((level) => {
@@ -1291,13 +1358,20 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
                 {/* 스마트 추천 문제집 (3권) */}
                 {(() => {
-                  const smartBooks = getSmartBookRecommendations(selectedBookLevel, 3);
+                  // 자동 분석 결과가 있고 같은 레벨이면 취약점 기반 추천 사용
+                  const usePersonalized = autoLevelRecommendation && autoLevelRecommendation.level === selectedBookLevel;
+                  const smartBooks = usePersonalized
+                    ? getPersonalizedBookRecommendations(selectedBookLevel, autoLevelRecommendation.recommendedBookTypes, 3)
+                    : getSmartBookRecommendations(selectedBookLevel, 3);
+
                   if (smartBooks.length === 0) return null;
                   return (
                     <div className="mb-3">
                       <h5 className="text-xs font-semibold text-gray-700 mb-2">
                         맞춤 추천 문제집
-                        <span className="ml-1 text-[10px] font-normal text-gray-500">(개념 → 유형 순)</span>
+                        <span className="ml-1 text-[10px] font-normal text-gray-500">
+                          {usePersonalized ? '(취약점 맞춤)' : '(개념 → 유형 순)'}
+                        </span>
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                         {smartBooks.map((book, i) => (
