@@ -401,20 +401,27 @@ async def get_user_exams(
     )
     total = len(count_result.data) if count_result.data else 0
 
+    # N+1 최적화: 완료된 시험들의 분석 결과를 한 번에 조회
+    completed_exam_ids = [e["id"] for e in (exams_result.data or []) if e.get("status") == "completed"]
+    analysis_map = {}
+
+    if completed_exam_ids:
+        ar_result = await (
+            db.table("analysis_results")
+            .select("exam_id, total_questions, total_points")
+            .in_("exam_id", completed_exam_ids)
+            .execute()
+        )
+        for ar in (ar_result.data or []):
+            analysis_map[ar["exam_id"]] = ar
+
     exams = []
     for exam_data in (exams_result.data or []):
         item = AdminExamItem(**exam_data)
-        if exam_data.get("status") == "completed":
-            ar = await (
-                db.table("analysis_results")
-                .select("total_questions, total_points")
-                .eq("exam_id", exam_data["id"])
-                .maybe_single()
-                .execute()
-            )
-            if ar.data:
-                item.total_questions = ar.data.get("total_questions")
-                item.total_points = ar.data.get("total_points")
+        if exam_data.get("status") == "completed" and exam_data["id"] in analysis_map:
+            ar = analysis_map[exam_data["id"]]
+            item.total_questions = ar.get("total_questions")
+            item.total_points = ar.get("total_points")
         exams.append(item)
 
     return AdminExamsResponse(
@@ -482,13 +489,13 @@ async def reset_user_analysis(
                 deleted_counts["analysis_extensions"] = len(extensions_result.data)
                 await db.table("analysis_extensions").eq("user_id", user_id).delete().execute()
 
-        # 4. 패턴 매칭 기록 삭제 (analysis_id 기반)
-        for analysis_id in analysis_ids:
-            await db.table("pattern_match_history").eq("analysis_id", analysis_id).delete().execute()
+        # 4. 패턴 매칭 기록 삭제 (analysis_id 기반) - 배치 삭제
+        if analysis_ids:
+            await db.table("pattern_match_history").in_("analysis_id", analysis_ids).delete().execute()
 
-        # 5. 질문 참조 삭제 (analysis_id 기반)
-        for analysis_id in analysis_ids:
-            await db.table("question_references").eq("source_analysis_id", analysis_id).delete().execute()
+        # 5. 질문 참조 삭제 (analysis_id 기반) - 배치 삭제
+        if analysis_ids:
+            await db.table("question_references").in_("source_analysis_id", analysis_ids).delete().execute()
 
         # 6. 분석 결과 삭제
         if analysis_ids:
