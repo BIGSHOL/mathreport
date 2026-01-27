@@ -20,6 +20,9 @@ interface DifficultyPointsAreaChartProps {
   questions: QuestionAnalysis[];
 }
 
+type Totals4Level = { 개념: number; 유형: number; 심화: number; 최상위: number };
+type Totals3Level = { 하: number; 중: number; 상: number };
+
 export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart({
   questions,
 }: DifficultyPointsAreaChartProps) {
@@ -108,25 +111,25 @@ export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart
       <div className="flex gap-3 mb-2 text-[10px]">
         {is4Level ? (
           <>
-            {totals.개념 > 0 && (
+            {(totals as Totals4Level).개념 > 0 && (
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.concept.bg }} />
                 <span className="text-gray-500">개념</span>
               </span>
             )}
-            {totals.유형 > 0 && (
+            {(totals as Totals4Level).유형 > 0 && (
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.pattern.bg }} />
                 <span className="text-gray-500">유형</span>
               </span>
             )}
-            {totals.심화 > 0 && (
+            {(totals as Totals4Level).심화 > 0 && (
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.reasoning.bg }} />
                 <span className="text-gray-500">심화</span>
               </span>
             )}
-            {totals.최상위 > 0 && (
+            {(totals as Totals4Level).최상위 > 0 && (
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.creative.bg }} />
                 <span className="text-gray-500">최상위</span>
@@ -135,19 +138,19 @@ export const DifficultyPointsAreaChart = memo(function DifficultyPointsAreaChart
           </>
         ) : (
           <>
-            {totals.하 > 0 && (
+            {(totals as Totals3Level).하 > 0 && (
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.low.bg }} />
                 <span className="text-gray-500">하</span>
               </span>
             )}
-            {totals.중 > 0 && (
+            {(totals as Totals3Level).중 > 0 && (
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.medium.bg }} />
                 <span className="text-gray-500">중</span>
               </span>
             )}
-            {totals.상 > 0 && (
+            {(totals as Totals3Level).상 > 0 && (
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: DIFFICULTY_COLORS.high.bg }} />
                 <span className="text-gray-500">상</span>

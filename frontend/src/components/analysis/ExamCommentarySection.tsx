@@ -17,8 +17,9 @@ interface ExamCommentarySectionProps {
 export const ExamCommentarySection = memo(function ExamCommentarySection({
   commentary,
   isLoading = false,
-  analysisId,
+  analysisId: _analysisId,
 }: ExamCommentarySectionProps) {
+  void _analysisId; // TODO: 신고 API에서 사용 예정
   const [isExpanded, setIsExpanded] = useState(true);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportSent, setReportSent] = useState(false);
