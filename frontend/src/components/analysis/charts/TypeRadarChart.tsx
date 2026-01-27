@@ -120,19 +120,6 @@ const GradientOverlay = ({
         strokeWidth={2.5}
         strokeLinejoin="round"
       />
-
-      {/* 꼭짓점 점 표시 */}
-      {dataPoints.map((point, i) => (
-        <circle
-          key={`dot-${i}`}
-          cx={point.x}
-          cy={point.y}
-          r={4}
-          fill="#7c3aed"
-          stroke="white"
-          strokeWidth={2}
-        />
-      ))}
     </svg>
   );
 };
