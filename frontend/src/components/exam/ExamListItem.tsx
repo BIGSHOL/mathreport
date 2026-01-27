@@ -378,40 +378,35 @@ export const ExamListItem = memo(function ExamListItem({
                   {/* 출제범위 계층 툴팁 */}
                   {showScopeTooltip && parsedScope && createPortal(
                     <div
-                      className="fixed z-[9999] w-80 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
+                      className="fixed z-[9999] w-64 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden"
                       style={{ top: scopeTooltipPos.top, left: scopeTooltipPos.left }}
                       onMouseEnter={handleScopeMouseEnter}
                       onMouseLeave={handleScopeMouseLeave}
                     >
-                      <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100">
-                        <h4 className="font-semibold text-amber-800 flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                          </svg>
-                          출제범위 ({exam.exam_scope.length}개 단원)
-                        </h4>
+                      <div className="px-3 py-1.5 bg-amber-50 border-b border-amber-100">
+                        <span className="font-medium text-xs text-amber-800">출제범위 ({exam.exam_scope.length}개 단원)</span>
                       </div>
-                      <div className="p-3 max-h-64 overflow-y-auto">
+                      <div className="p-2 max-h-52 overflow-y-auto">
                         {Array.from(parsedScope.entries()).map(([major, middleMap]) => (
-                          <div key={major} className="mb-3 last:mb-0">
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <span className="w-2 h-2 rounded-full bg-amber-500" />
-                              <span className="font-semibold text-sm text-gray-800">{major}</span>
+                          <div key={major} className="mb-1.5 last:mb-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                              <span className="font-semibold text-xs text-gray-800">{major}</span>
                             </div>
                             {middleMap.size > 0 && (
-                              <div className="ml-4 space-y-1.5">
+                              <div className="ml-3 mt-0.5 space-y-0.5">
                                 {Array.from(middleMap.entries()).map(([middle, minors]) => (
-                                  <div key={middle} className="text-sm">
-                                    <div className="flex items-center gap-2">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                  <div key={middle} className="text-xs">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="w-1 h-1 rounded-full bg-blue-400 flex-shrink-0" />
                                       <span className="text-gray-700">{middle}</span>
                                     </div>
                                     {minors.length > 0 && (
-                                      <div className="ml-4 mt-1 flex flex-wrap gap-1">
+                                      <div className="ml-3 mt-0.5 flex flex-wrap gap-0.5">
                                         {minors.map((minor, idx) => (
                                           <span
                                             key={idx}
-                                            className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full"
+                                            className="inline-block px-1.5 py-px bg-gray-100 text-gray-500 text-[11px] rounded"
                                           >
                                             {minor}
                                           </span>
