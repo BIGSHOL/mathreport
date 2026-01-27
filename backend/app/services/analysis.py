@@ -254,11 +254,11 @@ class AnalysisService:
 
             # Update status to FAILED
             error_msg = str(e)[:500] if str(e) else "알 수 없는 오류"
-            await self.db.table("exams").update({
+            await self.db.table("exams").eq("id", exam_id).update({
                 "status": "failed",
                 "error_message": error_msg,
                 "updated_at": datetime.utcnow().isoformat()
-            }).eq("id", exam_id).execute()
+            }).execute()
 
             import traceback
             print(f"Analysis failed: {e}")
