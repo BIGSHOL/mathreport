@@ -23,6 +23,7 @@ import type { StudyStrategyTabProps, TopicSummary, ChapterGroup } from './study-
 import { DIFFICULTY_WEIGHT } from './study-strategy/constants';
 import { CommonMistakesSection } from './study-strategy/CommonMistakesSection';
 import { TopicAnalysisSection } from './study-strategy/TopicAnalysisSection';
+import { getMajorUnitFromCurriculum } from '../../data/curriculum/utils';
 import { EssayPreparationSection } from './study-strategy/EssayPreparationSection';
 import { TimeAllocationSection } from './study-strategy/TimeAllocationSection';
 import { LearningStrategiesSection } from './study-strategy/LearningStrategiesSection';
@@ -401,29 +402,11 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
       {/* 학년별 연계 경고 - 대단원별 그루핑 */}
       {gradeConnections.size > 0 && (() => {
-        // 대단원 분류 함수
-        const getMajorUnit = (topic: string): string => {
-          const t = topic.toLowerCase();
-          if (t.includes('지수') || t.includes('로그')) return '지수와 로그';
-          if (t.includes('삼각함수') || t.includes('삼각비') || t.includes('호도법') || t.includes('부채꼴') || t.includes('사인') || t.includes('코사인')) return '삼각함수';
-          if (t.includes('수열') || t.includes('급수') || t.includes('점화식') || t.includes('등차') || t.includes('등비')) return '수열';
-          if (t.includes('함수') || t.includes('합성') || t.includes('역함수')) return '함수';
-          if (t.includes('극한') || t.includes('연속')) return '극한과 연속';
-          if (t.includes('미분') || t.includes('도함수')) return '미분';
-          if (t.includes('적분')) return '적분';
-          if (t.includes('확률') || t.includes('순열') || t.includes('조합')) return '확률과 통계';
-          if (t.includes('벡터') || t.includes('평면')) return '벡터';
-          if (t.includes('행렬')) return '행렬';
-          if (t.includes('방정식') || t.includes('부등식')) return '방정식과 부등식';
-          if (t.includes('집합') || t.includes('명제')) return '집합과 명제';
-          return '기타';
-        };
-
-        // 대단원별로 그루핑
+        // 대단원별로 그루핑 - 정확한 교육과정 매핑 사용
         type ConnectionsType = typeof gradeConnections extends Map<string, infer V> ? V : never;
         const groupedByMajor = new Map<string, Array<{ topic: string; connections: ConnectionsType }>>();
         Array.from(gradeConnections.entries()).forEach(([topic, connections]) => {
-          const majorUnit = getMajorUnit(topic);
+          const majorUnit = getMajorUnitFromCurriculum(topic);
           if (!groupedByMajor.has(majorUnit)) {
             groupedByMajor.set(majorUnit, []);
           }
