@@ -387,7 +387,8 @@ async def get_user_exams(
         .select("id, title, grade, subject, school_name, exam_type, status, created_at, error_message")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
-        .range(offset, offset + limit - 1)
+        .limit(limit)
+        .offset(offset)
         .execute()
     )
 
