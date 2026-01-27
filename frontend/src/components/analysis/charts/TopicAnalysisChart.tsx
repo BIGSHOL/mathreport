@@ -320,13 +320,13 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                       {/* 바 */}
                       <div className="flex-1 h-5 rounded-full overflow-hidden bg-gray-100">
                         <div
-                          className="h-full rounded-full flex items-center justify-end pr-2.5 text-xs font-medium text-white"
+                          className="h-full rounded-full flex items-center justify-end pr-2 text-xs font-medium text-white whitespace-nowrap"
                           style={{
-                            width: `${Math.max((chapter.count / maxMiddleCount) * 100, 15)}%`,
+                            width: `${Math.max((chapter.count / maxMiddleCount) * 100, 20)}%`,
                             backgroundColor: barColor,
                           }}
                         >
-                          {chapter.count}
+                          {chapter.count}문항
                         </div>
                       </div>
 
