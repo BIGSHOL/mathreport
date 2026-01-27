@@ -79,9 +79,31 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
       ['concept', 'pattern', 'reasoning', 'creative'].includes(q.difficulty)
     );
 
+    // 복합 토픽 정규화 함수: "A, B" → "A", "A와 B" → "A"
+    const normalizeShortTopic = (rawTopic: string): string => {
+      let normalized = rawTopic;
+      // 콤마로 구분된 경우 첫 번째만
+      if (normalized.includes(',')) {
+        normalized = normalized.split(',')[0].trim();
+      }
+      // "A와 B", "A과 B", "A 및 B" 패턴
+      for (const sep of ['와 ', '과 ', ' 및 ']) {
+        if (normalized.includes(sep)) {
+          normalized = normalized.split(sep)[0].trim();
+          break;
+        }
+      }
+      return normalized;
+    };
+
     questions.forEach((q) => {
-      const topic = q.topic || '기타';
-      const shortTopic = topic.split(' > ').pop() || topic;
+      const rawTopic = q.topic || '기타';
+      // 토픽 정규화: 소단원에서 복합 토픽 처리
+      const parts = rawTopic.split(' > ');
+      const lastPart = parts.pop() || rawTopic;
+      const normalizedLast = normalizeShortTopic(lastPart);
+      const topic = parts.length > 0 ? [...parts, normalizedLast].join(' > ') : normalizedLast;
+      const shortTopic = normalizedLast;
 
       if (!topicMap.has(topic)) {
         topicMap.set(topic, {
@@ -400,27 +422,32 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
         onToggleSection={() => toggleSection('mistakes')}
       />
 
-      {/* 학년별 연계 경고 - 대단원별 그루핑 */}
+      {/* 학년별 연계 경고 - 대단원별 그루핑 (중복 제거) */}
       {gradeConnections.size > 0 && (() => {
-        // 대단원별로 그루핑 - 정확한 교육과정 매핑 사용
-        type ConnectionsType = typeof gradeConnections extends Map<string, infer V> ? V : never;
-        const groupedByMajor = new Map<string, Array<{ topic: string; connections: ConnectionsType }>>();
+        // 대단원별로 그루핑 - 중복 연계 정보 제거
+        const groupedByMajor = new Map<string, GradeConnection[]>();
         Array.from(gradeConnections.entries()).forEach(([topic, connections]) => {
           const majorUnit = getMajorUnitFromCurriculum(topic);
           if (!groupedByMajor.has(majorUnit)) {
             groupedByMajor.set(majorUnit, []);
           }
-          groupedByMajor.get(majorUnit)!.push({ topic, connections });
+          // 대단원 내에서 warning 기준으로 중복 제거
+          const existing = groupedByMajor.get(majorUnit)!;
+          connections.forEach((conn) => {
+            if (!existing.some(e => e.warning === conn.warning)) {
+              existing.push(conn);
+            }
+          });
         });
 
         // 필수 연계 개수가 많은 순으로 정렬
         const sortedGroups = Array.from(groupedByMajor.entries()).sort((a, b) => {
-          const aCritical = a[1].reduce((sum, item) => sum + item.connections.filter(c => c.importance === 'critical').length, 0);
-          const bCritical = b[1].reduce((sum, item) => sum + item.connections.filter(c => c.importance === 'critical').length, 0);
+          const aCritical = a[1].filter(c => c.importance === 'critical').length;
+          const bCritical = b[1].filter(c => c.importance === 'critical').length;
           return bCritical - aCritical;
         });
 
-        const totalCritical = Array.from(gradeConnections.values()).flat().filter(c => c.importance === 'critical').length;
+        const totalCritical = Array.from(groupedByMajor.values()).flat().filter(c => c.importance === 'critical').length;
 
         const isSectionExpanded = expandedSections.has('connections');
 
@@ -464,10 +491,10 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
             {isSectionExpanded && (
             <div className="divide-y divide-gray-100">
-              {sortedGroups.map(([majorUnit, items]) => {
+              {sortedGroups.map(([majorUnit, connections]) => {
                 const isExpanded = expandedConnections.has(majorUnit);
-                const criticalCount = items.reduce((sum, item) => sum + item.connections.filter((c: GradeConnection) => c.importance === 'critical').length, 0);
-                const totalCount = items.reduce((sum, item) => sum + item.connections.length, 0);
+                const criticalCount = connections.filter(c => c.importance === 'critical').length;
+                const totalCount = connections.length;
 
                 return (
                   <div key={`major-${majorUnit}`}>
@@ -478,9 +505,6 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                       <div className="flex items-center gap-3">
                         <span className={`w-3 h-3 rounded-full ${criticalCount > 0 ? 'bg-red-500' : 'bg-orange-400'}`} />
                         <span className="font-medium text-gray-900">{majorUnit}</span>
-                        <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                          {items.length}개 소단원
-                        </span>
                         {criticalCount > 0 && (
                           <span className="text-xs text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
                             필수 {criticalCount}
@@ -502,66 +526,56 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
                     {isExpanded && (
                       <div className="px-4 pb-4 bg-orange-50 space-y-2">
-                        {items.map(({ topic, connections }) => {
-                          const shortTopic = topic.split(' > ').pop() || topic;
-                          const topicCritical = connections.filter((c: GradeConnection) => c.importance === 'critical').length;
-                          const topicImportanceSet = expandedConnectionImportance.get(topic) || new Set<string>();
-                          const isTopicExpanded = topicImportanceSet.has('detail');
-
-                          return (
-                            <div key={`topic-${topic}`} className="bg-white rounded-lg border border-orange-200 overflow-hidden">
-                              <button
-                                onClick={() => toggleConnectionImportance(topic, 'detail')}
-                                className="w-full px-3 py-2 flex items-center justify-between hover:bg-orange-50 transition-colors"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className={`w-2 h-2 rounded-full ${topicCritical > 0 ? 'bg-red-400' : 'bg-orange-300'}`} />
-                                  <span className="text-sm font-medium text-gray-800">{shortTopic}</span>
-                                  {topicCritical > 0 && (
-                                    <span className="text-[10px] text-red-600 bg-red-50 px-1 py-0.5 rounded">필수</span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-gray-500">{connections.length}개</span>
-                                  <svg
-                                    className={`w-4 h-4 text-gray-400 transition-transform ${isTopicExpanded ? 'rotate-180' : ''}`}
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </div>
-                              </button>
-
-                              {isTopicExpanded && (
-                                <div className="px-3 pb-3 space-y-2 border-t border-orange-100">
-                                  {connections.slice(0, 3).map((conn: GradeConnection, i: number) => (
-                                    <div key={i} className={`p-2 rounded text-xs ${
-                                      conn.importance === 'critical' ? 'bg-red-50 border-l-2 border-red-400' :
-                                      conn.importance === 'high' ? 'bg-orange-50 border-l-2 border-orange-400' :
-                                      'bg-yellow-50 border-l-2 border-yellow-400'
-                                    }`}>
-                                      <div className="flex items-center gap-1 mb-1">
-                                        <span className={`px-1 py-0.5 rounded text-[9px] font-bold text-white ${
-                                          conn.importance === 'critical' ? 'bg-red-500' :
-                                          conn.importance === 'high' ? 'bg-orange-500' : 'bg-yellow-500'
-                                        }`}>
-                                          {conn.importance === 'critical' ? '필수' : conn.importance === 'high' ? '중요' : '권장'}
-                                        </span>
-                                        <span className="text-gray-600">{conn.fromGrade} → {conn.toGrade}</span>
-                                      </div>
-                                      <p className="text-gray-700 line-clamp-2">{conn.warning}</p>
-                                    </div>
-                                  ))}
-                                  {connections.length > 3 && (
-                                    <p className="text-[10px] text-gray-500 text-center">+{connections.length - 3}개 더...</p>
-                                  )}
-                                </div>
+                        {connections.slice(0, 5).map((conn, i) => (
+                          <div key={i} className={`p-3 rounded-lg text-sm ${
+                            conn.importance === 'critical' ? 'bg-red-50 border-l-4 border-red-400' :
+                            conn.importance === 'high' ? 'bg-orange-50 border-l-4 border-orange-400' :
+                            'bg-yellow-50 border-l-4 border-yellow-400'
+                          }`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${
+                                conn.importance === 'critical' ? 'bg-red-500' :
+                                conn.importance === 'high' ? 'bg-orange-500' : 'bg-yellow-500'
+                              }`}>
+                                {conn.importance === 'critical' ? '필수' : conn.importance === 'high' ? '중요' : '권장'}
+                              </span>
+                              <span className="text-xs text-gray-600">{conn.fromGrade} → {conn.toGrade}</span>
+                              {conn.fromTopic && (
+                                <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{conn.fromTopic}</span>
                               )}
                             </div>
-                          );
-                        })}
+                            <p className="text-gray-700">{conn.warning}</p>
+                          </div>
+                        ))}
+                        {connections.length > 5 && (
+                          <button
+                            onClick={() => toggleConnectionImportance(majorUnit, 'showAll')}
+                            className="w-full text-center text-xs text-orange-600 hover:text-orange-800 py-2"
+                          >
+                            +{connections.length - 5}개 더 보기
+                          </button>
+                        )}
+                        {expandedConnectionImportance.get(majorUnit)?.has('showAll') && connections.slice(5).map((conn, i) => (
+                          <div key={`extra-${i}`} className={`p-3 rounded-lg text-sm ${
+                            conn.importance === 'critical' ? 'bg-red-50 border-l-4 border-red-400' :
+                            conn.importance === 'high' ? 'bg-orange-50 border-l-4 border-orange-400' :
+                            'bg-yellow-50 border-l-4 border-yellow-400'
+                          }`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${
+                                conn.importance === 'critical' ? 'bg-red-500' :
+                                conn.importance === 'high' ? 'bg-orange-500' : 'bg-yellow-500'
+                              }`}>
+                                {conn.importance === 'critical' ? '필수' : conn.importance === 'high' ? '중요' : '권장'}
+                              </span>
+                              <span className="text-xs text-gray-600">{conn.fromGrade} → {conn.toGrade}</span>
+                              {conn.fromTopic && (
+                                <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{conn.fromTopic}</span>
+                              )}
+                            </div>
+                            <p className="text-gray-700">{conn.warning}</p>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
