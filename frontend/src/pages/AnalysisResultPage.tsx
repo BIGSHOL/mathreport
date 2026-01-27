@@ -297,6 +297,13 @@ export function AnalysisResultPage() {
         questionsWithConfidence.length
       : null;
 
+  // 신뢰도 분포 계산
+  const confidenceDistribution = {
+    high: questionsWithConfidence.filter(q => (q.confidence || 0) >= 0.9).length,
+    medium: questionsWithConfidence.filter(q => (q.confidence || 0) >= 0.7 && (q.confidence || 0) < 0.9).length,
+    low: questionsWithConfidence.filter(q => (q.confidence || 0) < 0.7).length,
+  };
+
   // 템플릿 Props
   const templateProps = {
     result,
@@ -445,13 +452,58 @@ export function AnalysisResultPage() {
                 {avgConfidence != null && (() => {
                   const level = getConfidenceLevel(avgConfidence);
                   const config = CONFIDENCE_COLORS[level];
+                  const percentage = Math.round(avgConfidence * 100);
+
                   return (
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}
-                      title="AI 분석 신뢰도"
-                    >
-                      신뢰도 {Math.round(avgConfidence * 100)}%
-                    </span>
+                    <div className="relative group">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-help ${config.bg} ${config.text}`}
+                      >
+                        신뢰도 {percentage}%
+                      </span>
+                      {/* 툴팁 */}
+                      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-80 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                        <div className="font-semibold mb-2">이 시험이 {percentage}% 신뢰도를 받은 이유</div>
+
+                        <div className="mb-2 pb-2 border-b border-gray-600">
+                          <div className="text-gray-300 leading-relaxed">
+                            {confidenceDistribution.high}개 문항이 높은 신뢰도(90%+)로 분석되었습니다.
+                          </div>
+                          {confidenceDistribution.medium > 0 && (
+                            <div className="text-gray-300 leading-relaxed">
+                              {confidenceDistribution.medium}개 문항은 보통 신뢰도(70-89%)입니다.
+                            </div>
+                          )}
+                          {confidenceDistribution.low > 0 && (
+                            <div className="text-yellow-300 leading-relaxed">
+                              {confidenceDistribution.low}개 문항은 낮은 신뢰도(&lt;70%)입니다.
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-gray-300 leading-relaxed">
+                          {percentage >= 90 ? (
+                            <>
+                              <div className="font-semibold text-emerald-300 mb-1">✓ 매우 신뢰할 수 있는 분석</div>
+                              <div>문항들이 명확하게 인식되어 정확한 분석이 가능했습니다.</div>
+                            </>
+                          ) : percentage >= 70 ? (
+                            <>
+                              <div className="font-semibold text-yellow-300 mb-1">△ 대체로 신뢰 가능</div>
+                              <div>일부 문항에서 불확실성이 있을 수 있습니다.</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="font-semibold text-red-300 mb-1">⚠ 검토 권장</div>
+                              <div>스캔 품질이나 문항 형식을 확인해주세요.</div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* 말풍선 화살표 */}
+                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
+                      </div>
+                    </div>
                   );
                 })()}
               </div>

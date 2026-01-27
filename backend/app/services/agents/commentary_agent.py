@@ -14,6 +14,7 @@ from google.genai import types
 
 from app.core.config import settings
 from app.schemas.analysis import ExamCommentary, NotableQuestion, TopicPriority
+from app.services.prompt_config import ESSAY_GRADING_GUIDE
 
 
 class CommentaryAgent:
@@ -157,19 +158,16 @@ class CommentaryAgent:
             "4. strategic_advice: 시험 전략 조언 (어떤 순서로 풀지, 어디서 시간을 아낄지)",
             "5. key_insights: 이미 차트에서 보이는 정보(%)는 피하고, 의미있는 발견만",
             "",
-            "=== 서술형 문항 분석 가이드 ===",
-            "서술형 문항이 있을 경우 다음 사항을 반영하세요:",
-            "1. 서술형 채점 기준: 풀이과정(40-60%), 최종답(30-40%), 논리적전개(10-20%)",
-            "2. 주요 감점 요인:",
-            "   - 논리적 비약: 중간 단계 생략, 조건 미확인, 풀이 순서 오류",
-            "   - 형식적 요건: 등호 연속 사용, 단위 미표기, 최종답 미표기",
-            "   - 계산 오류: 부호 실수, 괄호 처리 오류, 약분 실수",
-            "3. 서술형 전략:",
-            "   - 풀이 과정 생략 금지 (부분점수 확보)",
-            "   - 동치 기호(⇔) 또는 화살표(→) 활용하여 논리 흐름 명확화",
-            "   - 최종답은 반드시 별도로 표기",
-            "4. 시간 배분: 서술형 1문항당 평균 배점÷2분 할당 권장",
         ])
+
+        # 서술형 문항이 있을 때만 가이드 포함 (토큰 절감)
+        has_essay = any(q.get("question_format") == "essay" for q in questions)
+        if has_essay:
+            prompt_parts.extend([
+                "",
+                "=== 서술형 문항 분석 가이드 ===",
+                ESSAY_GRADING_GUIDE,
+            ])
 
         return "\n".join(prompt_parts)
 

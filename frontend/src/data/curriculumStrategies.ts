@@ -9660,3 +9660,370 @@ export function estimateLevel(correctRate: number): '하위권' | '중위권' | 
   if (correctRate >= 50) return '중위권';
   return '하위권';
 }
+
+/**
+ * 시험 시간 배분 전략
+ */
+export interface TimeAllocationGuide {
+  type: string;         // 유형
+  weight: string;       // 예상 비중
+  suggestedTime: string; // 권장 시간
+  difficulty: string;   // 난이도 (⭐, ⭐⭐, ⭐⭐⭐)
+}
+
+export interface TimeAllocationStrategy {
+  unit: string;                    // 단원명
+  keywords: string[];              // 매칭 키워드
+  examDuration: number;            // 시험 시간 (분) - 중학교: 45, 고등학교: 50
+  guides: TimeAllocationGuide[];   // 유형별 시간 배분
+  quickTypes: string[];            // 빠르게 풀 수 있는 유형
+  timeConsumingTypes: string[];    // 시간 잡아먹는 유형
+  timeSavingTips: string[];        // 시간 절약 팁
+}
+
+/**
+ * 단원별 시간 배분 전략 (50~70분 시험 기준)
+ */
+export const TIME_ALLOCATION_STRATEGIES: TimeAllocationStrategy[] = [
+  // 중학교 1학년
+  {
+    unit: '소인수분해',
+    keywords: ['소인수분해', '소수', '약수', '최대공약수', '최소공배수'],
+    examDuration: 45,
+    guides: [
+      { type: '소수 판별', weight: '10%', suggestedTime: '30초', difficulty: '⭐' },
+      { type: '소인수분해', weight: '15%', suggestedTime: '1분', difficulty: '⭐' },
+      { type: '약수의 개수/합', weight: '20%', suggestedTime: '1~2분', difficulty: '⭐⭐' },
+      { type: '최대공약수/최소공배수', weight: '25%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '조건 역추적', weight: '30%', suggestedTime: '3~4분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      '소수 판별 → 100 이하 소수 암기하면 즉답',
+      '단순 소인수분해 → 기계적 나눗셈',
+      '약수 개수 → 공식 바로 적용',
+    ],
+    timeConsumingTypes: [
+      '"약수가 6개인 가장 작은 자연수" → 경우의 수 고려 필요',
+      '최대공약수/최소공배수 조건 문제 → 여러 경우 확인',
+    ],
+    timeSavingTips: [
+      '100 이하 소수 25개 암기해두면 판별 시간 단축',
+      '약수 개수 = (지수+1)들의 곱 → 공식 즉시 적용',
+      '최대공약수 × 최소공배수 = 두 수의 곱 활용',
+    ],
+  },
+  {
+    unit: '일차방정식',
+    keywords: ['일차방정식', '방정식', '활용문제', '문자와 식'],
+    examDuration: 45,
+    guides: [
+      { type: '식의 값 (대입)', weight: '15%', suggestedTime: '1분', difficulty: '⭐' },
+      { type: '일차방정식 풀이', weight: '25%', suggestedTime: '1~2분', difficulty: '⭐' },
+      { type: '분수/소수 방정식', weight: '20%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '활용 문제 (기본)', weight: '25%', suggestedTime: '3분', difficulty: '⭐⭐' },
+      { type: '활용 문제 (심화)', weight: '15%', suggestedTime: '4~5분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      '단순 대입 → 괄호만 조심하면 즉답',
+      'ax = b 형태 → 바로 x = b/a',
+    ],
+    timeConsumingTypes: [
+      '복잡한 활용 문제 → 식 세우기에 시간 소요',
+      '분수 계수 방정식 → 통분 과정에서 실수',
+    ],
+    timeSavingTips: [
+      '활용 문제: "무엇을 x로 놓을지" 빠르게 결정',
+      '분수 방정식: 분모의 최소공배수를 한 번에 곱하기',
+      '답 구한 후 검산은 대입으로 빠르게',
+    ],
+  },
+  // 중학교 2학년
+  {
+    unit: '연립방정식',
+    keywords: ['연립방정식', '연립', '일차부등식'],
+    examDuration: 45,
+    guides: [
+      { type: '일차부등식 풀이', weight: '15%', suggestedTime: '1분', difficulty: '⭐' },
+      { type: '연립부등식', weight: '15%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '연립방정식 풀이', weight: '20%', suggestedTime: '2분', difficulty: '⭐' },
+      { type: '해의 조건', weight: '15%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '활용 문제', weight: '35%', suggestedTime: '3~4분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      '단순 부등식 → 음수 곱할 때 부등호만 주의',
+      '연립방정식 → 가감법이 대체로 빠름',
+    ],
+    timeConsumingTypes: [
+      '활용 문제 → 식 세우기가 관건',
+      '해가 없음/무수히 많음 → 특수 조건 확인',
+    ],
+    timeSavingTips: [
+      '부등식: 음수로 나누면 부등호 방향 바뀜',
+      '연립방정식: 계수 맞추기 쉬운 쪽으로',
+      '활용: 미지수 2개 → 조건 2개 찾기',
+    ],
+  },
+  {
+    unit: '일차함수',
+    keywords: ['일차함수', '기울기', '그래프', 'y절편'],
+    examDuration: 45,
+    guides: [
+      { type: '기울기/절편 읽기', weight: '15%', suggestedTime: '30초', difficulty: '⭐' },
+      { type: '그래프 그리기', weight: '15%', suggestedTime: '1분', difficulty: '⭐' },
+      { type: '식 구하기', weight: '25%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '위치 관계', weight: '20%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '연립과 교점', weight: '25%', suggestedTime: '3분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      'y = ax + b에서 a, b 읽기 → 즉답',
+      '평행/일치 조건 → 기울기 비교만',
+    ],
+    timeConsumingTypes: [
+      '두 직선의 교점으로 도형 넓이 → 연립 + 계산',
+      '조건이 많은 문제 → 정리 시간 필요',
+    ],
+    timeSavingTips: [
+      '기울기 = (y증가)/(x증가), 분수 그대로 계산',
+      '평행: 기울기 같음, 일치: 기울기+절편 같음',
+      '교점 = 연립방정식의 해',
+    ],
+  },
+  // 중학교 3학년
+  {
+    unit: '제곱근',
+    keywords: ['제곱근', '근호', '무리수', '실수'],
+    examDuration: 45,
+    guides: [
+      { type: '제곱근 개념', weight: '15%', suggestedTime: '1분', difficulty: '⭐' },
+      { type: '근호 간단히', weight: '20%', suggestedTime: '1~2분', difficulty: '⭐' },
+      { type: '근호 사칙연산', weight: '25%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '분모의 유리화', weight: '25%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '실수 분류/대소', weight: '15%', suggestedTime: '2~3분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      '√4 = 2 (양수만) → 즉답',
+      '√a² = |a| → 절댓값으로 처리',
+    ],
+    timeConsumingTypes: [
+      '켤레식 유리화 → 계산 과정 길어짐',
+      '실수 대소 비교 → 제곱해서 비교',
+    ],
+    timeSavingTips: [
+      '√a×√b = √(ab), but √a+√b ≠ √(a+b)',
+      '유리화: √a → √a 곱함, √a±√b → 켤레식',
+      '대소 비교: 양수면 제곱해서 비교',
+    ],
+  },
+  {
+    unit: '인수분해',
+    keywords: ['인수분해', '곱셈공식', '다항식'],
+    examDuration: 45,
+    guides: [
+      { type: '곱셈공식 전개', weight: '20%', suggestedTime: '1분', difficulty: '⭐' },
+      { type: '기본 인수분해', weight: '25%', suggestedTime: '1~2분', difficulty: '⭐' },
+      { type: '복잡한 인수분해', weight: '25%', suggestedTime: '2~3분', difficulty: '⭐⭐' },
+      { type: '공식 변형 활용', weight: '20%', suggestedTime: '2~3분', difficulty: '⭐⭐' },
+      { type: '치환 인수분해', weight: '10%', suggestedTime: '3~4분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      '곱셈공식 → 암기되어 있으면 즉시 전개',
+      '합차공식 → a²-b² = (a+b)(a-b) 바로 적용',
+    ],
+    timeConsumingTypes: [
+      '복잡한 인수분해 → 여러 단계 필요',
+      '조건이 주어진 식의 값 → 변형 필요',
+    ],
+    timeSavingTips: [
+      '곱셈공식 5개 1초 안에 떠올리기',
+      '인수분해: 공통인수 먼저 → 공식 적용',
+      'a²+b² = (a+b)²-2ab 변형 활용',
+    ],
+  },
+  {
+    unit: '이차방정식',
+    keywords: ['이차방정식', '근의 공식', '판별식'],
+    examDuration: 45,
+    guides: [
+      { type: '인수분해 풀이', weight: '20%', suggestedTime: '1~2분', difficulty: '⭐' },
+      { type: '완전제곱식 풀이', weight: '15%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '근의 공식', weight: '25%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '판별식 활용', weight: '20%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '활용 문제', weight: '20%', suggestedTime: '3~4분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      '인수분해 가능 → 가장 빠른 방법',
+      '짝수 공식 → b가 짝수면 계산 간단',
+    ],
+    timeConsumingTypes: [
+      '활용 문제 → 식 세우기에 시간 소요',
+      '근의 조건 → 판별식 부등식 풀이',
+    ],
+    timeSavingTips: [
+      '먼저 인수분해 가능한지 확인',
+      '근의 공식 분모는 2a (a 아님!)',
+      '활용: 답 구한 후 조건(양수, 자연수) 확인',
+    ],
+  },
+  {
+    unit: '이차함수',
+    keywords: ['이차함수', '포물선', '꼭짓점'],
+    examDuration: 45,
+    guides: [
+      { type: '그래프 특징', weight: '15%', suggestedTime: '1분', difficulty: '⭐' },
+      { type: '꼭짓점/축', weight: '20%', suggestedTime: '1~2분', difficulty: '⭐' },
+      { type: '표준형 ↔ 일반형', weight: '20%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '그래프와 x축', weight: '25%', suggestedTime: '2~3분', difficulty: '⭐⭐' },
+      { type: '최대/최소', weight: '20%', suggestedTime: '3~4분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      'y = a(x-p)² + q → 꼭짓점 (p, q) 즉시 읽기',
+      'a의 부호 → 볼록 방향 바로 판단',
+    ],
+    timeConsumingTypes: [
+      '정의역 제한된 최대/최소 → 경우 분류',
+      '그래프와 x축 교점 조건 → 판별식 연결',
+    ],
+    timeSavingTips: [
+      '괄호 안이 (x-3)이면 꼭짓점 x좌표는 +3',
+      '꼭짓점 공식: x = -b/2a',
+      '정의역에 꼭짓점 포함되는지 먼저 확인',
+    ],
+  },
+  // 고등학교
+  {
+    unit: '다항식',
+    keywords: ['다항식', '나머지정리', '인수정리', '조립제법'],
+    examDuration: 50,
+    guides: [
+      { type: '다항식 연산', weight: '15%', suggestedTime: '1~2분', difficulty: '⭐' },
+      { type: '나머지정리', weight: '25%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '인수정리', weight: '20%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '고차 인수분해', weight: '25%', suggestedTime: '3분', difficulty: '⭐⭐' },
+      { type: '이차식 나머지', weight: '15%', suggestedTime: '4분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      '나머지정리 → P(a)가 나머지',
+      '조립제법 → 손에 익으면 빠름',
+    ],
+    timeConsumingTypes: [
+      '이차식으로 나눈 나머지 → 연립 필요',
+      '복잡한 고차 인수분해',
+    ],
+    timeSavingTips: [
+      '(x-a)로 나눈 나머지 = P(a)',
+      '(x+a)로 나눈 나머지 = P(-a) (부호 주의!)',
+      '이차식 나머지: R(x) = ax+b로 놓고 두 조건',
+    ],
+  },
+  {
+    unit: '방정식과 부등식',
+    keywords: ['복소수', '근과 계수', '이차부등식', '판별식'],
+    examDuration: 50,
+    guides: [
+      { type: '복소수 계산', weight: '15%', suggestedTime: '1~2분', difficulty: '⭐' },
+      { type: '판별식/근과 계수', weight: '25%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '이차방정식/함수 관계', weight: '20%', suggestedTime: '2~3분', difficulty: '⭐⭐' },
+      { type: '이차부등식', weight: '20%', suggestedTime: '2~3분', difficulty: '⭐⭐' },
+      { type: '고차방정식', weight: '20%', suggestedTime: '3~4분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      'i의 거듭제곱 → 4개 주기로 즉답',
+      '근과 계수 → 공식 대입',
+    ],
+    timeConsumingTypes: [
+      '대칭식 계산 → 변형 공식 필요',
+      '이차부등식 → D 부호에 따른 경우 분류',
+    ],
+    timeSavingTips: [
+      'i¹=i, i²=-1, i³=-i, i⁴=1 (4개 주기)',
+      'α+β = -b/a (마이너스 주의!)',
+      '이차부등식: 그래프 먼저 그리기',
+    ],
+  },
+  {
+    unit: '수열',
+    keywords: ['수열', '등차수열', '등비수열', '시그마', '귀납법'],
+    examDuration: 50,
+    guides: [
+      { type: '등차/등비 기본', weight: '20%', suggestedTime: '2분', difficulty: '⭐' },
+      { type: '일반항/합', weight: '25%', suggestedTime: '2~3분', difficulty: '⭐⭐' },
+      { type: '시그마 계산', weight: '20%', suggestedTime: '2~3분', difficulty: '⭐⭐' },
+      { type: '점화식', weight: '20%', suggestedTime: '3분', difficulty: '⭐⭐' },
+      { type: '귀납법', weight: '15%', suggestedTime: '4분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      '등차/등비 공식 → 직접 대입',
+      'Σk, Σk², Σk³ → 공식 암기',
+    ],
+    timeConsumingTypes: [
+      '부분분수 분해 → 소거 패턴 찾기',
+      '귀납법 증명 → 서술 시간',
+    ],
+    timeSavingTips: [
+      '등차: aₙ=a₁+(n-1)d, 등비: aₙ=a₁×r^(n-1)',
+      'Σk=n(n+1)/2, Σk²=n(n+1)(2n+1)/6',
+      'aₙ = Sₙ - Sₙ₋₁ (n≥2)',
+    ],
+  },
+  {
+    unit: '미분',
+    keywords: ['미분', '도함수', '접선', '극값', '최대최소'],
+    examDuration: 50,
+    guides: [
+      { type: '미분계수 정의', weight: '10%', suggestedTime: '1~2분', difficulty: '⭐' },
+      { type: '도함수 계산', weight: '20%', suggestedTime: '1~2분', difficulty: '⭐' },
+      { type: '접선의 방정식', weight: '25%', suggestedTime: '2~3분', difficulty: '⭐⭐' },
+      { type: '극대/극소', weight: '25%', suggestedTime: '3분', difficulty: '⭐⭐' },
+      { type: '최대/최소', weight: '20%', suggestedTime: '3~4분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      '다항함수 미분 → 공식 기계적 적용',
+      '접선의 기울기 → f\'(a) 계산',
+    ],
+    timeConsumingTypes: [
+      '극값 조건 → f\'=0 후 부호 변화 확인',
+      '구간에서 최대/최소 → 끝점도 확인',
+    ],
+    timeSavingTips: [
+      '(xⁿ)\' = nxⁿ⁻¹',
+      '접선: y-f(a) = f\'(a)(x-a)',
+      'f\'=0이어도 부호 안 바뀌면 극값 아님',
+    ],
+  },
+  {
+    unit: '적분',
+    keywords: ['적분', '부정적분', '정적분', '넓이'],
+    examDuration: 50,
+    guides: [
+      { type: '부정적분', weight: '15%', suggestedTime: '1~2분', difficulty: '⭐' },
+      { type: '정적분 계산', weight: '25%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '대칭성 활용', weight: '15%', suggestedTime: '2분', difficulty: '⭐⭐' },
+      { type: '넓이 (기본)', weight: '25%', suggestedTime: '3분', difficulty: '⭐⭐' },
+      { type: '넓이 (심화)', weight: '20%', suggestedTime: '4분', difficulty: '⭐⭐⭐' },
+    ],
+    quickTypes: [
+      '부정적분 → 미분 역과정',
+      '정적분 → F(b)-F(a)',
+    ],
+    timeConsumingTypes: [
+      'x축 아래 넓이 → 절댓값/구간 나누기',
+      '두 곡선 사이 → 교점 찾기 + 위아래 확인',
+    ],
+    timeSavingTips: [
+      '∫xⁿdx = xⁿ⁺¹/(n+1) + C',
+      '기함수 [-a,a] 적분 = 0',
+      '넓이: 절댓값 또는 위-아래',
+    ],
+  },
+];
+
+/**
+ * 토픽에 맞는 시간 배분 전략 찾기
+ */
+export function findTimeAllocationStrategy(topic: string): TimeAllocationStrategy | null {
+  return TIME_ALLOCATION_STRATEGIES.find(strategy =>
+    strategy.keywords.some(keyword =>
+      topic.includes(keyword) || keyword.includes(topic)
+    )
+  ) || null;
+}
