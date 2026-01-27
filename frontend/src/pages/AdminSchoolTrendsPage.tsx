@@ -381,11 +381,11 @@ export function AdminSchoolTrendsPage() {
             <div className="mb-6">
               <h4 className="text-sm font-semibold text-gray-700 mb-2">난이도 분포</h4>
               <div className="flex gap-2">
-                {Object.entries(detailModal.trend.difficulty_distribution).map(([key, value]) => (
+                {detailModal.trend && Object.entries(detailModal.trend.difficulty_distribution).map(([key, value]) => (
                   <div key={key} className="flex-1 p-2 bg-gray-50 rounded text-center">
                     <div className="text-xs text-gray-500">{DIFFICULTY_LABELS[key] || key}</div>
                     <div className="font-bold text-gray-900">{value}</div>
-                    {detailModal.trend.difficulty_avg_points[key] && (
+                    {detailModal.trend?.difficulty_avg_points[key] && (
                       <div className="text-xs text-gray-400">
                         평균 {detailModal.trend.difficulty_avg_points[key]}점
                       </div>

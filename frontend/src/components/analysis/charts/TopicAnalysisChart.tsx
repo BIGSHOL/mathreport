@@ -339,7 +339,7 @@ export const TopicAnalysisChart = memo(function TopicAnalysisChart({
                     {/* 소단원 목록 (확장 시) */}
                     {isExpanded && hasMinorTopics && (
                       <div className="ml-6 pl-4 border-l-2 border-gray-200 space-y-0.5 pb-2">
-                        {chapter.minorTopics.map((minor, minorIdx) => (
+                        {chapter.minorTopics.map((minor) => (
                           <div
                             key={minor.name}
                             className="flex items-center gap-2 py-1 text-sm"

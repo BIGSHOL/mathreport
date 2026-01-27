@@ -496,6 +496,7 @@ function getAllTopics(category: string): string[] {
 }
 
 // 기존 CATEGORY_UNITS 하위 호환 (다른 코드에서 사용 시)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CATEGORY_UNITS: Record<string, string[]> = Object.fromEntries(
   Object.keys(CURRICULUM_HIERARCHY).map(key => [key, getAllTopics(key)])
 );

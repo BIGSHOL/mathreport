@@ -85,10 +85,10 @@ export const QuestionPointsChart = memo(function QuestionPointsChart({
   const objectiveItems = data.filter((d) => d.format === 'objective');
   const essayItems = data.filter((d) => d.format === 'essay' || d.format === 'short_answer');
   const avgObjective = objectiveItems.length > 0
-    ? (objectiveItems.reduce((sum, d) => sum + d.points, 0) / objectiveItems.length).toFixed(1)
+    ? (objectiveItems.reduce((sum, d) => sum + (d.points || 0), 0) / objectiveItems.length).toFixed(1)
     : null;
   const avgEssay = essayItems.length > 0
-    ? (essayItems.reduce((sum, d) => sum + d.points, 0) / essayItems.length).toFixed(1)
+    ? (essayItems.reduce((sum, d) => sum + (d.points || 0), 0) / essayItems.length).toFixed(1)
     : null;
 
   return (

@@ -30,26 +30,22 @@ const ALL_TYPES = [
 ];
 
 // 커스텀 라벨 렌더러 (각 유형별 색상 적용)
-const renderColoredTick = (props: {
-  payload: { value: string };
-  x: number;
-  y: number;
-  textAnchor: string;
-}) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const renderColoredTick = (props: any) => {
   const { payload, x, y, textAnchor } = props;
-  const typeInfo = ALL_TYPES.find((t) => t.label === payload.value);
+  const typeInfo = ALL_TYPES.find((t) => t.label === payload?.value);
   const color = typeInfo?.color || '#4b5563';
 
   return (
     <text
       x={x}
       y={y}
-      textAnchor={textAnchor}
+      textAnchor={textAnchor as 'start' | 'middle' | 'end' | 'inherit'}
       fill={color}
       fontSize={10}
       fontWeight={600}
     >
-      {payload.value}
+      {payload?.value}
     </text>
   );
 };
