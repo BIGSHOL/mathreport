@@ -58,6 +58,7 @@ class ExamCreateRequest(BaseModel):
     grade: str | None = Field(None, max_length=20, description="학년 (예: 중2, 고1)")
     subject: str = Field(default="수학", max_length=50, description="과목")
     unit: str | None = Field(None, max_length=100, description="단원")
+    category: str | None = Field(None, max_length=50, description="세부 과목 (예: 공통수학1, 공통수학2, 대수, 미적분I)")
     school_name: str | None = Field(None, max_length=100, description="학교명 (선택)")
     school_region: str | None = Field(None, max_length=50, description="지역 (선택, 예: 서울_강남구)")
     school_type: str | None = Field(None, max_length=20, description="학교 유형 (선택, 예: 일반고, 특목고, 자사고)")
@@ -100,6 +101,7 @@ class ExamBase(BaseModel):
     grade: str | None = None
     subject: str
     unit: str | None = None
+    category: str | None = None  # 세부 과목 (예: 공통수학1, 공통수학2)
     school_name: str | None = None
     school_region: str | None = None
     school_type: str | None = None

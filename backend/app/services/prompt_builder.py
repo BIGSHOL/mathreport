@@ -111,11 +111,21 @@ class PromptBuilder:
         grade_info = f"학년: {context.grade_level}" if context.grade_level else ""
         unit_info = f"단원: {context.unit}" if context.unit else ""
 
+        # 세부 과목 정보 (공통수학1, 공통수학2 등)
+        category_info = ""
+        if context.category:
+            category_info = f"""세부과목: {context.category}
+⚠️ 중요: 이 시험지는 [{context.category}] 과목입니다!
+- 모든 문항의 topic을 "{context.category} > 대단원 > 소단원" 형식으로 작성하세요
+- 다른 과목(예: 공통수학1)으로 분류하지 마세요
+- 예시: "{context.category} > 도형의 방정식 > 평면좌표\""""
+
         # 출제범위 정보 (단원 목록)
         scope_info = ""
         if context.exam_scope and len(context.exam_scope) > 0:
             scope_list = ", ".join(context.exam_scope)
-            scope_info = f"""출제범위: {scope_list}
+            category_prefix = f"[{context.category}] " if context.category else ""
+            scope_info = f"""출제범위: {category_prefix}{scope_list}
 ⚠️ 중요: 문제 유형 분석 시 출제범위에 명시된 단원({scope_list})에만 집중하세요.
 - 범위 외 단원으로 분류하지 마세요
 - 각 문제가 어느 단원에 속하는지 명확히 매칭하세요
@@ -134,6 +144,7 @@ class PromptBuilder:
 - 과목: {subject}
 {grade_info}
 {unit_info}
+{category_info}
 {scope_info}
 
 ## 분석 목표
@@ -148,6 +159,12 @@ class PromptBuilder:
     async def _get_analysis_guidelines(self, context: ExamContext) -> list[str]:
         """분석 가이드라인 가져오기"""
         guidelines = []
+
+        # 세부 과목 제한 가이드라인 (최최우선!)
+        if context.category:
+            guidelines.append(f"🚨 과목 제한: 이 시험지는 [{context.category}] 과목입니다!")
+            guidelines.append(f"모든 문항의 topic을 반드시 \"{context.category} > 대단원 > 소단원\" 형식으로 작성하세요.")
+            guidelines.append(f"❌ 다른 과목(예: 공통수학1 대신 공통수학2)으로 분류하면 안 됩니다!")
 
         # 출제범위 제한 가이드라인 (최우선)
         if context.exam_scope and len(context.exam_scope) > 0:

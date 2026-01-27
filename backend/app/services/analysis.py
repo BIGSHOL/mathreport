@@ -123,6 +123,7 @@ class AnalysisService:
                 file_path=exam["file_path"],
                 grade_level=exam.get("grade"),
                 unit=exam.get("unit"),
+                category=exam.get("category"),  # 세부 과목 (공통수학1, 공통수학2 등)
                 exam_scope=exam.get("exam_scope"),  # 출제범위 (단원 목록)
                 auto_classify=True,  # 시험지 유형 자동 분류
                 exam_id=exam_id,  # 진행 단계 업데이트용

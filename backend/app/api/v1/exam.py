@@ -38,6 +38,7 @@ async def upload_exam(
     subject: Annotated[str, Form()] = "수학",
     grade: Annotated[str | None, Form()] = None,
     unit: Annotated[str | None, Form()] = None,
+    category: Annotated[str | None, Form()] = None,  # 세부 과목 (공통수학1, 공통수학2 등)
     school_name: Annotated[str | None, Form()] = None,
     school_region: Annotated[str | None, Form()] = None,
     school_type: Annotated[str | None, Form()] = None,
@@ -54,6 +55,7 @@ async def upload_exam(
     - **subject**: 과목 (기본값: 수학)
     - **grade**: 학년 (선택)
     - **unit**: 단원 (선택)
+    - **category**: 세부 과목 (선택, 예: 공통수학1, 공통수학2, 대수, 미적분I)
     - **school_name**: 학교명 (선택)
     - **school_region**: 지역 (선택)
     - **school_type**: 학교 유형 (선택)
@@ -79,6 +81,7 @@ async def upload_exam(
         subject=subject,
         grade=grade,
         unit=unit,
+        category=category,
         school_name=school_name,
         school_region=school_region,
         school_type=school_type,

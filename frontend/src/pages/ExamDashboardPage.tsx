@@ -72,8 +72,7 @@ export function ExamDashboardPage() {
         title: data.title,
         subject: data.classification?.subject,
         grade: data.classification?.grade,
-        // category를 unit으로 전달 (백엔드 API 필드명)
-        unit: data.classification?.category,
+        category: data.classification?.category,  // 세부 과목 (공통수학1, 공통수학2 등)
         school_name: data.classification?.school,
         exam_scope: data.classification?.examScope,
       });

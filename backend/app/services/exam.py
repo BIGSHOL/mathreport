@@ -162,6 +162,7 @@ class ExamService:
             "grade": request.grade,
             "subject": request.subject,
             "unit": request.unit,
+            "category": request.category,  # 세부 과목 (공통수학1, 공통수학2 등)
             "school_name": request.school_name,
             "school_region": school_region,
             "school_type": school_type,

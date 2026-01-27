@@ -763,6 +763,7 @@ class AIEngine:
         file_path: str,
         grade_level: str | None = None,
         unit: str | None = None,
+        category: str | None = None,
         exam_scope: list[str] | None = None,
         auto_classify: bool = True,
         exam_id: str | None = None,
@@ -777,6 +778,7 @@ class AIEngine:
             file_path: 분석할 파일 경로 (여러 이미지인 경우 콤마로 구분)
             grade_level: 학년 (예: "중1", "고1")
             unit: 단원 (예: "이차방정식")
+            category: 세부 과목 (예: "공통수학1", "공통수학2")
             auto_classify: 시험지 유형 자동 분류 여부 (통합 버전에서는 항상 분석 내에서 수행)
             exam_id: 시험지 ID (진행 상태 업데이트용)
             analysis_mode: 분석 모드 (questions_only: 문항만, full: 전체, answers_only: 정오답만)
@@ -848,6 +850,7 @@ class AIEngine:
             grade_level=grade_level,
             subject="수학",
             unit=unit,
+            category=category,  # 세부 과목 (공통수학1, 공통수학2 등)
             exam_scope=exam_scope,  # 출제범위 (단원 목록)
             exam_paper_type="unknown",  # 분석 시 자동 판단
         )
@@ -1142,6 +1145,10 @@ class AIEngine:
 
         # 4. 패턴 매칭 (향후 구현)
         # TODO: 분석 결과에서 패턴 매칭 후 PatternMatchHistory에 기록
+
+        # 5. Category 검증 및 자동 수정 (topic의 과목명이 선택한 category와 일치하는지 확인)
+        if category:
+            result = self._validate_and_fix_category(result, category)
 
         # ============ 결과 캐싱 ============
         elapsed = time.time() - start_time
@@ -1751,6 +1758,73 @@ class AIEngine:
         result["_validation_issues"] = issues
 
         return result, confidence
+
+    def _validate_and_fix_category(self, result: dict, category: str | None) -> dict:
+        """분석 결과의 topic에서 과목명(category)을 검증하고 자동 수정.
+
+        Args:
+            result: AI 분석 결과
+            category: 선택한 세부 과목 (예: "공통수학2", "대수")
+
+        Returns:
+            수정된 분석 결과
+        """
+        if not category:
+            return result
+
+        questions = result.get("questions", [])
+        if not questions:
+            return result
+
+        fixed_count = 0
+        mismatched_topics = []
+
+        # category 정규화 (공백 제거, 숫자 통일)
+        normalized_category = category.strip()
+        # "공통수학1", "공통수학2" 등 패턴 매칭용
+        category_patterns = [
+            normalized_category,
+            normalized_category.replace("수학", " 수학"),  # "공통 수학2" 형태
+        ]
+
+        for q in questions:
+            topic = q.get("topic", "")
+            if not topic or " > " not in topic:
+                continue
+
+            # topic에서 과목명 추출 (첫 번째 부분)
+            parts = topic.split(" > ")
+            current_subject = parts[0].strip()
+
+            # 현재 topic의 과목명이 선택한 category와 일치하는지 확인
+            is_match = any(
+                pattern in current_subject or current_subject in pattern
+                for pattern in category_patterns
+            )
+
+            if not is_match:
+                # 불일치: topic의 과목명을 category로 변경
+                old_topic = topic
+                new_parts = [normalized_category] + parts[1:]  # 과목명만 교체
+                q["topic"] = " > ".join(new_parts)
+                fixed_count += 1
+                mismatched_topics.append({
+                    "question_number": q.get("question_number"),
+                    "old_topic": old_topic,
+                    "new_topic": q["topic"],
+                })
+
+        # 수정 결과 저장
+        if fixed_count > 0:
+            result["_category_fix_count"] = fixed_count
+            result["_category_fixes"] = mismatched_topics
+            print(f"[Category Validation] ⚠️ {fixed_count}개 문항의 과목명을 '{normalized_category}'로 자동 수정")
+            for fix in mismatched_topics[:3]:  # 최대 3개만 로그
+                print(f"  - Q{fix['question_number']}: {fix['old_topic']} → {fix['new_topic']}")
+            if fixed_count > 3:
+                print(f"  ... 외 {fixed_count - 3}개 문항")
+
+        return result
 
     def _empty_summary(self) -> dict:
         """빈 summary 생성."""

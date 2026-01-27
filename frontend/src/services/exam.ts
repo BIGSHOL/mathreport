@@ -75,6 +75,7 @@ export interface UploadExamData {
     subject?: string;
     grade?: string;
     unit?: string;
+    category?: string;  // 세부 과목 (공통수학1, 공통수학2 등)
     school_name?: string;  // 학교명
     exam_scope?: string[];  // 출제범위 (단원 목록)
     examType?: ExamType;  // 시험지 유형 (기본값: blank)
@@ -94,6 +95,7 @@ export const examService = {
         if (data.subject) formData.append('subject', data.subject);
         if (data.grade) formData.append('grade', data.grade);
         if (data.unit) formData.append('unit', data.unit);
+        if (data.category) formData.append('category', data.category);
         if (data.school_name) formData.append('school_name', data.school_name);
         if (data.exam_scope && data.exam_scope.length > 0) {
             formData.append('exam_scope', JSON.stringify(data.exam_scope));
