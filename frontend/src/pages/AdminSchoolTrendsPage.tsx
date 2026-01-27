@@ -120,9 +120,15 @@ export function AdminSchoolTrendsPage() {
         );
       } else {
         alert(`집계 완료\n\n- 새로 생성: ${result.created}개\n- 업데이트: ${result.updated}개\n- 처리된 학교: ${result.total_schools_processed}개`);
+        // 필터 초기화하고 첫 페이지로
+        setSearchSchool('');
+        setFilterRegion('');
+        setFilterGrade('');
+        setPage(1);
       }
 
-      loadData();
+      // 데이터 다시 로드
+      await loadData();
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || '알 수 없는 오류';
       alert(`집계에 실패했습니다.\n\n원인: ${detail}`);
