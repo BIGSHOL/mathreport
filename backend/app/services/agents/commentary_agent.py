@@ -288,16 +288,20 @@ class CommentaryAgent:
             creative = diff_dist.get("creative", 0)
             pattern = diff_dist.get("pattern", 0)
             concept = diff_dist.get("concept", 0)
+            # 고난도 = 심화 + 최상위 (유형은 중간 난이도이므로 제외)
             high_ratio = (reasoning + creative) / total if total > 0 else 0
+            low_ratio = concept / total if total > 0 else 0
 
-            if high_ratio > 0.5:
+            if high_ratio > 0.4:
                 diff_text = "심화-최상위 중심의 고난이도"
-            elif (pattern + reasoning) / total > 0.5 if total > 0 else False:
-                diff_text = "유형-심화 중심의 중상위 난이도"
-            elif concept / total > 0.4 if total > 0 else False:
+            elif high_ratio > 0.35:
+                diff_text = "중상위 난이도"
+            elif low_ratio > 0.4:
                 diff_text = "개념 중심의 기초 난이도"
+            elif low_ratio + (pattern / total if total > 0 else 0) > 0.65:
+                diff_text = "개념-유형 중심의 중간 난이도"
             else:
-                diff_text = "균형잡힌 난이도"
+                diff_text = "균형잡힌 중간 난이도"
         else:
             high = diff_dist.get("high", 0)
             medium = diff_dist.get("medium", 0)
@@ -351,14 +355,21 @@ class CommentaryAgent:
             reasoning = diff_dist.get("reasoning", 0)
             creative = diff_dist.get("creative", 0)
             concept = diff_dist.get("concept", 0)
-            high_difficulty_ratio = (reasoning + creative) / total if total > 0 else 0
+            pattern = diff_dist.get("pattern", 0)
+            # 고난도 = 심화 + 최상위
+            high_ratio = (reasoning + creative) / total if total > 0 else 0
+            low_ratio = concept / total if total > 0 else 0
 
-            if high_difficulty_ratio > 0.5:
+            if high_ratio > 0.4:
                 return "상위권 학생을 변별하기 위한 고난이도 시험으로, 심화 개념과 응용력이 핵심입니다."
-            elif concept / total > 0.4 if total > 0 else False:
+            elif high_ratio > 0.35:
+                return "중상위권 학생의 실력을 평가하는 시험으로, 심화 문제 대비가 중요합니다."
+            elif low_ratio > 0.4:
                 return "기초 개념 이해도를 확인하기 위한 시험으로, 교과서 중심 학습이 중요합니다."
+            elif low_ratio + (pattern / total if total > 0 else 0) > 0.65:
+                return "기초-유형 중심의 시험으로, 개념 정리와 유형 연습이 핵심입니다."
             else:
-                return "중상위권 학생의 실력을 종합적으로 평가하는 균형잡힌 시험입니다."
+                return "전 영역을 고르게 평가하는 균형잡힌 시험입니다."
         else:
             high = diff_dist.get("high", 0)
             low = diff_dist.get("low", 0)
