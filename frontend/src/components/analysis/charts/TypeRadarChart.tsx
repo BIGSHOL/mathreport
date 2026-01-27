@@ -58,8 +58,8 @@ const createColoredTick = (activeTypes: typeof ALL_TYPES) => (props: any) => {
   );
 };
 
-// 동적 색상 오버레이 SVG 컴포넌트
-const ColoredOverlay = ({
+// 단일 그라데이션 오버레이 SVG 컴포넌트
+const GradientOverlay = ({
   width,
   height,
   data,
@@ -78,7 +78,6 @@ const ColoredOverlay = ({
 
   const anglePerSector = (2 * Math.PI) / numSides;
   const startOffset = -Math.PI / 2;
-  const gridLevels = [0.2, 0.4, 0.6, 0.8, 1.0];
 
   // 데이터 포인트 좌표 계산
   const dataPoints = data.map((d, i) => {
@@ -88,10 +87,16 @@ const ColoredOverlay = ({
     return {
       x: cx + r * Math.cos(angle),
       y: cy + r * Math.sin(angle),
-      color: d.color,
       value: d.value,
     };
   });
+
+  // 폴리곤 경로 생성
+  const polygonPath = dataPoints.length > 0
+    ? `M ${dataPoints[0].x} ${dataPoints[0].y} ` +
+      dataPoints.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ') +
+      ' Z'
+    : '';
 
   return (
     <svg
@@ -99,55 +104,35 @@ const ColoredOverlay = ({
       height={height}
       style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 10 }}
     >
-      {/* 배경 색상 섹터 */}
-      {gridLevels.map((level, levelIdx) => {
-        const innerR = levelIdx === 0 ? 0 : outerRadius * gridLevels[levelIdx - 1];
-        const outerR = outerRadius * level;
+      <defs>
+        {/* 보라색 그라데이션 */}
+        <linearGradient id="polygonGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.7" />
+          <stop offset="100%" stopColor="#6366f1" stopOpacity="0.5" />
+        </linearGradient>
+      </defs>
 
-        return data.map((item, index) => {
-          const startAngle = startOffset + index * anglePerSector;
-          const endAngle = startAngle + anglePerSector;
+      {/* 단일 데이터 폴리곤 */}
+      <path
+        d={polygonPath}
+        fill="url(#polygonGradient)"
+        stroke="#7c3aed"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+      />
 
-          const ox1 = cx + outerR * Math.cos(startAngle);
-          const oy1 = cy + outerR * Math.sin(startAngle);
-          const ox2 = cx + outerR * Math.cos(endAngle);
-          const oy2 = cy + outerR * Math.sin(endAngle);
-
-          const ix1 = cx + innerR * Math.cos(endAngle);
-          const iy1 = cy + innerR * Math.sin(endAngle);
-          const ix2 = cx + innerR * Math.cos(startAngle);
-          const iy2 = cy + innerR * Math.sin(startAngle);
-
-          const pathData = levelIdx === 0
-            ? `M ${cx} ${cy} L ${ox1} ${oy1} L ${ox2} ${oy2} Z`
-            : `M ${ox1} ${oy1} L ${ox2} ${oy2} L ${ix1} ${iy1} L ${ix2} ${iy2} Z`;
-
-          return (
-            <path
-              key={`bg-${item.type}-${levelIdx}`}
-              d={pathData}
-              fill={item.color}
-              fillOpacity={0.12}
-            />
-          );
-        });
-      })}
-
-      {/* 데이터 폴리곤 */}
-      {dataPoints.map((point, i) => {
-        const nextPoint = dataPoints[(i + 1) % dataPoints.length];
-        const pathData = `M ${cx} ${cy} L ${point.x} ${point.y} L ${nextPoint.x} ${nextPoint.y} Z`;
-        return (
-          <path
-            key={`data-${i}`}
-            d={pathData}
-            fill={point.color}
-            fillOpacity={0.6}
-            stroke={point.color}
-            strokeWidth={2.5}
-          />
-        );
-      })}
+      {/* 꼭짓점 점 표시 */}
+      {dataPoints.map((point, i) => (
+        <circle
+          key={`dot-${i}`}
+          cx={point.x}
+          cy={point.y}
+          r={4}
+          fill="#7c3aed"
+          stroke="white"
+          strokeWidth={2}
+        />
+      ))}
     </svg>
   );
 };
@@ -329,7 +314,7 @@ export const TypeRadarChart = memo(function TypeRadarChart({
             </RadarChart>
           </ResponsiveContainer>
           {effectiveDimensions.width > 0 && effectiveDimensions.height > 0 && (
-            <ColoredOverlay
+            <GradientOverlay
               width={effectiveDimensions.width}
               height={effectiveDimensions.height}
               data={data}
