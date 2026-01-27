@@ -2954,7 +2954,8 @@ export function getEncouragementMessages(
  */
 export function filterMessagesByGrade(messages: string[], grade: string): string[] {
   const isMiddleSchool = grade.startsWith('중');
-  const isHighSchool = grade.startsWith('고');
+  // isHighSchool은 향후 고등학생 전용 필터링에 사용 예정
+  void grade.startsWith('고');
 
   return messages.map(msg => {
     // 고등학교 관련 멘트를 중학생에게 맞게 수정
