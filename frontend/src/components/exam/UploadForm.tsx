@@ -496,10 +496,10 @@ function getAllTopics(category: string): string[] {
 }
 
 // 기존 CATEGORY_UNITS 하위 호환 (다른 코드에서 사용 시)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const CATEGORY_UNITS: Record<string, string[]> = Object.fromEntries(
+const _CATEGORY_UNITS: Record<string, string[]> = Object.fromEntries(
   Object.keys(CURRICULUM_HIERARCHY).map(key => [key, getAllTopics(key)])
 );
+void _CATEGORY_UNITS;
 
 // 학년 옵션
 const GRADE_OPTIONS = ['중1', '중2', '중3', '고1', '고2', '고3'];
