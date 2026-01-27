@@ -34,7 +34,8 @@ export function ExamDashboardPage() {
   // 선택 모드 상태
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedExamIds, setSelectedExamIds] = useState<Set<string>>(new Set());
-  const [isMerging, setIsMerging] = useState(false);
+  const [_isMerging, setIsMerging] = useState(false);
+  void _isMerging; // TODO: 병합 UI 구현 시 사용
 
   // Auth store for user info
   const { user, fetchUser } = useAuthStore();
@@ -182,7 +183,7 @@ export function ExamDashboardPage() {
   );
 
   // 선택 모드 토글
-  const toggleSelectionMode = useCallback(() => {
+  const _toggleSelectionMode = useCallback(() => {
     setSelectionMode((prev) => {
       if (prev) {
         // 선택 모드 해제 시 선택 초기화
@@ -191,6 +192,7 @@ export function ExamDashboardPage() {
       return !prev;
     });
   }, []);
+  void _toggleSelectionMode; // TODO: 병합 UI 구현 시 사용
 
   // 개별 시험지 선택/해제
   const handleSelectionChange = useCallback((examId: string, selected: boolean) => {
@@ -206,7 +208,7 @@ export function ExamDashboardPage() {
   }, []);
 
   // 분석 병합 (async-parallel: Promise.all로 병렬 처리)
-  const handleMergeAnalyses = useCallback(async () => {
+  const _handleMergeAnalyses = useCallback(async () => {
     if (selectedExamIds.size < 2) {
       alert('2개 이상의 분석을 선택해주세요.');
       return;
@@ -236,6 +238,7 @@ export function ExamDashboardPage() {
       setIsMerging(false);
     }
   }, [selectedExamIds, navigate]);
+  void _handleMergeAnalyses; // TODO: 병합 UI 구현 시 사용
 
   // Early return for loading state (js-early-exit)
   if (isLoading) return loadingState;
