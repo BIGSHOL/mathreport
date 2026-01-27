@@ -149,15 +149,34 @@ export const ExamListItem = memo(function ExamListItem({
     }
   }, []);
 
-  // 출제범위 툴팁 마우스 이벤트
-  const handleScopeMouseEnter = useCallback(() => {
+  // 출제범위 툴팁 클릭 이벤트
+  const handleScopeClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     updateScopeTooltipPosition();
-    setShowScopeTooltip(true);
+    setShowScopeTooltip(prev => !prev);
   }, [updateScopeTooltipPosition]);
 
-  const handleScopeMouseLeave = useCallback(() => {
-    setShowScopeTooltip(false);
-  }, []);
+  // 출제범위 툴팁 외부 클릭 시 닫기
+  const scopeTooltipRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showScopeTooltip) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        scopeBadgeRef.current && !scopeBadgeRef.current.contains(target) &&
+        scopeTooltipRef.current && !scopeTooltipRef.current.contains(target)
+      ) {
+        setShowScopeTooltip(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showScopeTooltip]);
 
   // 외부 클릭 시 드롭다운 닫기
   useEffect(() => {
@@ -365,9 +384,8 @@ export const ExamListItem = memo(function ExamListItem({
                 <>
                   <span
                     ref={scopeBadgeRef}
-                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100 cursor-help transition-colors hover:bg-amber-100"
-                    onMouseEnter={handleScopeMouseEnter}
-                    onMouseLeave={handleScopeMouseLeave}
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100 cursor-pointer transition-colors hover:bg-amber-100"
+                    onClick={handleScopeClick}
                   >
                     <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -378,10 +396,9 @@ export const ExamListItem = memo(function ExamListItem({
                   {/* 출제범위 계층 툴팁 */}
                   {showScopeTooltip && parsedScope && createPortal(
                     <div
+                      ref={scopeTooltipRef}
                       className="fixed z-[9999] w-64 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden"
                       style={{ top: scopeTooltipPos.top, left: scopeTooltipPos.left }}
-                      onMouseEnter={handleScopeMouseEnter}
-                      onMouseLeave={handleScopeMouseLeave}
                     >
                       <div className="px-3 py-1.5 bg-amber-50 border-b border-amber-100">
                         <span className="font-medium text-xs text-amber-800">출제범위 ({exam.exam_scope.length}개 단원)</span>

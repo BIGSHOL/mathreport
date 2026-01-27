@@ -42,6 +42,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
   exportOptions,
   preferredChartType,
   selectedCommentIds,
+  exportTab,
 }: TemplateProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('basic');
   // 기본 분석 탭 차트 유형 ('donut' | 'bar')
@@ -113,11 +114,18 @@ export const DetailedTemplate = memo(function DetailedTemplate({
     setViewMode(tabId as ViewMode);
   }, []);
 
-  const showBasic = isExport || viewMode === 'basic';
-  const showComments = isExport || viewMode === 'comments';
-  const showStrategy = !isExport && viewMode === 'strategy';
-  const showAnswers = !isExport && viewMode === 'answers';
-  const showExtended = !isExport && viewMode === 'extended';
+  // exportTab이 지정되면 해당 탭만 렌더링, 아니면 기존 로직
+  const showBasic = exportTab
+    ? exportTab === 'basic'
+    : isExport || viewMode === 'basic';
+  const showComments = exportTab
+    ? exportTab === 'comments'
+    : isExport || viewMode === 'comments';
+  const showStrategy = exportTab
+    ? exportTab === 'strategy'
+    : !isExport && viewMode === 'strategy';
+  const showAnswers = !isExport && !exportTab && viewMode === 'answers';
+  const showExtended = !isExport && !exportTab && viewMode === 'extended';
 
   // Export visibility helpers
   const isSectionVisible = (section: keyof NonNullable<TemplateProps['exportOptions']>) => {

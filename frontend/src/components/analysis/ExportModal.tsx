@@ -18,6 +18,8 @@ import { DetailedTemplate } from './templates/DetailedTemplate';
 import { subscriptionService } from '../../services/subscription';
 
 type ChartMode = 'bar' | 'donut';
+type ExportMode = 'single' | 'tabs';
+type TabType = 'basic' | 'comments' | 'strategy';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -40,6 +42,13 @@ export function ExportModal({
 }: ExportModalProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [isMaster, setIsMaster] = useState(false);
+  const [exportMode, setExportMode] = useState<ExportMode>('single');
+  const [currentExportTab, setCurrentExportTab] = useState<TabType | null>(null);
+
+  // 탭별 내보내기용 ref들
+  const basicTabRef = useRef<HTMLDivElement>(null);
+  const commentsTabRef = useRef<HTMLDivElement>(null);
+  const strategyTabRef = useRef<HTMLDivElement>(null);
 
   // 섹션 선택
   const [showHeader, setShowHeader] = useState(true);
@@ -121,6 +130,51 @@ export function ExportModal({
         setIsExporting(false);
       }
       return;
+    }
+  };
+
+  // 탭별 이미지 내보내기 함수
+  const handleTabsImageDownload = async () => {
+    setIsExporting(true);
+    try {
+      const tabs: { ref: React.RefObject<HTMLDivElement | null>; name: string; tab: TabType }[] = [
+        { ref: basicTabRef, name: '기본분석', tab: 'basic' },
+        { ref: commentsTabRef, name: 'AI코멘트', tab: 'comments' },
+        { ref: strategyTabRef, name: '학습대책', tab: 'strategy' },
+      ];
+
+      for (const { ref, name, tab } of tabs) {
+        setCurrentExportTab(tab);
+        // DOM 업데이트 대기
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        if (ref.current) {
+          try {
+            const dataUrl = await toPng(ref.current, {
+              cacheBust: true,
+              backgroundColor: '#ffffff',
+              pixelRatio: 2,
+            });
+
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `${examTitle}_${name}.png`;
+            link.click();
+
+            // 다운로드 사이 간격
+            await new Promise(resolve => setTimeout(resolve, 200));
+          } catch (err) {
+            console.error(`Failed to export ${name}:`, err);
+          }
+        }
+      }
+
+      setCurrentExportTab(null);
+    } catch (err) {
+      console.error('Tab export failed:', err);
+      alert(`탭별 이미지 내보내기에 실패했습니다: ${err}`);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -219,7 +273,40 @@ export function ExportModal({
           <div className="flex-1 overflow-hidden flex">
             {/* 왼쪽: 옵션 */}
             <div className="w-72 border-r flex flex-col bg-gray-50 overflow-y-auto">
-              {/* 섹션 선택 */}
+              {/* 내보내기 모드 선택 */}
+              <div className="p-4 border-b">
+                <h3 className="font-semibold text-gray-900 text-sm mb-3">내보내기 방식</h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setExportMode('single')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                      exportMode === 'single'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    단일 이미지
+                  </button>
+                  <button
+                    onClick={() => setExportMode('tabs')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                      exportMode === 'tabs'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    탭별 분리
+                  </button>
+                </div>
+                {exportMode === 'tabs' && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    3개 이미지로 분리 저장됩니다
+                  </p>
+                )}
+              </div>
+
+              {/* 섹션 선택 (단일 이미지 모드만) */}
+              {exportMode === 'single' && (
               <div className="p-4 border-b">
                 <h3 className="font-semibold text-gray-900 text-sm mb-3">포함할 섹션</h3>
                 <div className="space-y-2">
@@ -232,9 +319,10 @@ export function ExportModal({
                   <SectionToggle label="AI 코멘트" checked={showComments} onChange={setShowComments} />
                 </div>
               </div>
+              )}
 
-              {/* 차트 스타일 */}
-              {(showDifficulty || showType || showTopic) && (
+              {/* 차트 스타일 (단일 이미지 모드만) */}
+              {exportMode === 'single' && (showDifficulty || showType || showTopic) && (
                 <div className="p-4 border-b">
                   <h3 className="font-semibold text-gray-900 text-sm mb-3">차트 스타일</h3>
                   <div className="flex gap-2">
@@ -267,8 +355,8 @@ export function ExportModal({
                 </div>
               )}
 
-              {/* AI 코멘트 선택 */}
-              {showComments && questionsWithComments.length > 0 && (
+              {/* AI 코멘트 선택 (단일 이미지 모드만) */}
+              {exportMode === 'single' && showComments && questionsWithComments.length > 0 && (
                 <div className="p-4 flex-1 overflow-y-auto">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-semibold text-gray-900 text-sm">AI 코멘트 선택</h3>
@@ -342,49 +430,142 @@ export function ExportModal({
 
             {/* 오른쪽: 미리보기 */}
             <div className="flex-1 overflow-auto bg-gray-200 p-6 flex justify-center items-start">
-              {/* Preview Scaling Wrapper - UI only */}
-              <div style={{ transform: 'scale(0.7)', transformOrigin: 'top center', marginTop: '20px' }}>
-                <div
-                  ref={previewRef}
-                  className="bg-white shadow-xl rounded-lg mx-auto"
-                  style={{
-                    width: '1024px',
-                    minHeight: '1200px',
-                    padding: '40px',
-                    fontFamily: "'Pretendard Variable', -apple-system, sans-serif",
-                  }}
-                >
-                  <DetailedTemplate
-                    result={result}
-                    examType={isAnswered ? 'student' : 'blank'}
-                    analysisId={result.id}
-                    extension={null}
-                    isExport={true}
-                    exportMetadata={{
-                      examTitle,
-                      examSubject,
-                      examGrade: examGrade || undefined,
+              {exportMode === 'single' ? (
+                /* 단일 이미지 모드 */
+                <div style={{ transform: 'scale(0.7)', transformOrigin: 'top center', marginTop: '20px' }}>
+                  <div
+                    ref={previewRef}
+                    className="bg-white shadow-xl rounded-lg mx-auto"
+                    style={{
+                      width: '1024px',
+                      minHeight: '1200px',
+                      padding: '40px',
+                      fontFamily: "'Pretendard Variable', -apple-system, sans-serif",
                     }}
-                    exportOptions={{
-                      showSummary,
-                      showDifficulty,
-                      showType,
-                      showTopic,
-                      showQuestions,
-                      showComments,
-                    }}
-                    preferredChartType={chartMode}
-                    selectedCommentIds={selectedCommentQuestions}
-                  />
+                  >
+                    <DetailedTemplate
+                      result={result}
+                      examType={isAnswered ? 'student' : 'blank'}
+                      analysisId={result.id}
+                      extension={null}
+                      isExport={true}
+                      exportMetadata={{
+                        examTitle,
+                        examSubject,
+                        examGrade: examGrade || undefined,
+                      }}
+                      exportOptions={{
+                        showSummary,
+                        showDifficulty,
+                        showType,
+                        showTopic,
+                        showQuestions,
+                        showComments,
+                      }}
+                      preferredChartType={chartMode}
+                      selectedCommentIds={selectedCommentQuestions}
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* 탭별 분리 모드 */
+                <div className="flex flex-col gap-6" style={{ transform: 'scale(0.5)', transformOrigin: 'top center', marginTop: '20px' }}>
+                  {/* 탭 1: 기본 분석 */}
+                  <div
+                    ref={basicTabRef}
+                    className={`bg-white shadow-xl rounded-lg ${currentExportTab === 'basic' ? 'ring-4 ring-indigo-500' : ''}`}
+                    style={{
+                      width: '1024px',
+                      padding: '40px',
+                      fontFamily: "'Pretendard Variable', -apple-system, sans-serif",
+                    }}
+                  >
+                    <div className="mb-4 px-4 py-2 bg-indigo-50 rounded-lg border border-indigo-200">
+                      <span className="text-sm font-semibold text-indigo-700">1/3 기본 분석</span>
+                    </div>
+                    <DetailedTemplate
+                      result={result}
+                      examType={isAnswered ? 'student' : 'blank'}
+                      analysisId={result.id}
+                      extension={null}
+                      isExport={true}
+                      exportMetadata={{
+                        examTitle,
+                        examSubject,
+                        examGrade: examGrade || undefined,
+                      }}
+                      exportTab="basic"
+                      preferredChartType={chartMode}
+                    />
+                  </div>
+
+                  {/* 탭 2: AI 코멘트 */}
+                  <div
+                    ref={commentsTabRef}
+                    className={`bg-white shadow-xl rounded-lg ${currentExportTab === 'comments' ? 'ring-4 ring-indigo-500' : ''}`}
+                    style={{
+                      width: '1024px',
+                      padding: '40px',
+                      fontFamily: "'Pretendard Variable', -apple-system, sans-serif",
+                    }}
+                  >
+                    <div className="mb-4 px-4 py-2 bg-purple-50 rounded-lg border border-purple-200">
+                      <span className="text-sm font-semibold text-purple-700">2/3 AI 코멘트</span>
+                    </div>
+                    <DetailedTemplate
+                      result={result}
+                      examType={isAnswered ? 'student' : 'blank'}
+                      analysisId={result.id}
+                      extension={null}
+                      isExport={true}
+                      exportMetadata={{
+                        examTitle,
+                        examSubject,
+                        examGrade: examGrade || undefined,
+                      }}
+                      exportTab="comments"
+                    />
+                  </div>
+
+                  {/* 탭 3: 학습 대책 */}
+                  <div
+                    ref={strategyTabRef}
+                    className={`bg-white shadow-xl rounded-lg ${currentExportTab === 'strategy' ? 'ring-4 ring-indigo-500' : ''}`}
+                    style={{
+                      width: '1024px',
+                      padding: '40px',
+                      fontFamily: "'Pretendard Variable', -apple-system, sans-serif",
+                    }}
+                  >
+                    <div className="mb-4 px-4 py-2 bg-emerald-50 rounded-lg border border-emerald-200">
+                      <span className="text-sm font-semibold text-emerald-700">3/3 학습 대책</span>
+                    </div>
+                    <DetailedTemplate
+                      result={result}
+                      examType={isAnswered ? 'student' : 'blank'}
+                      analysisId={result.id}
+                      extension={null}
+                      isExport={true}
+                      exportMetadata={{
+                        examTitle,
+                        examSubject,
+                        examGrade: examGrade || undefined,
+                      }}
+                      exportTab="strategy"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* 푸터 */}
           <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50">
             <div className="text-sm text-gray-500">
-              미리보기 그대로 내보내집니다
+              {exportMode === 'single'
+                ? '미리보기 그대로 내보내집니다'
+                : '3개의 이미지 파일이 순차적으로 다운로드됩니다'
+              }
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -393,29 +574,34 @@ export function ExportModal({
               >
                 취소
               </button>
+              {exportMode === 'single' && (
+                <button
+                  onClick={handlePdfDownload}
+                  disabled={!isMaster || isExporting}
+                  className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
+                    isMaster
+                      ? 'text-white bg-red-600 hover:bg-red-700 disabled:opacity-50'
+                      : 'text-gray-400 bg-gray-200 cursor-not-allowed'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  {isMaster ? (isExporting ? '내보내는 중...' : 'PDF 다운로드') : 'PDF 다운로드 (준비중)'}
+                </button>
+              )}
               <button
-                onClick={handlePdfDownload}
-                disabled={!isMaster || isExporting}
-                className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
-                  isMaster
-                    ? 'text-white bg-red-600 hover:bg-red-700 disabled:opacity-50'
-                    : 'text-gray-400 bg-gray-200 cursor-not-allowed'
-                }`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                {isMaster ? (isExporting ? '내보내는 중...' : 'PDF 다운로드') : 'PDF 다운로드 (준비중)'}
-              </button>
-              <button
-                onClick={handleImageDownload}
+                onClick={exportMode === 'single' ? handleImageDownload : handleTabsImageDownload}
                 disabled={isExporting}
                 className="px-5 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                이미지 다운로드
+                {isExporting
+                  ? (currentExportTab ? `${currentExportTab === 'basic' ? '기본분석' : currentExportTab === 'comments' ? 'AI코멘트' : '학습대책'} 저장 중...` : '내보내는 중...')
+                  : (exportMode === 'single' ? '이미지 다운로드' : '탭별 이미지 다운로드 (3개)')
+                }
               </button>
             </div>
           </div>

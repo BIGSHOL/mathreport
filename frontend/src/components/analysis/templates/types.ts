@@ -32,4 +32,6 @@ export interface TemplateProps {
   };
   preferredChartType?: 'bar' | 'donut';
   selectedCommentIds?: Set<string>;
+  // 탭별 내보내기용 - 특정 탭만 렌더링
+  exportTab?: 'basic' | 'comments' | 'strategy';
 }
