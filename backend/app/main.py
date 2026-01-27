@@ -1,4 +1,5 @@
 """FastAPI application with authentication."""
+import logging
 import traceback
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +8,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1 import auth, exam, users, analysis, subscription, ai_learning, pattern, reference, admin, trends
 from app.core.config import settings
+
+# 과다한 로그 레벨 조정
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 # CORS origins - 환경변수에서 로드
 CORS_ORIGINS = settings.cors_origins_list

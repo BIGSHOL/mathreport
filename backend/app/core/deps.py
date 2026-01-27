@@ -64,7 +64,7 @@ def get_signing_key(jwks: dict, token: str) -> str:
         kid = unverified_header.get("kid")
         alg = unverified_header.get("alg")
 
-        logger.info(f"[AUTH] Token alg: {alg}, kid: {kid}")
+        logger.debug(f"[AUTH] Token alg: {alg}, kid: {kid}")
 
         # JWKS에서 매칭되는 키 찾기
         for key in jwks.get("keys", []):
@@ -73,7 +73,7 @@ def get_signing_key(jwks: dict, token: str) -> str:
 
         raise JWKError(f"No matching key found for kid: {kid}")
     except Exception as e:
-        logger.info(f"[AUTH] Error getting signing key: {e}")
+        logger.warning(f"[AUTH] Error getting signing key: {e}")
         raise
 
 
@@ -89,14 +89,14 @@ async def get_current_user(
     )
 
     if not token:
-        logger.info("[AUTH] No token provided")
+        logger.debug("[AUTH] No token provided")
         raise credentials_exception
 
     try:
         # JWT 헤더 확인
         unverified_header = jwt.get_unverified_header(token)
         alg = unverified_header.get("alg")
-        logger.info(f"[AUTH] Token algorithm: {alg}")
+        logger.debug(f"[AUTH] Token algorithm: {alg}")
 
         if alg == "ES256":
             # ES256: JWKS 사용하여 검증
@@ -110,12 +110,12 @@ async def get_current_user(
                 audience="authenticated",
                 options={"verify_aud": True}
             )
-            logger.info("[AUTH] ES256 JWT verified successfully")
+            logger.debug("[AUTH] ES256 JWT verified successfully")
 
         else:
             # HS256: 기존 방식 (JWT Secret 사용)
             jwt_secret = settings.SUPABASE_JWT_SECRET or settings.SECRET_KEY
-            logger.info(f"[AUTH] Using HS256 with secret (length: {len(jwt_secret)})")
+            logger.debug(f"[AUTH] Using HS256 with secret (length: {len(jwt_secret)})")
 
             payload = jwt.decode(
                 token,
@@ -124,24 +124,24 @@ async def get_current_user(
                 audience="authenticated",
                 options={"verify_aud": True}
             )
-            logger.info("[AUTH] HS256 JWT verified successfully")
+            logger.debug("[AUTH] HS256 JWT verified successfully")
 
         # Supabase JWT에서 사용자 정보 추출
         user_id: str = payload.get("sub")
         email: str = payload.get("email")
         user_metadata: dict = payload.get("user_metadata", {})
 
-        logger.info(f"[AUTH] User ID: {user_id}, Email: {email}")
+        logger.debug(f"[AUTH] User ID: {user_id}, Email: {email}")
 
         if user_id is None:
-            logger.info("[AUTH] No user_id in token")
+            logger.warning("[AUTH] No user_id in token")
             raise credentials_exception
 
     except JWTError as e:
-        logger.info(f"[AUTH] JWT verification failed: {e}")
+        logger.warning(f"[AUTH] JWT verification failed: {e}")
         raise credentials_exception from None
     except JWKError as e:
-        logger.info(f"[AUTH] JWK error: {e}")
+        logger.warning(f"[AUTH] JWK error: {e}")
         raise credentials_exception from None
 
     # public.users 테이블에서 사용자 조회 또는 생성
@@ -153,7 +153,7 @@ async def get_current_user(
     )
 
     if user is None:
-        logger.info("[AUTH] User not found and could not be created")
+        logger.warning("[AUTH] User not found and could not be created")
         raise credentials_exception
 
     if not user.get("is_active", True):
