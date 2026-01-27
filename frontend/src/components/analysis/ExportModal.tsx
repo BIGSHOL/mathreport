@@ -377,13 +377,13 @@ export function ExportModal({
               </button>
               <button
                 onClick={handlePdfDownload}
-                disabled={isExporting}
-                className="px-5 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                disabled={true}
+                className="px-5 py-2.5 text-sm font-medium text-gray-400 bg-gray-200 rounded-lg cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
-                {isExporting ? '내보내는 중...' : 'PDF 다운로드'}
+                PDF 다운로드 (준비중)
               </button>
               <button
                 onClick={handleImageDownload}
