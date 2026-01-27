@@ -109,6 +109,8 @@ export interface SchoolTrendItem {
   subject: string;
   period_type: string;
   period_value: string | null;
+  exam_year: string | null;
+  exam_period: string | null;
   sample_count: number;
   difficulty_distribution: Record<string, number>;
   difficulty_avg_points: Record<string, number>;

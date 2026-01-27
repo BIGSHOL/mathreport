@@ -36,6 +36,12 @@ class SchoolExamTrend(Base):
     period_value: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # period_value: "2024-1" (2024년 1학기), "2024" (2024년), null (전체)
 
+    # 시험 정보 (추출된 메타데이터)
+    exam_year: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # 시험 연도 (예: "2024")
+    exam_period: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # 시험 유형 (중간고사, 기말고사, 모의고사 등)
+
     # 집계 통계
     sample_count: Mapped[int] = mapped_column(Integer, default=0)
     # 집계에 사용된 시험지 수

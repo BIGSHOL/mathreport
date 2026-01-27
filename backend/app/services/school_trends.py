@@ -1,10 +1,45 @@
 """School Trends Service - Aggregates exam data by school/region."""
 import uuid
+import re
 from datetime import datetime
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from app.db.supabase_client import SupabaseClient
 from app.data.school_regions import get_school_region, format_school_region
+
+
+def extract_exam_year(title: str) -> str | None:
+    """Extract exam year from title.
+
+    Examples: "2024년 1학기 중간고사" -> "2024"
+              "2023 기말고사" -> "2023"
+    """
+    match = re.search(r'(20\d{2})', title)
+    return match.group(1) if match else None
+
+
+def extract_exam_period(title: str) -> str | None:
+    """Extract exam period from title.
+
+    Examples: "중간고사" -> "중간고사"
+              "기말" -> "기말고사"
+              "모의고사" -> "모의고사"
+    """
+    periods = {
+        r'중간': '중간고사',
+        r'기말': '기말고사',
+        r'모의': '모의고사',
+        r'월례': '월례고사',
+        r'학력평가': '학력평가',
+        r'진단': '진단평가',
+    }
+
+    title_lower = title.lower()
+    for pattern, period_name in periods.items():
+        if re.search(pattern, title_lower):
+            return period_name
+
+    return None
 
 
 class SchoolTrendsService:
@@ -29,7 +64,7 @@ class SchoolTrendsService:
         """
         # 1. 완료된 시험지와 분석 결과 조인 조회
         query = self.db.table("exams").select(
-            "id, school_name, school_region, school_type, grade, subject"
+            "id, title, school_name, school_region, school_type, grade, subject"
         ).eq("status", "completed")
 
         if school_name:
@@ -106,11 +141,26 @@ class SchoolTrendsService:
                     school_region = format_school_region(city, district)
                 if mapped_type and not school_type:
                     school_type = mapped_type
+                print(f"[SchoolTrends] Auto-mapped {school_name_val}: region={school_region}, type={school_type}")
 
             trend_data["school_region"] = school_region
             trend_data["school_type"] = school_type
             trend_data["grade"] = grade
             trend_data["subject"] = subject
+
+            # 시험 연도 및 시험 유형 추출 (가장 많이 나타나는 값 사용)
+            years = [extract_exam_year(item["exam"].get("title", "")) for item in items]
+            periods = [extract_exam_period(item["exam"].get("title", "")) for item in items]
+
+            # None 제거 후 가장 많이 나타나는 값 선택
+            years = [y for y in years if y]
+            periods = [p for p in periods if p]
+
+            exam_year = Counter(years).most_common(1)[0][0] if years else None
+            exam_period = Counter(periods).most_common(1)[0][0] if periods else None
+
+            trend_data["exam_year"] = exam_year
+            trend_data["exam_period"] = exam_period
 
             # 기존 레코드 확인
             existing = await self.db.table("school_exam_trends").select("id").eq(

@@ -306,6 +306,9 @@ export function AdminSchoolTrendsPage() {
                     학년
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    시험 정보
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     샘플 수
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -334,6 +337,16 @@ export function AdminSchoolTrendsPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {trend.grade}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-sm text-gray-700">
+                        {trend.exam_year || '-'}
+                      </div>
+                      {trend.exam_period && (
+                        <div className="text-xs text-gray-500">
+                          {trend.exam_period}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {trend.sample_count}개
@@ -435,6 +448,14 @@ export function AdminSchoolTrendsPage() {
               <div className="p-3 bg-gray-50 rounded-lg">
                 <div className="text-xs text-gray-500">학교 유형</div>
                 <div className="font-medium">{detailModal.trend.school_type || '-'}</div>
+              </div>
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-xs text-gray-500">시험 연도</div>
+                <div className="font-medium">{detailModal.trend.exam_year || '-'}</div>
+              </div>
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-xs text-gray-500">시험 유형</div>
+                <div className="font-medium">{detailModal.trend.exam_period || '-'}</div>
               </div>
               <div className="p-3 bg-gray-50 rounded-lg">
                 <div className="text-xs text-gray-500">샘플 수</div>
