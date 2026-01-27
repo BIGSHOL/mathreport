@@ -28,10 +28,10 @@ import {
   ENCOURAGEMENT_MESSAGES,
   type GradeConnection,
   type KillerQuestionType,
+  type LevelRecommendation,
 } from '../../data/curriculumStrategies';
 import {
   findMultipleTopicStrategies,
-  type TopicStrategies,
 } from '../../data/topicLevelStrategies';
 
 interface StudyStrategyTabProps {
@@ -1731,7 +1731,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
                     </p>
                     {autoLevelRecommendation.weakPoints.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-2">
-                        {autoLevelRecommendation.weakPoints.map((point, i) => (
+                        {autoLevelRecommendation.weakPoints.map((point: string, i: number) => (
                           <span key={i} className="text-[10px] px-2 py-0.5 bg-white rounded-full text-gray-600 border border-gray-200">
                             {point}
                           </span>
