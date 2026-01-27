@@ -7,7 +7,7 @@
  * - AI 코멘트 개별 선택
  * - 공간 활용 최적화
  */
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { AnalysisResult } from '../../services/analysis';
 import { DIFFICULTY_COLORS } from '../../styles/tokens';
@@ -15,6 +15,7 @@ import { toPng } from 'html-to-image';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { DetailedTemplate } from './templates/DetailedTemplate';
+import { subscriptionService } from '../../services/subscription';
 
 type ChartMode = 'bar' | 'donut';
 
@@ -38,6 +39,8 @@ export function ExportModal({
   isAnswered = false,
 }: ExportModalProps) {
   const [isExporting, setIsExporting] = useState(false);
+  const [isMaster, setIsMaster] = useState(false);
+
   // 섹션 선택
   const [showHeader, setShowHeader] = useState(true);
   const [showSummary, setShowSummary] = useState(true);
@@ -61,11 +64,26 @@ export function ExportModal({
     [result.questions]
   );
 
+  // 마스터 여부 확인
+  useEffect(() => {
+    const checkMaster = async () => {
+      try {
+        const usage = await subscriptionService.getUsage();
+        setIsMaster(usage.is_master);
+      } catch {
+        setIsMaster(false);
+      }
+    };
+    if (isOpen) {
+      checkMaster();
+    }
+  }, [isOpen]);
+
   // 코멘트 문항 초기 선택 (처음 6개)
-  useState(() => {
+  useEffect(() => {
     const initial = new Set(questionsWithComments.slice(0, 6).map(q => q.id || q.question_number?.toString() || ''));
     setSelectedCommentQuestions(initial);
-  });
+  }, [questionsWithComments]);
 
   const toggleCommentQuestion = (id: string) => {
     setSelectedCommentQuestions(prev => {
@@ -377,13 +395,17 @@ export function ExportModal({
               </button>
               <button
                 onClick={handlePdfDownload}
-                disabled={true}
-                className="px-5 py-2.5 text-sm font-medium text-gray-400 bg-gray-200 rounded-lg cursor-not-allowed transition-colors flex items-center gap-2"
+                disabled={!isMaster || isExporting}
+                className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
+                  isMaster
+                    ? 'text-white bg-red-600 hover:bg-red-700 disabled:opacity-50'
+                    : 'text-gray-400 bg-gray-200 cursor-not-allowed'
+                }`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
-                PDF 다운로드 (준비중)
+                {isMaster ? (isExporting ? '내보내는 중...' : 'PDF 다운로드') : 'PDF 다운로드 (준비중)'}
               </button>
               <button
                 onClick={handleImageDownload}
