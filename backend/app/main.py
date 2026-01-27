@@ -8,6 +8,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1 import auth, exam, users, analysis, subscription, ai_learning, pattern, reference, admin, trends
 from app.core.config import settings
+from app.db.supabase_client import get_supabase
+from app.services.security_logger import get_security_logger
 
 # 과다한 로그 레벨 조정
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -78,6 +80,19 @@ async def global_exception_handler(request: Request, exc: Exception):
     """Handle all unhandled exceptions with CORS headers."""
     print(f"[ERROR] {request.method} {request.url.path}: {exc}")
     traceback.print_exc()
+
+    # Log API error to security_logs
+    try:
+        db = get_supabase()
+        security_logger = get_security_logger(db)
+        await security_logger.log_api_error(
+            request=request,
+            error_message=str(exc),
+            severity="error",
+            details={"traceback": traceback.format_exc()[:2000]},
+        )
+    except Exception as log_err:
+        print(f"[SecurityLog] Failed to log error: {log_err}")
 
     origin = request.headers.get("origin", "")
 

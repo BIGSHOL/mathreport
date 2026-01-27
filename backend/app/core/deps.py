@@ -1,9 +1,9 @@
 """Dependencies for authentication."""
 import httpx
 import logging
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, jwk
 from jose.exceptions import JWTError, JWKError
@@ -11,6 +11,7 @@ from jose.exceptions import JWTError, JWKError
 from app.core.config import settings
 from app.db.supabase_client import SupabaseClient, get_supabase
 from app.services.auth import UserDict, get_or_create_user_from_supabase
+from app.services.security_logger import get_security_logger
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -78,6 +79,7 @@ def get_signing_key(jwks: dict, token: str) -> str:
 
 
 async def get_current_user(
+    request: Request,
     db: DbDep,
     token: Annotated[str | None, Depends(oauth2_scheme)],
 ) -> UserDict:
@@ -87,6 +89,9 @@ async def get_current_user(
         detail="인증 정보를 확인할 수 없습니다",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    security_logger = get_security_logger(db)
+    email: Optional[str] = None
 
     if not token:
         logger.debug("[AUTH] No token provided")
@@ -128,20 +133,35 @@ async def get_current_user(
 
         # Supabase JWT에서 사용자 정보 추출
         user_id: str = payload.get("sub")
-        email: str = payload.get("email")
+        email = payload.get("email")
         user_metadata: dict = payload.get("user_metadata", {})
 
         logger.debug(f"[AUTH] User ID: {user_id}, Email: {email}")
 
         if user_id is None:
             logger.warning("[AUTH] No user_id in token")
+            await security_logger.log_auth_failure(
+                request=request,
+                error_message="No user_id in token",
+                email=email,
+            )
             raise credentials_exception
 
     except JWTError as e:
         logger.warning(f"[AUTH] JWT verification failed: {e}")
+        await security_logger.log_auth_failure(
+            request=request,
+            error_message=f"JWT verification failed: {e}",
+            email=email,
+        )
         raise credentials_exception from None
     except JWKError as e:
         logger.warning(f"[AUTH] JWK error: {e}")
+        await security_logger.log_auth_failure(
+            request=request,
+            error_message=f"JWK error: {e}",
+            email=email,
+        )
         raise credentials_exception from None
 
     # public.users 테이블에서 사용자 조회 또는 생성
@@ -154,9 +174,20 @@ async def get_current_user(
 
     if user is None:
         logger.warning("[AUTH] User not found and could not be created")
+        await security_logger.log_auth_failure(
+            request=request,
+            error_message="User not found and could not be created",
+            email=email,
+        )
         raise credentials_exception
 
     if not user.get("is_active", True):
+        await security_logger.log_auth_failure(
+            request=request,
+            error_message="Inactive account access attempt",
+            email=email,
+            details={"user_id": user.get("id")},
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="비활성화된 계정입니다"

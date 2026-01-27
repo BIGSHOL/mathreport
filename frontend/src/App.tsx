@@ -20,6 +20,7 @@ const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ defaul
 const AdminPatternPage = lazy(() => import('./pages/AdminPatternPage').then(m => ({ default: m.AdminPatternPage })));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then(m => ({ default: m.AdminUsersPage })));
 const AdminSchoolTrendsPage = lazy(() => import('./pages/AdminSchoolTrendsPage').then(m => ({ default: m.AdminSchoolTrendsPage })));
+const AdminSecurityLogsPage = lazy(() => import('./pages/AdminSecurityLogsPage').then(m => ({ default: m.AdminSecurityLogsPage })));
 const TrendsPage = lazy(() => import('./pages/TrendsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
 
@@ -96,6 +97,7 @@ function App() {
             <Route path="/admin/patterns" element={<AdminPatternPage />} />
             <Route path="/admin/users" element={<AdminUsersPage />} />
             <Route path="/admin/school-trends" element={<AdminSchoolTrendsPage />} />
+            <Route path="/admin/security-logs" element={<AdminSecurityLogsPage />} />
           </Route>
         </Route>
 

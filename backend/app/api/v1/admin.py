@@ -697,3 +697,175 @@ async def delete_school_trend(
     )
 
     return {"message": "삭제되었습니다", "id": trend_id}
+
+
+# ============================================
+# Security Logs Schemas
+# ============================================
+
+class SecurityLogItem(BaseModel):
+    """보안 로그 아이템"""
+    id: str
+    created_at: datetime
+    log_type: str  # auth_failure, api_error, security_alert
+    severity: str  # warning, error, critical
+    user_id: str | None = None
+    email: str | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+    endpoint: str | None = None
+    method: str | None = None
+    error_message: str | None = None
+    details: dict | None = None
+
+
+class SecurityLogsResponse(BaseModel):
+    """보안 로그 목록 응답"""
+    logs: list[SecurityLogItem]
+    total: int
+    has_more: bool
+
+
+class SecurityLogStats(BaseModel):
+    """보안 로그 통계"""
+    total_auth_failures: int
+    total_api_errors: int
+    total_security_alerts: int
+    auth_failures_24h: int
+    api_errors_24h: int
+    top_failing_ips: list[dict]
+    top_failing_endpoints: list[dict]
+
+
+# ============================================
+# Security Logs Endpoints
+# ============================================
+
+@router.get("/security-logs", response_model=SecurityLogsResponse)
+async def list_security_logs(
+    admin: AdminUser,
+    db: DbDep,
+    log_type: str | None = None,
+    severity: str | None = None,
+    ip_address: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """보안 로그 조회 (관리자 전용)."""
+    query = db.table("security_logs").select("*").order("created_at", desc=True)
+
+    if log_type:
+        query = query.eq("log_type", log_type)
+    if severity:
+        query = query.eq("severity", severity)
+    if ip_address:
+        query = query.eq("ip_address", ip_address)
+
+    # Get total count
+    count_query = db.table("security_logs").select("id")
+    if log_type:
+        count_query = count_query.eq("log_type", log_type)
+    if severity:
+        count_query = count_query.eq("severity", severity)
+    if ip_address:
+        count_query = count_query.eq("ip_address", ip_address)
+    count_result = await count_query.execute()
+    total = len(count_result.data) if count_result.data else 0
+
+    # Get paginated data
+    result = await query.range(offset, offset + limit - 1).execute()
+    logs = result.data or []
+
+    return SecurityLogsResponse(
+        logs=[SecurityLogItem(**log) for log in logs],
+        total=total,
+        has_more=offset + len(logs) < total,
+    )
+
+
+@router.get("/security-logs/stats", response_model=SecurityLogStats)
+async def get_security_log_stats(
+    admin: AdminUser,
+    db: DbDep,
+):
+    """보안 로그 통계 (관리자 전용)."""
+    from datetime import timedelta
+
+    now = datetime.utcnow()
+    day_ago = (now - timedelta(hours=24)).isoformat()
+
+    # Get counts by type
+    auth_failures = await db.table("security_logs").select("id").eq("log_type", "auth_failure").execute()
+    api_errors = await db.table("security_logs").select("id").eq("log_type", "api_error").execute()
+    security_alerts = await db.table("security_logs").select("id").eq("log_type", "security_alert").execute()
+
+    # Get 24h counts
+    auth_24h = await db.table("security_logs").select("id").eq("log_type", "auth_failure").gte("created_at", day_ago).execute()
+    errors_24h = await db.table("security_logs").select("id").eq("log_type", "api_error").gte("created_at", day_ago).execute()
+
+    # Get top failing IPs (simple aggregation)
+    all_logs = await db.table("security_logs").select("ip_address").not_.is_("ip_address", "null").limit(1000).execute()
+    ip_counts: dict[str, int] = {}
+    for log in (all_logs.data or []):
+        ip = log.get("ip_address")
+        if ip:
+            ip_counts[ip] = ip_counts.get(ip, 0) + 1
+    top_ips = sorted(ip_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    # Get top failing endpoints
+    endpoint_logs = await db.table("security_logs").select("endpoint").eq("log_type", "api_error").limit(1000).execute()
+    endpoint_counts: dict[str, int] = {}
+    for log in (endpoint_logs.data or []):
+        ep = log.get("endpoint")
+        if ep:
+            endpoint_counts[ep] = endpoint_counts.get(ep, 0) + 1
+    top_endpoints = sorted(endpoint_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    return SecurityLogStats(
+        total_auth_failures=len(auth_failures.data) if auth_failures.data else 0,
+        total_api_errors=len(api_errors.data) if api_errors.data else 0,
+        total_security_alerts=len(security_alerts.data) if security_alerts.data else 0,
+        auth_failures_24h=len(auth_24h.data) if auth_24h.data else 0,
+        api_errors_24h=len(errors_24h.data) if errors_24h.data else 0,
+        top_failing_ips=[{"ip": ip, "count": count} for ip, count in top_ips],
+        top_failing_endpoints=[{"endpoint": ep, "count": count} for ep, count in top_endpoints],
+    )
+
+
+@router.delete("/security-logs/{log_id}")
+async def delete_security_log(
+    admin: AdminUser,
+    db: DbDep,
+    log_id: str,
+):
+    """보안 로그 삭제 (관리자 전용)."""
+    result = await db.table("security_logs").select("id").eq("id", log_id).maybe_single().execute()
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="로그를 찾을 수 없습니다"
+        )
+
+    await db.table("security_logs").eq("id", log_id).delete().execute()
+    return {"message": "삭제되었습니다", "id": log_id}
+
+
+@router.delete("/security-logs")
+async def clear_old_security_logs(
+    admin: AdminUser,
+    db: DbDep,
+    days: int = 30,
+):
+    """오래된 보안 로그 삭제 (관리자 전용)."""
+    from datetime import timedelta
+
+    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+
+    # Get count before delete
+    old_logs = await db.table("security_logs").select("id").lt("created_at", cutoff).execute()
+    count = len(old_logs.data) if old_logs.data else 0
+
+    if count > 0:
+        await db.table("security_logs").lt("created_at", cutoff).delete().execute()
+
+    return {"message": f"{days}일 이전 로그 {count}개가 삭제되었습니다", "deleted_count": count}

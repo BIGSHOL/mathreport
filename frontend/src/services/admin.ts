@@ -147,6 +147,41 @@ export interface RegionSummaryItem {
 }
 
 // ============================================
+// Security Logs Types
+// ============================================
+
+export interface SecurityLogItem {
+  id: string;
+  created_at: string;
+  log_type: 'auth_failure' | 'api_error' | 'security_alert';
+  severity: 'warning' | 'error' | 'critical';
+  user_id: string | null;
+  email: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  endpoint: string | null;
+  method: string | null;
+  error_message: string | null;
+  details: Record<string, unknown> | null;
+}
+
+export interface SecurityLogsResponse {
+  logs: SecurityLogItem[];
+  total: number;
+  has_more: boolean;
+}
+
+export interface SecurityLogStats {
+  total_auth_failures: number;
+  total_api_errors: number;
+  total_security_alerts: number;
+  auth_failures_24h: number;
+  api_errors_24h: number;
+  top_failing_ips: Array<{ ip: string; count: number }>;
+  top_failing_endpoints: Array<{ endpoint: string; count: number }>;
+}
+
+// ============================================
 // Service
 // ============================================
 
@@ -275,6 +310,48 @@ class AdminService {
    */
   async deleteSchoolTrend(trendId: string): Promise<{ message: string; id: string }> {
     const response = await api.delete(`/api/v1/admin/school-trends/${trendId}`);
+    return response.data;
+  }
+
+  // ============================================
+  // Security Logs
+  // ============================================
+
+  /**
+   * 보안 로그 조회 (관리자 전용)
+   */
+  async getSecurityLogs(params?: {
+    log_type?: string;
+    severity?: string;
+    ip_address?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SecurityLogsResponse> {
+    const response = await api.get('/api/v1/admin/security-logs', { params });
+    return response.data;
+  }
+
+  /**
+   * 보안 로그 통계 (관리자 전용)
+   */
+  async getSecurityLogStats(): Promise<SecurityLogStats> {
+    const response = await api.get('/api/v1/admin/security-logs/stats');
+    return response.data;
+  }
+
+  /**
+   * 보안 로그 삭제 (관리자 전용)
+   */
+  async deleteSecurityLog(logId: string): Promise<{ message: string; id: string }> {
+    const response = await api.delete(`/api/v1/admin/security-logs/${logId}`);
+    return response.data;
+  }
+
+  /**
+   * 오래된 보안 로그 정리 (관리자 전용)
+   */
+  async clearOldSecurityLogs(days: number = 30): Promise<{ message: string; deleted_count: number }> {
+    const response = await api.delete('/api/v1/admin/security-logs', { params: { days } });
     return response.data;
   }
 }
