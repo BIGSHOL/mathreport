@@ -121,7 +121,7 @@ export function ExamDashboardPage() {
         const result = await requestAnalysis({ examId, forceReanalyze });
 
         // 분석 완료 후 캐시 상태 업데이트 (뒤로가기 시 'analyzing' 상태 유지 버그 방지)
-        updateExamStatus(examId, 'analyzed');
+        updateExamStatus(examId, 'completed');
 
         // 쿼리 파라미터 구성
         const params = new URLSearchParams();
