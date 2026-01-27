@@ -37,11 +37,15 @@ class SchoolTrendsService:
 
         exams_result = await query.execute()
 
+        print(f"[SchoolTrends] Total completed exams: {len(exams_result.data or [])}")
+
         # school_name이 있는 항목만 필터링 (커스텀 클라이언트에서 not.is.null 미지원)
         exams_data = [e for e in (exams_result.data or []) if e.get("school_name")]
 
+        print(f"[SchoolTrends] Exams with school_name: {len(exams_data)}")
+
         if not exams_data:
-            return {"message": "No exams with school info found", "created": 0, "updated": 0}
+            return {"message": "No exams with school info found", "created": 0, "updated": 0, "total_schools_processed": 0}
 
         # 시험 ID 목록
         exam_ids = [e["id"] for e in exams_data]
@@ -52,8 +56,10 @@ class SchoolTrendsService:
             "id, exam_id, summary, questions, total_questions"
         ).in_("exam_id", exam_ids).execute()
 
+        print(f"[SchoolTrends] Analysis results found: {len(analysis_result.data or [])}")
+
         if not analysis_result.data:
-            return {"message": "No analysis results found", "created": 0, "updated": 0}
+            return {"message": "No analysis results found", "created": 0, "updated": 0, "total_schools_processed": 0}
 
         # 3. 학교+학년+과목별로 그룹화
         grouped: dict[str, list[dict]] = defaultdict(list)
@@ -70,11 +76,16 @@ class SchoolTrendsService:
             })
 
         # 4. 각 그룹에 대해 집계
+        print(f"[SchoolTrends] Grouped into {len(grouped)} school/grade/subject combinations")
+        print(f"[SchoolTrends] Min sample count threshold: {min_sample_count}")
+
         created = 0
         updated = 0
+        skipped = 0
 
         for key, items in grouped.items():
             if len(items) < min_sample_count:
+                skipped += 1
                 continue
 
             school_name_val, grade, subject = key.split("|")
@@ -126,6 +137,8 @@ class SchoolTrendsService:
                     "updated_at": datetime.utcnow().isoformat(),
                 }).execute()
                 created += 1
+
+        print(f"[SchoolTrends] Results - Created: {created}, Updated: {updated}, Skipped: {skipped}")
 
         return {
             "message": "Aggregation completed",
