@@ -14,7 +14,6 @@ import {
   findCommonMistakes,
   findGradeConnections,
   findKillerPatterns,
-  getEncouragementMessages,
   getBooksByLevel,
   getSmartBookRecommendations,
   LEVEL_STRATEGIES,
@@ -24,6 +23,7 @@ import {
   FOUR_WEEK_TIMELINE,
   BOOK_SELECTION_GUIDE,
   BOOK_CAUTIONS,
+  ENCOURAGEMENT_MESSAGES,
   type GradeConnection,
   type KillerQuestionType,
 } from '../../data/curriculumStrategies';
@@ -284,6 +284,39 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
     });
     return killersMap;
   }, [topicSummaries]);
+
+  // 수준별 격려 메시지 (분석 결과 기반으로 결정론적 선택)
+  const levelEncouragements = useMemo(() => {
+    // questions 배열을 기반으로 고유한 시드 생성
+    const seed = questions.reduce((acc, q, idx) => {
+      const qNum = typeof q.question_number === 'string'
+        ? parseInt(q.question_number, 10) || idx
+        : (q.question_number || idx);
+      return acc + qNum * (idx + 1);
+    }, questions.length);
+
+    // 시드를 기반으로 각 수준별 메시지 인덱스 결정
+    const getMessageForLevel = (level: '하위권' | '중위권' | '상위권', offset: number) => {
+      // 해당 수준의 메시지 직접 가져오기 (랜덤 X)
+      const levelData = ENCOURAGEMENT_MESSAGES.find(e => e.level === level);
+      const commonData = ENCOURAGEMENT_MESSAGES.find(e => e.level === '공통');
+      const allMessages = [
+        ...(levelData?.messages || []),
+        ...(commonData?.messages || []),
+      ];
+
+      if (allMessages.length === 0) return '꾸준히 노력하면 반드시 성장합니다!';
+
+      const index = (seed + offset) % allMessages.length;
+      return allMessages[index];
+    };
+
+    return {
+      '하위권': getMessageForLevel('하위권', 0),
+      '중위권': getMessageForLevel('중위권', 1),
+      '상위권': getMessageForLevel('상위권', 2),
+    };
+  }, [questions]); // questions가 변경되면 재계산 (같은 시험지면 같은 메시지)
 
   // 학습 전략 생성 (교육과정 기반 + 규칙 기반)
   const generateStrategy = (summary: TopicSummary): string[] => {
@@ -1144,7 +1177,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
               {LEVEL_STRATEGIES.map((level) => {
                 const levelKey = level.level as '하위권' | '중위권' | '상위권';
                 const isSelected = selectedBookLevel === levelKey;
-                const encouragement = getEncouragementMessages(levelKey, 1)[0];
+                const encouragement = levelEncouragements[levelKey];
 
                 return (
                   <div

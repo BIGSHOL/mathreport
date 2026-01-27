@@ -17,7 +17,7 @@ interface QuestionDiscrimination {
   difficulty: string;
   points: number;
   discriminationIndex: number; // 0~1, 높을수록 좋음
-  label: '우수' | '양호' | '보통' | '개선필요';
+  label: '우수' | '양호' | '보통' | '주의';
   color: string;
   reason: string;
 }
@@ -57,18 +57,18 @@ function calculateDiscriminationIndex(
   // 최종 변별력 지수
   const finalIndex = Math.min(baseScore * pointsWeight, 1);
 
-  // 이유 생성
+  // 이유 생성 (학부모 관점)
   let reason = '';
   if (difficulty === 'concept' || difficulty === 'low') {
-    reason = '난이도가 낮아 대부분 정답 예상';
+    reason = '쉬운 문항으로 실력 차이가 잘 드러나지 않아요';
   } else if (difficulty === 'creative' || (difficulty === 'high' && baseScore < 0.6)) {
-    reason = '난이도가 높아 정답률이 낮을 것으로 예상';
+    reason = '어려운 문항으로 대부분 틀릴 수 있어요';
   } else if (points < avgPoints * 0.7) {
-    reason = '배점이 낮아 변별 기여도가 제한적';
+    reason = '배점이 낮아 점수 차이에 큰 영향이 없어요';
   } else if (points > avgPoints * 1.3) {
-    reason = '적절한 난이도와 높은 배점으로 변별력 우수';
+    reason = '적절한 난이도와 높은 배점으로 실력 차이가 잘 드러나요';
   } else {
-    reason = '적절한 난이도로 학생 실력 구분에 효과적';
+    reason = '적절한 난이도로 우리 아이 실력을 잘 평가할 수 있어요';
   }
 
   return { index: finalIndex, reason };
@@ -93,7 +93,7 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
         avgPoints
       );
 
-      let label: '우수' | '양호' | '보통' | '개선필요';
+      let label: '우수' | '양호' | '보통' | '주의';
       let color: string;
 
       if (index >= 0.75) {
@@ -106,7 +106,7 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
         label = '보통';
         color = '#f59e0b'; // amber
       } else {
-        label = '개선필요';
+        label = '주의';
         color = '#ef4444'; // red
       }
 
@@ -126,15 +126,15 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
       excellent: analyzed.filter((a) => a.label === '우수').length,
       good: analyzed.filter((a) => a.label === '양호').length,
       average: analyzed.filter((a) => a.label === '보통').length,
-      needsImprovement: analyzed.filter((a) => a.label === '개선필요').length,
+      needsImprovement: analyzed.filter((a) => a.label === '주의').length,
     };
 
     // 평균 변별력 지수
     const avgDiscrimination =
       analyzed.reduce((sum, a) => sum + a.discriminationIndex, 0) / analyzed.length;
 
-    // 종합 평가
-    let overallRating: '매우 우수' | '우수' | '양호' | '보통' | '개선 필요';
+    // 종합 평가 (학부모 관점)
+    let overallRating: '매우 우수' | '우수' | '양호' | '보통' | '주의 필요';
     let overallColor: string;
     let overallComment: string;
 
@@ -142,27 +142,27 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
       overallRating = '매우 우수';
       overallColor = '#22c55e';
       overallComment =
-        '문항들이 학생 실력을 효과적으로 구분할 수 있는 적절한 난이도와 배점을 가지고 있습니다.';
+        '시험이 아이의 실력을 정확하게 반영할 수 있도록 잘 구성되어 있습니다.';
     } else if (avgDiscrimination >= 0.60) {
       overallRating = '우수';
       overallColor = '#3b82f6';
       overallComment =
-        '대부분의 문항이 적절한 변별력을 가지고 있어 학생 평가에 효과적입니다.';
+        '대부분의 문항이 아이의 실력을 잘 평가할 수 있도록 구성되어 있습니다.';
     } else if (avgDiscrimination >= 0.50) {
       overallRating = '양호';
       overallColor = '#f59e0b';
       overallComment =
-        '전반적으로 양호하나, 일부 문항은 변별력이 다소 낮습니다.';
+        '전반적으로 괜찮지만, 일부 문항은 실력 차이를 보여주기 어려울 수 있습니다.';
     } else if (avgDiscrimination >= 0.40) {
       overallRating = '보통';
       overallColor = '#f97316';
       overallComment =
-        '변별력이 낮은 문항이 다소 있습니다. 너무 쉽거나 어려운 문항의 비중이 높습니다.';
+        '너무 쉽거나 어려운 문항이 많아 아이의 진짜 실력이 점수에 잘 반영되지 않을 수 있습니다.';
     } else {
-      overallRating = '개선 필요';
+      overallRating = '주의 필요';
       overallColor = '#ef4444';
       overallComment =
-        '변별력이 부족합니다. 중난이도 문항의 비중이 낮고 극단적 난이도 문항이 많습니다.';
+        '쉬운 문항과 어려운 문항이 대부분이라 실력에 따른 점수 차이가 크지 않을 수 있습니다.';
     }
 
     return {
@@ -201,7 +201,7 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
       <div className="mb-6">
         <h3 className="text-lg font-bold text-gray-900 mb-2">변별력 분석</h3>
         <p className="text-sm text-gray-600">
-          문항이 학생들의 실력을 얼마나 효과적으로 구분하는지 평가합니다
+          시험 문항이 아이의 실력을 얼마나 정확하게 반영하는지 평가합니다
         </p>
       </div>
 
@@ -225,7 +225,7 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
               <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
                 <div className="font-semibold mb-1">변별력이란?</div>
                 <div className="text-gray-300 leading-relaxed">
-                  중난이도 문항(유형, 심화)이 가장 변별력이 높으며, 배점이 높을수록 영향이 큽니다.
+                  시험이 실력에 따라 점수 차이를 잘 만들어내는 정도입니다. 적절한 난이도의 문항이 많을수록 높아요.
                 </div>
                 {/* 말풍선 화살표 */}
                 <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
@@ -260,7 +260,7 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
           </div>
         </div>
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-          <div className="text-xs text-red-700 mb-1">개선필요</div>
+          <div className="text-xs text-red-700 mb-1">주의</div>
           <div className="text-2xl font-bold text-red-600">{distribution.needsImprovement}</div>
           <div className="text-xs text-red-600 mt-1">
             {analyzed.length > 0 ? ((distribution.needsImprovement / analyzed.length) * 100).toFixed(0) : 0}%
@@ -274,7 +274,7 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
         <div>
           <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
             <span className="w-1 h-4 bg-green-500 rounded"></span>
-            변별력 우수 문항 (상위 5개)
+            실력을 잘 반영하는 문항 (상위 5개)
           </h4>
           <div className="space-y-2">
             {topQuestions.map((q) => (
@@ -305,7 +305,7 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
           <div>
             <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <span className="w-1 h-4 bg-red-500 rounded"></span>
-              개선 권장 문항 (하위 5개)
+              점수 차이가 나기 어려운 문항 (하위 5개)
             </h4>
             <div className="space-y-2">
               {bottomQuestions.map((q) => (

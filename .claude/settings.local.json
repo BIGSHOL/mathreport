@@ -45,7 +45,10 @@
       "Bash(python -m scripts.seed_patterns:*)",
       "Bash(chcp 65001)",
       "Bash(tasklist:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "Read(//d/math report/**)",
+      "Bash(py -c:*)",
+      "Bash(git pull:*)"
     ],
     "additionalDirectories": [
       "f:\\math-report\\frontend\\src",

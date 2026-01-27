@@ -142,35 +142,82 @@ class TopicStrategyAgent:
         return result
 
     def _build_ai_prompt(self, weak_topics: dict, questions: list[dict]) -> str:
-        """AI 프롬프트 구성"""
-        # 취약 단원 요약
-        topic_summary = []
+        """AI 프롬프트 구성 - 단원별 문항 상세 정보 포함"""
+        # 단원별 문항 상세 정보 구축
+        topic_questions: dict[str, list[dict]] = {}
+        for q in questions:
+            topic = q.get("topic")
+            if topic and topic in weak_topics:
+                if topic not in topic_questions:
+                    topic_questions[topic] = []
+                topic_questions[topic].append(q)
+
+        # 단원별 상세 요약
+        topic_details = []
         for topic, data in weak_topics.items():
             error_rate = (
                 data["wrong_count"] / data["total_count"] * 100
                 if data["total_count"] > 0
                 else 0
             )
-            topic_summary.append(
-                f"- {topic}: {data['wrong_count']}/{data['total_count']}문항 오답 ({error_rate:.0f}%)"
-            )
 
-        topic_summary_str = "\n".join(topic_summary)
+            detail = f"### {topic}\n"
+            detail += f"- 오답: {data['wrong_count']}/{data['total_count']}문항 ({error_rate:.0f}%)\n"
 
-        prompt = f"""당신은 수학 교육 전문가입니다. 학생의 시험 결과를 분석하여 **각 취약 단원별로 구체적이고 실용적인 학습 전략**을 제공하세요.
+            # 해당 단원의 문항 상세
+            tq_list = topic_questions.get(topic, [])
+            if tq_list:
+                detail += "- 문항 상세:\n"
+                for q in tq_list:
+                    q_num = q.get("question_number", "?")
+                    q_type = q.get("question_type", "")
+                    difficulty = q.get("difficulty", "")
+                    points = q.get("points", 0)
+                    is_correct = q.get("is_correct", True)
+                    status = "오답" if not is_correct else "정답"
+                    chapter = q.get("chapter", "")
 
-## 학생 취약 단원 분석
-{topic_summary_str}
+                    detail += f"  - {q_num}번 ({status}): {q_type}, 난이도={difficulty}, 배점={points}점"
+                    if chapter and chapter != topic:
+                        detail += f", 세부단원={chapter}"
+                    error_type = q.get("error_type", "")
+                    if error_type and not is_correct:
+                        detail += f", 오류유형={error_type}"
+                    detail += "\n"
+
+                # 난이도 분포
+                difficulties = [q.get("difficulty", "") for q in tq_list if not q.get("is_correct")]
+                if difficulties:
+                    diff_counts = {}
+                    for d in difficulties:
+                        diff_counts[d] = diff_counts.get(d, 0) + 1
+                    detail += f"- 오답 난이도 분포: {diff_counts}\n"
+
+                # 배점 합계
+                wrong_points = sum(
+                    q.get("points", 0) or 0 for q in tq_list if not q.get("is_correct")
+                )
+                if wrong_points > 0:
+                    detail += f"- 잃은 점수: {wrong_points}점\n"
+
+            topic_details.append(detail)
+
+        topic_details_str = "\n".join(topic_details)
+
+        prompt = f"""당신은 수학 교육 전문가입니다. 학생의 시험 결과를 분석하여 **각 취약 단원별로 서로 다른 구체적이고 실용적인 학습 전략**을 제공하세요.
+
+## 학생 취약 단원 상세 분석
+{topic_details_str}
 
 ## 요구사항
 1. **각 취약 단원마다 아래 정보를 생성**:
-   - weakness_summary: 해당 단원에서의 취약점 요약 (1-2문장)
-   - priority: 우선순위 (high, medium, low) - 오답률과 난이도 고려
+   - weakness_summary: 해당 단원에서의 취약점 요약 (1-2문장, 위 분석 데이터 기반으로 구체적으로)
+   - priority: 우선순위 (high, medium, low) - 오답률, 잃은 점수, 난이도 종합 고려
    - study_methods: 구체적인 학습 방법 3-5개 (각각 method, description, estimated_time 포함)
-   - key_concepts: 집중 학습할 핵심 개념 3-7개
-   - practice_tips: 문제 풀이 팁 3-5개
-   - common_mistakes: 흔한 실수 2-5개
-   - recommended_resources: 추천 학습 자료 2-4개 (교과서, 문제집, 인터넷 강의 등)
+   - key_concepts: 해당 단원의 핵심 개념 3-7개 (단원마다 고유한 수학 개념)
+   - practice_tips: 해당 단원에 특화된 문제 풀이 팁 3-5개
+   - common_mistakes: 해당 단원에서 흔한 실수 2-5개
+   - recommended_resources: 추천 학습 자료 2-4개
    - progress_checklist: 학습 진도 체크리스트 3-5개
 
 2. **전반적인 학습 가이드** (overall_guidance):
@@ -190,25 +237,26 @@ class TopicStrategyAgent:
         {{
           "method": "학습 방법명",
           "description": "구체적인 방법 설명",
-          "estimated_time": "예상 시간 (예: 30분, 1시간)"
+          "estimated_time": "예상 시간"
         }}
       ],
-      "key_concepts": ["개념1", "개념2", ...],
-      "practice_tips": ["팁1", "팁2", ...],
-      "common_mistakes": ["실수1", "실수2", ...],
-      "recommended_resources": ["자료1", "자료2", ...],
-      "progress_checklist": ["체크1", "체크2", ...]
+      "key_concepts": ["개념1", "개념2"],
+      "practice_tips": ["팁1", "팁2"],
+      "common_mistakes": ["실수1", "실수2"],
+      "recommended_resources": ["자료1", "자료2"],
+      "progress_checklist": ["체크1", "체크2"]
     }}
   ],
   "overall_guidance": "전반적인 학습 방향",
-  "study_sequence": ["단원1", "단원2", ...]
+  "study_sequence": ["단원1", "단원2"]
 }}
 
-## 주의사항
-- 학습 방법은 **실제로 학생이 따라할 수 있는 구체적인 행동**으로 작성
-- 핵심 개념은 교과서 목차를 참고하여 정확한 용어 사용
-- 문제 풀이 팁은 해당 단원의 대표 문제 유형에 맞춰 작성
-- 추천 자료는 일반적으로 접근 가능한 것으로 제시 (특정 출판사 제한 없이)
+## 핵심 주의사항
+- **각 단원의 전략은 반드시 서로 다른 내용이어야 합니다.** 동일하거나 유사한 내용을 복사하지 마세요.
+- key_concepts는 해당 단원의 실제 수학 개념(예: "제곱근의 곱셈", "실수의 대소비교 방법")으로 작성
+- practice_tips는 해당 단원의 문제 유형(계산, 도형, 서술형 등)에 맞게 작성
+- 학습 방법은 학생이 실제로 따라할 수 있는 구체적인 행동으로 작성
+- 위 문항 상세 데이터(난이도, 배점, 오류유형)를 반영하여 전략을 차별화하세요
 """
 
         return prompt
