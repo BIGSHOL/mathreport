@@ -292,16 +292,13 @@ export const ExamListItem = memo(function ExamListItem({
                 추천명
               </span>
             )}
-            {/* 시험지 유형 배지 - AI 감지 결과가 있을 때만 tooltip 표시 */}
+            {/* 시험지 유형 배지 */}
             <span
               className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                detectionExplanation ? 'cursor-help' : ''
-              } ${
                 isStudentType
                   ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-200'
                   : 'bg-sky-100 text-sky-700 ring-1 ring-sky-200'
               }`}
-              title={detectionExplanation || undefined}
             >
               {isStudentType ? '답안지' : '시험지'}
             </span>
