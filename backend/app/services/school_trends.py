@@ -171,10 +171,12 @@ class SchoolTrendsService:
 
             if existing.data:
                 # 업데이트
-                await self.db.table("school_exam_trends").update({
+                await self.db.table("school_exam_trends").eq(
+                    "id", existing.data["id"]
+                ).update({
                     **trend_data,
                     "updated_at": datetime.utcnow().isoformat(),
-                }).eq("id", existing.data["id"]).execute()
+                }).execute()
                 updated += 1
             else:
                 # 생성
