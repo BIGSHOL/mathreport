@@ -10,4 +10,3 @@
 export { Card, type CardProps } from './Card';
 export { Badge, DifficultyBadge, ConfidenceBadge, type BadgeProps } from './Badge';
 export { TabGroup, type TabGroupProps, type Tab } from './TabGroup';
-export { StatCard, type StatCardProps, type ColorScheme } from './StatCard';
