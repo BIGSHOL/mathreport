@@ -411,19 +411,24 @@ export function getMajorUnitFromCurriculum(topic: string): string {
     return map.get(normalizedTopic)!;
   }
 
-  // 부분 매칭 시도: topic이 keyword를 포함하거나, keyword가 topic을 포함
+  // 부분 매칭 시도: 단어 경계를 고려한 매칭 (isTopicMatch 사용)
   for (const [keyword, unitName] of map.entries()) {
-    if (normalizedTopic.includes(keyword) || keyword.includes(normalizedTopic)) {
+    if (isTopicMatch(normalizedTopic, keyword)) {
       return unitName;
     }
   }
 
-  // 4. Fallback: 기존 키워드 기반 분류
+  // 4. Fallback: 기존 키워드 기반 분류 (더 구체적인 키워드부터 확인)
   const t = topic.toLowerCase();
+
+  // 이차함수는 중학교 범위이므로 먼저 체크
+  if (t.includes('이차함수')) return '이차함수';
+
+  if (t.includes('지수함수') || t.includes('로그함수')) return '지수와 로그';
   if (t.includes('지수') || t.includes('로그')) return '지수와 로그';
   if (t.includes('삼각함수') || t.includes('삼각비') || t.includes('호도법') || t.includes('사인') || t.includes('코사인')) return '삼각함수';
   if (t.includes('수열') || t.includes('급수') || t.includes('점화식') || t.includes('등차') || t.includes('등비')) return '수열';
-  if (t.includes('함수') || t.includes('합성') || t.includes('역함수')) return '함수와 그래프';
+  if (t.includes('합성함수') || t.includes('역함수') || t.includes('유리함수') || t.includes('무리함수')) return '함수와 그래프';
   if (t.includes('극한') || t.includes('연속')) return '함수의 극한';
   if (t.includes('미분') || t.includes('도함수')) return '미분';
   if (t.includes('적분')) return '적분';
@@ -465,8 +470,9 @@ export function isTopicMatch(topic: string, target: string): boolean {
     return ['의', '와', '과', '에', ' ', '·', ',', '('].includes(nextChar);
   }
 
-  // 3글자 이상이면 부분 문자열 매칭 허용
-  return tLower.includes(gLower) || gLower.includes(tLower);
+  // 3글자 이상이면 토픽이 키워드를 포함하는 경우만 매칭
+  // (역방향 매칭 gLower.includes(tLower) 제거 - 잘못된 매칭 방지)
+  return tLower.includes(gLower);
 }
 
 /**

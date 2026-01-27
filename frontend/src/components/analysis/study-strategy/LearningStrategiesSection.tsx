@@ -123,20 +123,26 @@ export const LearningStrategiesSection = memo(function LearningStrategiesSection
             <div key={summary.topic}>
               <button
                 onClick={() => toggleTopic(summary.topic)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                className={`w-full px-4 py-3 flex items-center justify-between transition-colors ${
+                  isExpanded
+                    ? 'bg-purple-50 border-l-4 border-purple-500'
+                    : 'hover:bg-gray-50 border-l-4 border-transparent'
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <span
-                    className="w-3 h-3 rounded-full"
+                    className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{ backgroundColor: diffColor.bg }}
                   />
-                  <span className="font-medium text-gray-900">{summary.shortTopic}</span>
+                  <span className={`font-medium ${isExpanded ? 'text-purple-900' : 'text-gray-900'}`}>
+                    {summary.shortTopic}
+                  </span>
                   <span className="text-xs text-gray-500">
-                    ({summary.questionCount}문항 · {summary.totalPoints}점)
+                    ({summary.questionCount}문항 · {Math.round(summary.totalPoints)}점)
                   </span>
                 </div>
                 <svg
-                  className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                  className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180 text-purple-500' : 'text-gray-400'}`}
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"

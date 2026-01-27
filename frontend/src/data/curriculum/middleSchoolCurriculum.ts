@@ -145,7 +145,7 @@ export const MIDDLE_SCHOOL_CURRICULUM: GradeCurriculum[] = [
         name: '기본 도형',
         topics: [
           {
-            keywords: ['점', '선', '면', '각', '교선'],
+            keywords: ['기본 도형', '위치 관계', '맞꼭지각', '동위각', '엇각', '평행선', '교선', '점선면'],
             strategies: [
               '점, 선, 면의 위치 관계(포함, 평행, 교선) 구분',
               '각의 크기와 맞꼭지각, 동위각, 엇각 개념 정리',
@@ -180,7 +180,7 @@ export const MIDDLE_SCHOOL_CURRICULUM: GradeCurriculum[] = [
             tags: ['공식', '계산'],
           },
           {
-            keywords: ['부채꼴', '호', '중심각', '원'],
+            keywords: ['부채꼴', '호의 길이', '중심각', '부채꼴의 넓이'],
             strategies: [
               '부채꼴의 호의 길이와 넓이는 중심각에 정비례',
               '부채꼴 공식: 호의 길이 = 2πr × (중심각/360°), 넓이 = πr² × (중심각/360°)',
@@ -558,7 +558,7 @@ export const MIDDLE_SCHOOL_CURRICULUM: GradeCurriculum[] = [
         name: '원의 성질',
         topics: [
           {
-            keywords: ['원', '현', '접선', '중심각', '원주각'],
+            keywords: ['원의 성질', '원주각', '중심각', '접선', '현의 수직이등분선', '할선', '원과 직선'],
             strategies: [
               '원의 중심에서 현에 내린 수선은 현을 이등분',
               '한 호에 대한 원주각의 크기는 중심각의 절반',

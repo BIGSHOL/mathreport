@@ -215,7 +215,7 @@ export const HIGH_SCHOOL_CURRICULUM: GradeCurriculum[] = [
             tags: ['연산', '포함'],
           },
           {
-            keywords: ['명제', '역', '이', '대우', '필요조건', '충분조건'],
+            keywords: ['명제', '명제의 역', '명제의 이', '명제의 대우', '대우', '필요조건', '충분조건', '귀류법'],
             strategies: [
               '명제의 역, 이, 대우의 관계와 참/거짓 판별',
               'p → q가 참이면 대우 ~q → ~p도 참임을 증명에 활용',
@@ -240,7 +240,7 @@ export const HIGH_SCHOOL_CURRICULUM: GradeCurriculum[] = [
         name: '함수와 그래프',
         topics: [
           {
-            keywords: ['함수', '합성함수', '일대일대응'],
+            keywords: ['함수의 뜻', '합성함수', '일대일대응', '일대일함수'],
             strategies: [
               '함수의 정의(정의역의 각 원소에 치역의 원소가 하나씩 대응)를 정확히 이해',
               '일대일함수, 일대일대응의 조건 구분',
@@ -720,7 +720,7 @@ export const HIGH_SCHOOL_CURRICULUM: GradeCurriculum[] = [
             tags: ['정의', '초점'],
           },
           {
-            keywords: ['타원'],
+            keywords: ['타원', '타원의 방정식', '장축', '단축'],
             strategies: [
               '타원의 정의: 두 초점까지의 거리의 합이 일정한 점들의 자취',
               'x²/a² + y²/b² = 1에서 c² = a² - b² (a > b일 때)',

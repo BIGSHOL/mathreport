@@ -1600,12 +1600,36 @@ class AIEngine:
                 q_confidence -= 0.15
                 issues.append(f"Q{i+1}: 잘못된 유형")
 
-            # 토픽 형식 검증
+            # 토픽 형식 검증 및 정규화
             topic = q.get("topic", "")
-            if topic and " > " not in topic:
-                confidence -= 0.03
-                q_confidence -= 0.1
-                issues.append(f"Q{i+1}: 토픽 형식 오류")
+            if topic:
+                # 복합 토픽 처리: 콤마로 구분된 경우 첫 번째만 사용
+                # 예: "도형의 방정식 > 직선의 방정식, 원의 방정식" → "도형의 방정식 > 직선의 방정식"
+                if "," in topic:
+                    parts = topic.split(" > ")
+                    if len(parts) >= 3:
+                        # 마지막 파트(소단원)에서 콤마 이전 부분만 추출
+                        last_part = parts[-1].split(",")[0].strip()
+                        q["topic"] = " > ".join(parts[:-1] + [last_part])
+                        issues.append(f"Q{i+1}: 복합 토픽 정규화")
+                    topic = q["topic"]
+
+                # "A와 B", "A 및 B" 패턴 처리
+                if " > " in topic:
+                    parts = topic.split(" > ")
+                    last_part = parts[-1]
+                    for separator in ["와 ", "과 ", " 및 ", ", "]:
+                        if separator in last_part:
+                            last_part = last_part.split(separator)[0].strip()
+                            q["topic"] = " > ".join(parts[:-1] + [last_part])
+                            issues.append(f"Q{i+1}: 복합 토픽 정규화")
+                            break
+
+                # 형식 검증
+                if " > " not in q.get("topic", ""):
+                    confidence -= 0.03
+                    q_confidence -= 0.1
+                    issues.append(f"Q{i+1}: 토픽 형식 오류")
 
             # 배점 검증 (부동소수점 오류 방지: 소수점 1자리로 반올림)
             points = q.get("points")

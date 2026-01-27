@@ -6041,8 +6041,9 @@ function isTopicMatch(topic: string, target: string): boolean {
     return ['의', '와', '과', '에', ' ', '·', ',', '('].includes(nextChar);
   }
 
-  // 3글자 이상이면 부분 문자열 매칭 허용
-  return tLower.includes(gLower) || gLower.includes(tLower);
+  // 3글자 이상이면 토픽이 키워드를 포함하는 경우만 매칭
+  // (역방향 매칭 gLower.includes(tLower) 제거 - 잘못된 킬러 패턴 노출 방지)
+  return tLower.includes(gLower);
 }
 
 export function findGradeConnections(topic: string, currentGrade?: string): GradeConnection[] {

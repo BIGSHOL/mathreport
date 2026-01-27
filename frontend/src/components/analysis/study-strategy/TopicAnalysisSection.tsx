@@ -164,7 +164,7 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
                 </div>
                 <div className="flex items-center gap-4 flex-shrink-0">
                   <span className="text-sm text-gray-600">{chapter.questionCount}문항</span>
-                  <span className="text-sm font-medium text-gray-900 w-16 text-right">{chapter.totalPoints}점</span>
+                  <span className="text-sm font-medium text-gray-900 w-16 text-right">{Math.round(chapter.totalPoints)}점</span>
                   <span
                     className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium w-12 text-center ${chapter.percentage >= 20
                       ? 'bg-red-100 text-red-700'
@@ -237,7 +237,7 @@ export const TopicAnalysisSection = memo(function TopicAnalysisSection({
                               )}
                             </td>
                             <td className="px-4 py-2 text-center font-medium text-gray-800 w-16">
-                              {summary.totalPoints}점
+                              {Math.round(summary.totalPoints)}점
                             </td>
                             <td className="px-4 py-2 text-center w-12">
                               <span className="text-xs text-gray-500">

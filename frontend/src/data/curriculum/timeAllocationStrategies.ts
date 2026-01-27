@@ -148,7 +148,7 @@ export const TIME_ALLOCATION_STRATEGIES: TimeAllocationStrategy[] = [
   },
   {
     unit: '기본 도형',
-    keywords: ['기본 도형', '점', '선', '면', '각', '평행선', '동위각', '엇각'],
+    keywords: ['기본 도형', '점선면', '평행선', '동위각', '엇각', '맞꼭지각', '위치 관계', '교선'],
     examDuration: 45,
     guides: [
       { type: '점/선/면/각', weight: '15%', suggestedTime: '1분', difficulty: '⭐' },
@@ -699,7 +699,7 @@ export const TIME_ALLOCATION_STRATEGIES: TimeAllocationStrategy[] = [
   },
   {
     unit: '원의 성질',
-    keywords: ['원', '원주각', '중심각', '접선', '할선', '현'],
+    keywords: ['원의 성질', '원주각', '중심각', '접선', '할선', '현의 수직이등분선', '원과 직선'],
     examDuration: 45,
     guides: [
       { type: '원주각/중심각', weight: '25%', suggestedTime: '1~2분', difficulty: '⭐' },
@@ -876,7 +876,7 @@ export const TIME_ALLOCATION_STRATEGIES: TimeAllocationStrategy[] = [
   },
   {
     unit: '집합과 명제',
-    keywords: ['집합', '명제', '조건', '진리집합', '필요충분조건', '대우', '역', '귀류법'],
+    keywords: ['집합', '명제', '조건', '진리집합', '필요충분조건', '대우', '명제의 역', '귀류법'],
     examDuration: 50,
     guides: [
       { type: '집합 연산', weight: '20%', suggestedTime: '1~2분', difficulty: '⭐' },
@@ -901,7 +901,7 @@ export const TIME_ALLOCATION_STRATEGIES: TimeAllocationStrategy[] = [
   },
   {
     unit: '함수',
-    keywords: ['함수', '합성함수', '역함수', '유리함수', '무리함수', '정의역', '치역'],
+    keywords: ['함수의 뜻', '합성함수', '역함수', '유리함수', '무리함수', '일대일함수', '일대일대응', '정의역', '치역'],
     examDuration: 50,
     guides: [
       { type: '함수의 정의', weight: '15%', suggestedTime: '1~2분', difficulty: '⭐' },

@@ -106,9 +106,20 @@ export const TimeAllocationSection = memo(function TimeAllocationSection({
       {/* 시간 배분 막대 그래프 */}
       <div className="p-4 space-y-2">
         {topicsWithTime.map((topic, idx) => (
-          <div key={topic.topic} className="flex items-center gap-3">
-            {/* 단원명 */}
-            <div className="w-50 flex-shrink-0 text-xs text-gray-700 truncate" title={topic.shortTopic}>
+          <div
+            key={topic.topic}
+            className={`flex items-center gap-3 py-1 px-2 -mx-2 rounded-lg ${
+              idx === 0 ? 'bg-cyan-50 border border-cyan-200' : ''
+            }`}
+          >
+            {/* 단원명 - 긴 이름은 줄바꿈 허용 */}
+            <div
+              className={`w-44 flex-shrink-0 text-xs leading-tight ${
+                idx === 0 ? 'text-cyan-800 font-medium' : 'text-gray-700'
+              }`}
+              title={topic.topic}
+            >
+              {idx === 0 && <span className="mr-1">★</span>}
               {topic.shortTopic}
             </div>
             {/* 막대 그래프 */}
@@ -134,17 +145,17 @@ export const TimeAllocationSection = memo(function TimeAllocationSection({
               </div>
             </div>
             {/* 문항/배점 정보 */}
-            <div className="w-24 flex-shrink-0 text-right">
+            <div className="w-20 flex-shrink-0 text-right whitespace-nowrap">
               <span className="text-xs text-gray-500">{topic.questionCount}문항</span>
               <span className="text-xs text-gray-400 mx-1">·</span>
-              <span className="text-xs font-medium text-cyan-600">{Math.round(topic.percentage)}%</span>
+              <span className="text-xs font-medium text-cyan-600">{Math.round(topic.totalPoints)}점</span>
             </div>
           </div>
         ))}
 
         {/* 검토 시간 */}
         <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
-          <div className="w-50 flex-shrink-0 text-xs text-green-700 font-medium">검토 시간</div>
+          <div className="w-44 flex-shrink-0 text-xs text-green-700 font-medium">검토 시간</div>
           <div className="flex-1 h-6 bg-green-50 rounded-full overflow-hidden relative border border-green-200">
             <div
               className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-400"
@@ -154,7 +165,7 @@ export const TimeAllocationSection = memo(function TimeAllocationSection({
               <span className="text-[10px] font-medium text-green-800">{reviewTime}분</span>
             </div>
           </div>
-          <div className="w-24 flex-shrink-0 text-right">
+          <div className="w-20 flex-shrink-0 text-right whitespace-nowrap">
             <span className="text-xs text-green-600">필수 확보</span>
           </div>
         </div>
