@@ -12,7 +12,6 @@ import { createPortal } from 'react-dom';
 import type { AnalysisResult } from '../../services/analysis';
 import { DIFFICULTY_COLORS } from '../../styles/tokens';
 import { toPng } from 'html-to-image';
-import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { DetailedTemplate } from './templates/DetailedTemplate';
 import { subscriptionService } from '../../services/subscription';
@@ -194,17 +193,24 @@ export function ExportModal({
 
     setIsExporting(true);
     try {
-      // html2canvas로 캡처 (고해상도)
-      const canvas = await html2canvas(previewRef.current, {
-        scale: 2,
-        useCORS: true,
+      // html-to-image 사용 (oklch 등 최신 CSS 지원)
+      const dataUrl = await toPng(previewRef.current, {
+        cacheBust: true,
         backgroundColor: '#ffffff',
-        logging: false,
+        pixelRatio: 2,
       });
 
-      const imgData = canvas.toDataURL('image/png');
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
+      // 이미지 크기 계산을 위해 Image 로드
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+
+      const imgData = dataUrl;
+      const imgWidth = img.width;
+      const imgHeight = img.height;
 
       // A4 크기 (mm)
       const pdfWidth = 210;
