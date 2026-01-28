@@ -30,9 +30,14 @@ import { LearningStrategiesSection } from './study-strategy/LearningStrategiesSe
 import { KillerPatternsSection } from './study-strategy/KillerPatternsSection';
 import { LevelStrategiesSection } from './study-strategy/LevelStrategiesSection';
 import { TimelineSection } from './study-strategy/TimelineSection';
+import {
+  PersonalizedStrategySection,
+  type WrongAnswerSummary,
+  type ErrorTypeSummary,
+} from './study-strategy/PersonalizedStrategySection';
 
 // 섹션 ID 타입
-type SectionId = 'topicAnalysis' | 'learningStrategies' | 'essay' | 'timeAllocation' | 'mistakes' | 'connections' | 'killer' | 'levelStrategies' | 'timeline';
+type SectionId = 'topicAnalysis' | 'learningStrategies' | 'essay' | 'timeAllocation' | 'mistakes' | 'connections' | 'killer' | 'levelStrategies' | 'timeline' | 'personalized';
 
 export const StudyStrategyTab = memo(function StudyStrategyTab({
   questions,
@@ -51,6 +56,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
       case 'killer': return exportOptions.showKiller;
       case 'levelStrategies': return exportOptions.showLevelStrategies;
       case 'timeline': return exportOptions.showTimeline;
+      case 'personalized': return exportOptions.showPersonalized !== false; // 기본값 true
       default: return true;
     }
   };
@@ -61,7 +67,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
   // 섹션 접기/펼치기 상태 (기본: 모두 펼침)
   const [expandedSections, setExpandedSections] = useState<Set<SectionId>>(
-    new Set(['topicAnalysis', 'learningStrategies', 'essay', 'timeAllocation', 'mistakes', 'connections', 'killer', 'levelStrategies', 'timeline'])
+    new Set(['topicAnalysis', 'learningStrategies', 'essay', 'timeAllocation', 'mistakes', 'connections', 'killer', 'levelStrategies', 'timeline', 'personalized'])
   );
 
   // 섹션 토글 함수
@@ -80,7 +86,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
   // 모든 섹션 접기/펼치기
   const toggleAllSections = (expand: boolean) => {
     if (expand) {
-      setExpandedSections(new Set(['topicAnalysis', 'learningStrategies', 'essay', 'timeAllocation', 'mistakes', 'connections', 'killer', 'levelStrategies', 'timeline']));
+      setExpandedSections(new Set(['topicAnalysis', 'learningStrategies', 'essay', 'timeAllocation', 'mistakes', 'connections', 'killer', 'levelStrategies', 'timeline', 'personalized']));
     } else {
       setExpandedSections(new Set());
     }
@@ -393,6 +399,107 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
     return recommendation.confidence > 0 ? recommendation : null;
   }, [questions]);
 
+  // 정오답 분석 데이터 (맞춤형 학습대책용)
+  const gradingAnalysis = useMemo(() => {
+    // is_correct 값이 있는 문항만 필터링 (null은 미채점)
+    const gradedQuestions = questions.filter(q => q.is_correct === true || q.is_correct === false);
+
+    if (gradedQuestions.length === 0) {
+      return {
+        hasGradingData: false,
+        wrongAnswerSummaries: [] as WrongAnswerSummary[],
+        errorTypeSummaries: [] as ErrorTypeSummary[],
+        totalLostPoints: 0,
+        totalGradedQuestions: 0,
+        correctCount: 0,
+        wrongCount: 0,
+      };
+    }
+
+    const correctQuestions = gradedQuestions.filter(q => q.is_correct === true);
+    const wrongQuestions = gradedQuestions.filter(q => q.is_correct === false);
+
+    // 틀린 문항을 단원별로 그룹핑
+    const wrongByTopic = new Map<string, WrongAnswerSummary>();
+    wrongQuestions.forEach((q) => {
+      const rawTopic = q.topic || '기타';
+      const parts = rawTopic.split(' > ');
+      const shortTopic = parts[parts.length - 1] || rawTopic;
+
+      if (!wrongByTopic.has(rawTopic)) {
+        wrongByTopic.set(rawTopic, {
+          topic: rawTopic,
+          shortTopic,
+          questionNumbers: [],
+          totalPoints: 0,
+          lostPoints: 0,
+          errorTypes: [],
+          difficulty: [],
+        });
+      }
+
+      const summary = wrongByTopic.get(rawTopic)!;
+      const qNum = typeof q.question_number === 'number'
+        ? q.question_number
+        : parseInt(String(q.question_number), 10) || 0;
+      summary.questionNumbers.push(qNum);
+      summary.totalPoints += q.points || 0;
+      // 잃은 점수 = 배점 - 획득점수 (earned_points가 없으면 배점 전체 잃음)
+      const earnedPoints = q.earned_points ?? 0;
+      summary.lostPoints += (q.points || 0) - earnedPoints;
+      if (q.error_type) summary.errorTypes.push(q.error_type);
+      if (q.difficulty) summary.difficulty.push(q.difficulty);
+    });
+
+    // 잃은 점수가 큰 순으로 정렬
+    const wrongAnswerSummaries = Array.from(wrongByTopic.values())
+      .sort((a, b) => b.lostPoints - a.lostPoints);
+
+    // 오답 유형별 그룹핑
+    const errorTypeMap = new Map<string, ErrorTypeSummary>();
+    wrongQuestions.forEach((q) => {
+      const errorType = q.error_type || 'unknown';
+      if (!errorTypeMap.has(errorType)) {
+        errorTypeMap.set(errorType, {
+          errorType,
+          count: 0,
+          questionNumbers: [],
+          totalLostPoints: 0,
+        });
+      }
+
+      const summary = errorTypeMap.get(errorType)!;
+      summary.count++;
+      const qNum = typeof q.question_number === 'number'
+        ? q.question_number
+        : parseInt(String(q.question_number), 10) || 0;
+      summary.questionNumbers.push(qNum);
+      const earnedPoints = q.earned_points ?? 0;
+      summary.totalLostPoints += (q.points || 0) - earnedPoints;
+    });
+
+    // 횟수가 많은 순으로 정렬
+    const errorTypeSummaries = Array.from(errorTypeMap.values())
+      .filter(s => s.errorType !== 'unknown')
+      .sort((a, b) => b.count - a.count);
+
+    // 총 잃은 점수 계산
+    const totalLostPoints = wrongQuestions.reduce((sum, q) => {
+      const earnedPoints = q.earned_points ?? 0;
+      return sum + ((q.points || 0) - earnedPoints);
+    }, 0);
+
+    return {
+      hasGradingData: true,
+      wrongAnswerSummaries,
+      errorTypeSummaries,
+      totalLostPoints,
+      totalGradedQuestions: gradedQuestions.length,
+      correctCount: correctQuestions.length,
+      wrongCount: wrongQuestions.length,
+    };
+  }, [questions]);
+
   if (questions.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
@@ -412,6 +519,22 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
           >
             {expandedSections.size === 0 ? '모든 섹션 펼치기' : '모든 섹션 접기'}
           </button>
+        </div>
+      )}
+
+      {/* 맞춤형 학습 대책 (정오답 분석이 있을 때만 표시) */}
+      {shouldShow('personalized') && gradingAnalysis.hasGradingData && (
+        <div data-pdf-section="personalized">
+          <PersonalizedStrategySection
+            wrongAnswerSummaries={gradingAnalysis.wrongAnswerSummaries}
+            errorTypeSummaries={gradingAnalysis.errorTypeSummaries}
+            totalLostPoints={gradingAnalysis.totalLostPoints}
+            totalGradedQuestions={gradingAnalysis.totalGradedQuestions}
+            correctCount={gradingAnalysis.correctCount}
+            wrongCount={gradingAnalysis.wrongCount}
+            isSectionExpanded={expandedSections.has('personalized')}
+            onToggleSection={exportOptions ? undefined : () => toggleSection('personalized')}
+          />
         </div>
       )}
 

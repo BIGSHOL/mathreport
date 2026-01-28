@@ -129,6 +129,7 @@ class AnalysisService:
                 exam_id=exam_id,  # 진행 단계 업데이트용
                 analysis_mode=analysis_mode,  # 분석 모드 (questions_only/full)
                 user_id=user_id,  # Analytics 로깅용
+                subject=exam.get("subject") or "수학",  # 과목 (수학/영어)
             )
 
             # 5. Process & Save Result
@@ -314,8 +315,11 @@ class AnalysisService:
                 "updated_at": datetime.utcnow().isoformat()
             }).execute()
 
-            # 정오답 분석 전용 호출
-            ai_result = await ai_engine.analyze_answers_only(
+            # 정오답 분석 전용 호출 (최적화 버전 사용)
+            # - 배점 기반 검증 (Zero-token)
+            # - 탐지 우선 분기 (고신뢰도는 AI 스킵)
+            # - 불확실 문항만 AI 분석
+            ai_result = await ai_engine.analyze_answers_optimized(
                 db=self.db,
                 file_path=exam["file_path"],
                 existing_questions=existing_analysis.get("questions", []),
@@ -328,12 +332,22 @@ class AnalysisService:
                 ai_result.get("questions", [])
             )
 
-            # 5. 분석 결과 업데이트
+            # 최적화 통계 추출
+            optimization_stats = ai_result.get("_optimization_stats", {})
+
+            # 5. 분석 결과 업데이트 (최적화 통계 포함)
             now = datetime.utcnow().isoformat()
-            await self.db.table("analysis_results").eq("id", existing_analysis_id).update({
+            update_data = {
                 "questions": updated_questions,
                 "analyzed_at": now,
-            }).execute()
+            }
+
+            # 기존 메타데이터에 최적화 통계 추가
+            existing_meta = existing_analysis.get("metadata", {}) or {}
+            existing_meta["answer_analysis_stats"] = optimization_stats
+            update_data["metadata"] = existing_meta
+
+            await self.db.table("analysis_results").eq("id", existing_analysis_id).update(update_data).execute()
 
             # 6. 시험지 상태 업데이트
             await self.db.table("exams").eq("id", exam_id).update({
@@ -341,6 +355,14 @@ class AnalysisService:
                 "has_answer_analysis": True,
                 "updated_at": now
             }).execute()
+
+            # 최적화 로그
+            if optimization_stats:
+                print(f"[Answer Analysis Optimization]")
+                print(f"  - 점수 기반 해결: {optimization_stats.get('resolved_by_score', 0)}개")
+                print(f"  - 탐지 기반 해결: {optimization_stats.get('resolved_by_detection', 0)}개")
+                print(f"  - AI 분석: {optimization_stats.get('resolved_by_ai', 0)}개")
+                print(f"  - 토큰 절약 추정: {optimization_stats.get('tokens_saved_estimate', 0)}개")
 
             return {
                 "analysis_id": existing_analysis_id,

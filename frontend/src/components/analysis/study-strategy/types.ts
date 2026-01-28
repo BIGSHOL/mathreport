@@ -14,6 +14,7 @@ export interface StrategyExportOptions {
   showKiller: boolean;             // 킬러 문항
   showLevelStrategies: boolean;    // 수준별 전략
   showTimeline: boolean;           // 학습 타임라인
+  showPersonalized?: boolean;      // 맞춤형 학습 대책 (정오답 분석 기반)
 }
 
 export interface StudyStrategyTabProps {

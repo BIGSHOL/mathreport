@@ -37,6 +37,10 @@ from app.services.analysis_cache import (
     compute_file_hash,
     compute_analysis_cache_key,
 )
+from app.services.subject_config import (
+    get_valid_question_types,
+    get_valid_error_types,
+)
 
 
 class AIEngine:
@@ -105,138 +109,150 @@ class AIEngine:
 
         # 채점 표시 탐지 전용 프롬프트
         detection_prompt = """당신은 시험지 채점 표시 탐지 전문가입니다.
-이 시험지에서 **채점 표시만** 집중적으로 찾아주세요.
 
-## 목표
-문항별로 채점 표시(O, X, ✓, 동그라미, 빗금, 점수 등)를 탐지하고,
-각 표시가 **정답/오답 중 무엇을 의미하는지** 판단합니다.
+## 중요: 대부분 학생이 자가채점한 시험지입니다!
+- 선생님 채점: 깔끔, 빨간펜, 일관됨
+- **학생 채점: 너저분함, 펜 색상 제각각, 불규칙**
 
-## 탐지할 표시 유형
+학생 자가채점 특징:
+- 아무 펜이나 사용 (검정, 파랑, 빨강 혼용)
+- 동그라미/사선이 대충 그려짐
+- 표시 크기와 위치가 불규칙
+- 일관성 없을 수 있음
 
-### 정답을 의미하는 표시 (indicates: "correct")
-| 표시 | 위치 | 설명 |
-|------|------|------|
-| O, ○, ✓, 체크 | 학생 답안 바로 옆 | 정답 표시 |
-| 동그라미 | 학생이 쓴 답 위 | 정답 강조 |
-| 만점 점수 | 문항 근처 | "3", "4점" 등 배점 그대로 |
+**너저분해도 채점 표시를 찾아주세요.**
 
-### 오답을 의미하는 표시 (indicates: "incorrect")
-| 표시 | 위치 | 설명 |
-|------|------|------|
-| X, ✗, 빗금(/) | 학생 답안 위/옆 | 오답 표시 |
-| **문제번호에 동그라미** | 1, 2, 3 등 번호 위 | **정답 표시!** |
-| 빨간펜 정답 | 문항 근처 | 학생 답이 틀려서 정답 기재 |
-| 0점 | 문항 근처 | 오답 |
-| 감점 점수 | 문항 근처 | "2/4" 등 부분 점수 |
-
-### 불확실한 경우 (indicates: "uncertain")
-- 표시가 너무 흐릿하거나 불분명
-- 색상 구분이 안 되어 판단 어려움
-- 표시 위치가 애매함
-
-## ⚠️ 핵심 구분법
+## ⚠️ 핵심 구분: 문항번호 vs 보기번호
 
 ```
-위치가 "문제번호" → 동그라미는 정답 표시!
-위치가 "학생답안" → 동그라미는 정답 표시!
+문항번호: 1. 2. 3. 4. ... ← 채점 표시 위치!
+보기번호: ①②③④⑤       ← 학생이 답 고르는 곳 (채점 아님!)
 ```
 
-예시:
-- ①② ← 문제번호 1, 2에 동그라미 = 1번, 2번 **틀림**
-- 답: ③ ○ ← 학생 답 옆에 동그라미 = **정답**
+### 학생의 답안 선택 - 채점 아님! 무시!
+┌─────────────────────────────────────────┐
+│ 1. 다음 중 옳은 것은? (3점)              │
+│    ①  ②  ③  ④  ⑤                      │
+│        ↑                                │
+│    검정/파랑펜으로 보기 ②에 동그라미     │
+│    = 학생이 고른 답 (채점 표시 아님!)    │
+└─────────────────────────────────────────┘
 
-## 색상 감지
+### 채점자의 채점 표시 - 이것만 탐지!
+┌─────────────────────────────────────────┐
+│ ○ 1. 다음 중 옳은 것은? (3점)           │
+│ ↑                                       │
+│ 문항번호 "1"에 빨간 동그라미 = 정답!     │
+│    ①  ②  ③  ④  ⑤                      │
+│                                         │
+│ / 2. 다음을 계산하시오. (4점)            │
+│ ↑                                       │
+│ 문항번호 "2"에 빨간 사선 = 오답!         │
+│    ①  ②  ③  ④  ⑤                      │
+└─────────────────────────────────────────┘
+```
 
-이미지에서 색상을 구분할 수 있으면:
-- "red": 빨간펜 (주로 채점자)
-- "blue": 파란펜
-- "black": 검정펜 (주로 학생)
-- "unknown": 흑백 이미지 또는 구분 불가
+### ⚠️ 절대 혼동 금지!
+- 보기번호(①②③④⑤)에 동그라미 → 학생 답 선택 (무시!)
+- 문항번호(1. 2. 3.)에 동그라미 → 채점 표시 (탐지!)
 
-## JSON 응답 형식
+## 채점 표시 위치 (실제 패턴)
+
+### 가장 흔한 위치
+1. **문항번호에** - "1.", "2." 등 번호 위/옆에 O 또는 /
+2. **문항 전체에 크게** - 문제 영역 전체를 덮는 큰 O 또는 /
+
+### 드문 위치 (참고용)
+- 학생 답안 바로 옆 (O, X)
+- ❌ 배점 옆에는 거의 표시 안 함
+
+## 채점 표시 판정
+
+### 정답 (indicates: "correct")
+| 표시 | 빈도 | 설명 |
+|------|------|------|
+| **동그라미 (O, ○)** | 가장 많음 | 문항번호에 동그라미 |
+
+### 오답 (indicates: "incorrect")
+| 표시 | 빈도 | 설명 |
+|------|------|------|
+| **사선 (/, \\, ╱)** | 가장 많음 | 문항번호를 긋는 빗금 |
+| X 표시 (X, ✗) | 자주 사용 | 문항번호에 X |
+| 체크 (✓) | 일부 사용 | 선생님마다 다름 (오답 의미로 쓰는 경우) |
+| 정답 기재 | 가끔 | 틀린 답 옆에 정답 써줌 |
+
+**참고: 체크(✓)는 선생님마다 정답/오답 의미가 다를 수 있음. 다른 문항의 패턴을 보고 판단.**
+
+### 미채점 (indicates: "not_graded")
+- 채점 표시 없음 (특히 서술형은 대부분 미채점)
+- 학생 답만 있고 O// 표시 없음
+- **미채점 문항은 반드시 not_graded로 표시** (추측 금지!)
+
+### 불확실 (indicates: "uncertain")
+- 흑백 스캔으로 색상 구분 불가
+- 표시가 흐릿함
+
+## ⚠️ 서술형 문항 주의
+- 서술형은 나중에 별도 채점하므로 **대부분 미채점 상태**
+- 서술형에 채점 표시 없으면 → not_graded (추측 금지!)
+- 점수가 명확히 기재된 경우만 채점된 것으로 인식
+
+## 판단 기준: 위치 > 모양 > 색상
+
+학생 자가채점은 색상이 제각각이므로 **위치로 판단**하세요.
+
+| 위치 | 표시 | 의미 |
+|------|------|------|
+| **문항번호(1. 2. 3.)에** | O, 동그라미 | ✅ 정답 |
+| **문항번호(1. 2. 3.)에** | /, 사선, X | ✅ 오답 |
+| 보기번호(①②③④⑤)에 | 동그라미 | ❌ 학생 답 선택 (무시) |
+
+### 색상은 참고만
+- 학생 자가채점: 아무 펜이나 사용
+- 색상으로 구분하지 말고 **위치와 모양**으로 판단
+
+## JSON 응답
 
 ```json
 {
     "marks": [
         {
             "question_number": 1,
-            "mark_type": "circle_on_number",
+            "mark_type": "circle",
             "mark_symbol": "○",
             "position": "on_question_number",
             "color": "red",
             "indicates": "correct",
-            "confidence": 0.90,
-            "note": "문제번호에 동그라미 = 정답"
+            "confidence": 0.95
         },
         {
             "question_number": 2,
-            "mark_type": "circle_on_answer",
-            "mark_symbol": "O",
-            "position": "on_student_answer",
-            "color": "red",
-            "indicates": "correct",
-            "confidence": 0.95,
-            "note": "답안 옆 O 표시"
-        },
-        {
-            "question_number": 3,
-            "mark_type": "x_mark",
-            "mark_symbol": "X",
-            "position": "on_student_answer",
+            "mark_type": "slash",
+            "mark_symbol": "/",
+            "position": "on_question_number",
             "color": "red",
             "indicates": "incorrect",
             "confidence": 0.92
         },
         {
-            "question_number": 4,
+            "question_number": 3,
             "mark_type": "none",
-            "mark_symbol": null,
-            "position": null,
-            "color": null,
             "indicates": "not_graded",
-            "confidence": 0.85,
-            "note": "채점 표시 없음"
-        },
-        {
-            "question_number": 5,
-            "mark_type": "score",
-            "mark_symbol": "0",
-            "position": "near_question",
-            "color": "red",
-            "indicates": "incorrect",
-            "confidence": 0.88,
-            "note": "0점 기재"
+            "confidence": 0.85
         }
     ],
     "overall_grading_status": "partially_graded",
-    "color_distinction_possible": true,
-    "total_questions_found": 10,
-    "graded_count": 5,
-    "detection_notes": [
-        "빨간펜 채점 표시 감지",
-        "문제번호 동그라미 방식 사용",
-        "일부 문항 미채점"
-    ]
+    "color_distinction_possible": true
 }
 ```
 
-## mark_type 값
-- "circle_on_answer": 답안에 동그라미 (정답)
-- "circle_on_number": 문제번호에 동그라미 (정답)
-- "check_mark": 체크(✓) 표시
-- "x_mark": X 또는 빗금 표시
-- "score": 점수 기재
-- "correction": 정답 기재 (학생 답이 틀림)
-- "none": 표시 없음
-- "unclear": 불분명
+## 신뢰도 기준 (학생 자가채점 고려)
+- 문항번호에 O// 표시 (깔끔하든 너저분하든) → 0.85+
+- 문항 전체에 큰 O// 표시 → 0.8+
+- 대충 그린 동그라미/사선도 인식 → 0.75+
+- 보기번호(①②③④⑤)의 동그라미 → 0.3 이하 (학생 답 선택)
 
-## position 값
-- "on_student_answer": 학생 답안 위/옆
-- "on_question_number": 문제 번호 위/옆
-- "near_question": 문항 근처
-- "margin": 여백
-
-모든 문항에 대해 채점 표시를 탐지하고 JSON으로 응답해주세요.
+모든 문항에 대해 **빨간펜 채점 표시만** 탐지하세요.
 """
 
         try:
@@ -769,6 +785,7 @@ class AIEngine:
         exam_id: str | None = None,
         analysis_mode: str = "full",
         user_id: str | None = None,
+        subject: str = "수학",
     ) -> dict:
         """
         패턴 시스템을 활용한 통합 분석 (분류 통합 - 단일 API 호출)
@@ -783,6 +800,7 @@ class AIEngine:
             exam_id: 시험지 ID (진행 상태 업데이트용)
             analysis_mode: 분석 모드 (questions_only: 문항만, full: 전체, answers_only: 정오답만)
             user_id: 사용자 ID (분석 로깅용)
+            subject: 과목 (수학/영어)
 
         Returns:
             분석 결과 딕셔너리
@@ -848,7 +866,7 @@ class AIEngine:
 
         exam_context = ExamContext(
             grade_level=grade_level,
-            subject="수학",
+            subject=subject,
             unit=unit,
             category=category,  # 세부 과목 (공통수학1, 공통수학2 등)
             exam_scope=exam_scope,  # 출제범위 (단원 목록)
@@ -1090,6 +1108,7 @@ class AIEngine:
             dynamic_prompt_additions=combined_additions,
             exam_type="unified" if not is_questions_only else "blank",
             custom_prompt=dynamic_prompt,
+            subject=subject,
         )
 
         # [후처리] 교차 검증 (questions_only 모드에서는 건너뜀)
@@ -1256,11 +1275,19 @@ class AIEngine:
         prompt = self._get_answers_only_prompt(questions_context, grading_context)
 
         # 4. AI 분석 실행
+        # 과목 정보는 기존 문항에서 추론 (topic의 첫 번째 세그먼트)
+        inferred_subject = "수학"
+        if existing_questions:
+            first_topic = existing_questions[0].get("topic", "")
+            if "영어" in first_topic or "문법" in first_topic:
+                inferred_subject = "영어"
+
         result = await self.analyze_exam_file(
             file_path=file_path,
             dynamic_prompt_additions="",
             exam_type="student",
             custom_prompt=prompt,
+            subject=inferred_subject,
         )
 
         # 5. 채점 결과 교차 검증
@@ -1358,6 +1385,427 @@ class AIEngine:
 """
 
     # ============================================
+    # 3-3. 최적화된 정오답 분석 (토큰 절약 + 정확도 향상)
+    # ============================================
+
+    # 고신뢰도 탐지 임계값 (이 이상이면 AI 분석 스킵)
+    # 학생 자가채점은 너저분할 수 있으므로 0.85로 설정
+    HIGH_CONFIDENCE_THRESHOLD = 0.85
+
+    def _classify_questions_by_detection(
+        self,
+        marks_result: dict,
+        existing_questions: list[dict],
+    ) -> tuple[list[dict], list[int]]:
+        """
+        [방안 1] 탐지 우선 분기 - 고신뢰도 탐지 결과는 AI 분석 스킵
+
+        Args:
+            marks_result: 채점 표시 탐지 결과
+            existing_questions: 기존 분석된 문항 목록
+
+        Returns:
+            (resolved_questions, uncertain_question_numbers)
+            - resolved_questions: 탐지만으로 결정된 문항들 (AI 분석 불필요)
+            - uncertain_question_numbers: AI 분석이 필요한 문항 번호들
+        """
+        marks = marks_result.get("marks", [])
+        if not marks:
+            # 탐지 결과 없음 → 전체 AI 분석 필요
+            return [], [q.get("question_number") for q in existing_questions]
+
+        # 탐지 결과를 문항번호로 인덱싱
+        marks_by_num = {}
+        for m in marks:
+            q_num = m.get("question_number")
+            if q_num:
+                marks_by_num[q_num] = m
+
+        resolved_questions = []
+        uncertain_numbers = []
+
+        for q in existing_questions:
+            q_num = q.get("question_number")
+            if q_num not in marks_by_num:
+                # 탐지 결과 없음 → AI 분석 필요
+                uncertain_numbers.append(q_num)
+                continue
+
+            mark = marks_by_num[q_num]
+            confidence = mark.get("confidence", 0)
+            indicates = mark.get("indicates")
+
+            # 고신뢰도 + 명확한 판정 → AI 분석 스킵
+            if confidence >= self.HIGH_CONFIDENCE_THRESHOLD and indicates in ["correct", "incorrect"]:
+                resolved_q = {
+                    "question_number": q_num,
+                    "is_correct": indicates == "correct",
+                    "earned_points": q.get("points", 0) if indicates == "correct" else 0,
+                    "student_answer": mark.get("student_answer"),
+                    "error_type": None if indicates == "correct" else "unknown",
+                    "grading_rationale": f"고신뢰도 탐지 ({confidence:.0%}): {mark.get('mark_symbol', '')} 표시",
+                    "_resolved_by": "detection",
+                    "_detection_confidence": confidence,
+                }
+                resolved_questions.append(resolved_q)
+                print(f"[Optimized] Q{q_num}: 탐지로 해결 ({indicates}, {confidence:.0%})")
+            else:
+                # 저신뢰도 또는 불확실 → AI 분석 필요
+                uncertain_numbers.append(q_num)
+
+        return resolved_questions, uncertain_numbers
+
+    def _apply_score_based_validation(
+        self,
+        marks_result: dict,
+        existing_questions: list[dict],
+    ) -> list[dict]:
+        """
+        [방안 5] 배점 기반 검증 - 점수로 정오답 판정 (Zero-token)
+
+        탐지된 점수와 배점을 비교하여 AI 없이 판정:
+        - 점수 == 배점 → 정답
+        - 점수 == 0 → 오답
+        - 0 < 점수 < 배점 → 부분점수 (오답)
+
+        Returns:
+            score_resolved_questions: 점수로 판정된 문항들
+        """
+        marks = marks_result.get("marks", [])
+        if not marks:
+            return []
+
+        # 점수 기재된 마크만 필터링
+        score_marks = {}
+        for m in marks:
+            if m.get("mark_type") == "score" and m.get("mark_symbol"):
+                q_num = m.get("question_number")
+                try:
+                    # "3", "3점", "2/4" 등 파싱
+                    score_str = str(m.get("mark_symbol", "")).replace("점", "").strip()
+                    if "/" in score_str:
+                        # 부분점수: "2/4" 형태
+                        earned, total = score_str.split("/")
+                        score_marks[q_num] = {
+                            "earned": float(earned),
+                            "total": float(total),
+                            "confidence": m.get("confidence", 0),
+                        }
+                    else:
+                        score_marks[q_num] = {
+                            "earned": float(score_str),
+                            "total": None,
+                            "confidence": m.get("confidence", 0),
+                        }
+                except (ValueError, TypeError):
+                    continue
+
+        if not score_marks:
+            return []
+
+        # 기존 문항과 매칭하여 판정
+        questions_by_num = {q.get("question_number"): q for q in existing_questions}
+        resolved = []
+
+        for q_num, score_info in score_marks.items():
+            if q_num not in questions_by_num:
+                continue
+
+            q = questions_by_num[q_num]
+            points = q.get("points", 0)
+            earned = score_info["earned"]
+            confidence = score_info["confidence"]
+
+            # 신뢰도 체크
+            if confidence < 0.75:
+                continue
+
+            # 판정
+            if earned == points:
+                # 만점 = 정답
+                resolved.append({
+                    "question_number": q_num,
+                    "is_correct": True,
+                    "earned_points": earned,
+                    "error_type": None,
+                    "grading_rationale": f"점수 기재 확인: {earned}점 (만점)",
+                    "_resolved_by": "score_validation",
+                })
+                print(f"[Score-Based] Q{q_num}: 만점 ({earned}/{points})")
+            elif earned == 0:
+                # 0점 = 오답
+                resolved.append({
+                    "question_number": q_num,
+                    "is_correct": False,
+                    "earned_points": 0,
+                    "error_type": "unknown",
+                    "grading_rationale": f"점수 기재 확인: 0점",
+                    "_resolved_by": "score_validation",
+                })
+                print(f"[Score-Based] Q{q_num}: 0점 (오답)")
+            elif 0 < earned < points:
+                # 부분점수 = 감점됨 (오답 처리)
+                resolved.append({
+                    "question_number": q_num,
+                    "is_correct": False,
+                    "earned_points": earned,
+                    "error_type": "process_error",
+                    "grading_rationale": f"부분점수 기재: {earned}/{points}점",
+                    "_resolved_by": "score_validation",
+                })
+                print(f"[Score-Based] Q{q_num}: 부분점수 ({earned}/{points})")
+
+        return resolved
+
+    def _get_optimized_answers_prompt(
+        self,
+        uncertain_questions: list[dict],
+        grading_context: str,
+    ) -> str:
+        """
+        [방안 2] 최적화된 프롬프트 - 불확실 문항만 AI 분석 요청
+
+        토큰 절약을 위해:
+        - 확실한 문항은 제외
+        - 최소한의 필드만 요청
+        - 간결한 출력 형식
+        """
+        if not uncertain_questions:
+            return ""
+
+        q_list = ", ".join(str(q.get("question_number")) for q in uncertain_questions)
+        q_context = "\n".join([
+            f"- {q.get('question_number')}번: 배점 {q.get('points', '?')}점"
+            for q in uncertain_questions
+        ])
+
+        return f"""## 정오답 분석 (불확실 문항만)
+
+다음 문항들의 정오답을 판정해주세요: [{q_list}]
+
+{q_context}
+
+{grading_context}
+
+## 규칙
+1. **채점 표시 없으면 반드시 is_correct: null** (추측 금지!)
+2. 문항번호(1. 2. 3.)에 O/동그라미 = 정답
+3. 문항번호에 사선(/) = 오답
+4. 보기번호(①②③④⑤)의 동그라미 = 학생 답 (채점 아님!)
+5. **서술형은 대부분 미채점 → null 처리**
+
+## JSON 출력
+{{"questions": [
+  {{"n": 문항번호, "c": true/false/null, "e": 획득점수, "r": "판정근거"}}
+]}}
+
+예시:
+{{"questions": [
+  {{"n": 3, "c": true, "e": 4, "r": "문항번호에 O"}},
+  {{"n": 7, "c": false, "e": 0, "r": "문항번호에 사선"}},
+  {{"n": 12, "c": null, "e": null, "r": "채점표시없음"}}
+]}}
+"""
+
+    async def analyze_answers_optimized(
+        self,
+        db: SupabaseClient,
+        file_path: str,
+        existing_questions: list[dict],
+        exam_id: str | None = None,
+    ) -> dict:
+        """
+        [최적화된 정오답 분석]
+
+        토큰 절약 + 정확도 향상 전략:
+        1. 채점 표시 탐지 (기존)
+        2. 배점 기반 검증 - 점수로 바로 판정 (Zero-token)
+        3. 탐지 우선 분기 - 고신뢰도 결과는 AI 스킵
+        4. AI 분석 - 불확실 문항만 요청 (토큰 절약)
+        5. 결과 병합 + 교차 검증
+
+        Args:
+            db: 데이터베이스 세션
+            file_path: 분석할 파일 경로
+            existing_questions: 기존 분석된 문항 목록
+            exam_id: 시험지 ID
+
+        Returns:
+            최적화된 정오답 분석 결과
+        """
+        if not self.client:
+            raise Exception("AI service is not configured")
+
+        start_time = time.time()
+        stats = {
+            "total_questions": len(existing_questions),
+            "resolved_by_detection": 0,  # O/X 탐지로 해결된 문항
+            "resolved_by_ai": 0,         # AI 분석이 필요했던 문항
+            "tokens_saved_estimate": 0,
+        }
+
+        # 헬퍼: 분석 단계 업데이트
+        async def update_step(step: int):
+            if exam_id and db:
+                try:
+                    await db.table("exams").eq("id", exam_id).update({"analysis_step": step}).execute()
+                except Exception as e:
+                    print(f"[Step Update Error] {e}")
+
+        # ========================================
+        # 1단계: 채점 표시 탐지 (빨간펜 O/X 표시)
+        # ========================================
+        await update_step(2)
+        print("[Optimized Step 1] 채점 표시 탐지 중 (빨간펜 O/X)...")
+        marks_result = await self.detect_grading_marks(file_path)
+        marks_count = len(marks_result.get("marks", []))
+        print(f"[Optimized Step 1] {marks_count}개 채점 표시 탐지됨")
+
+        # ========================================
+        # 2단계: O/X 탐지 우선 분기
+        # - 고신뢰도(90%+) 동그라미/사선 → AI 스킵
+        # - 저신뢰도 또는 불확실 → AI 분석
+        # ========================================
+        print("[Optimized Step 2] O/X 탐지 우선 분기 중...")
+        detection_resolved, uncertain_nums = self._classify_questions_by_detection(
+            marks_result, existing_questions
+        )
+        stats["resolved_by_detection"] = len(detection_resolved)
+
+        # ========================================
+        # 4단계: AI 분석 (불확실 문항만)
+        # ========================================
+        ai_resolved = []
+        if uncertain_nums:
+            await update_step(3)
+            print(f"[Optimized Step 4] AI 분석 중... ({len(uncertain_nums)}개 문항)")
+
+            # 불확실 문항 정보 추출
+            uncertain_questions = [
+                q for q in existing_questions
+                if q.get("question_number") in uncertain_nums
+            ]
+
+            # 최적화된 프롬프트 생성
+            grading_context = self._build_grading_context_from_marks(marks_result)
+            optimized_prompt = self._get_optimized_answers_prompt(
+                uncertain_questions, grading_context
+            )
+
+            if optimized_prompt:
+                # 과목 정보는 기존 문항에서 추론
+                inferred_subject = "수학"
+                if existing_questions:
+                    first_topic = existing_questions[0].get("topic", "")
+                    if "영어" in first_topic or "문법" in first_topic:
+                        inferred_subject = "영어"
+
+                try:
+                    result = await self.analyze_exam_file(
+                        file_path=file_path,
+                        dynamic_prompt_additions="",
+                        exam_type="student",
+                        custom_prompt=optimized_prompt,
+                        subject=inferred_subject,
+                    )
+
+                    # 간결한 형식 파싱 (n, c, e, r → 정식 필드)
+                    for q in result.get("questions", []):
+                        parsed_q = {
+                            "question_number": q.get("n") or q.get("question_number"),
+                            "is_correct": q.get("c") if "c" in q else q.get("is_correct"),
+                            "earned_points": q.get("e") if "e" in q else q.get("earned_points"),
+                            "grading_rationale": q.get("r") or q.get("grading_rationale", ""),
+                            "error_type": q.get("error_type"),
+                            "_resolved_by": "ai_analysis",
+                        }
+
+                        # earned_points가 null이고 정답이면 배점으로 설정
+                        if parsed_q["is_correct"] is True and parsed_q["earned_points"] is None:
+                            orig_q = next(
+                                (oq for oq in existing_questions
+                                 if oq.get("question_number") == parsed_q["question_number"]),
+                                None
+                            )
+                            if orig_q:
+                                parsed_q["earned_points"] = orig_q.get("points", 0)
+
+                        ai_resolved.append(parsed_q)
+
+                    stats["resolved_by_ai"] = len(ai_resolved)
+
+                except Exception as e:
+                    print(f"[Optimized AI Error] {e}")
+                    # AI 실패 시 null로 처리
+                    for q_num in uncertain_nums:
+                        ai_resolved.append({
+                            "question_number": q_num,
+                            "is_correct": None,
+                            "earned_points": None,
+                            "grading_rationale": "AI 분석 실패",
+                            "_resolved_by": "ai_failure",
+                        })
+        else:
+            print("[Optimized Step 4] AI 분석 불필요 (모든 문항 해결됨)")
+
+        # ========================================
+        # 4단계: 결과 병합
+        # ========================================
+        print("[Optimized Step 4] 결과 병합 중...")
+
+        all_resolved = detection_resolved + ai_resolved
+        resolved_by_num = {q["question_number"]: q for q in all_resolved}
+
+        # 기존 문항과 병합
+        final_questions = []
+        for orig_q in existing_questions:
+            q_num = orig_q.get("question_number")
+            if q_num in resolved_by_num:
+                # 정오답 정보 병합
+                resolved = resolved_by_num[q_num]
+                merged = {**orig_q, **resolved}
+                final_questions.append(merged)
+            else:
+                # 해결되지 않음 → null 처리
+                orig_q["is_correct"] = None
+                orig_q["earned_points"] = None
+                orig_q["grading_rationale"] = "분석 실패"
+                final_questions.append(orig_q)
+
+        # 교차 검증 (AI로 해결된 것만)
+        ai_result = {"questions": [q for q in final_questions if q.get("_resolved_by") == "ai_analysis"]}
+        if ai_result["questions"]:
+            ai_result = self._cross_validate_grading(ai_result, marks_result)
+            # 교차 검증 결과 반영
+            for validated_q in ai_result.get("questions", []):
+                q_num = validated_q.get("question_number")
+                for i, fq in enumerate(final_questions):
+                    if fq.get("question_number") == q_num:
+                        final_questions[i] = {**fq, **validated_q}
+                        break
+
+        # 토큰 절약 추정
+        # 전체 AI 분석 시 약 200토큰/문항 → 불확실 문항만 분석
+        full_ai_tokens = stats["total_questions"] * 200
+        actual_ai_tokens = len(uncertain_nums) * 150  # 최적화 프롬프트는 더 짧음
+        stats["tokens_saved_estimate"] = max(0, full_ai_tokens - actual_ai_tokens)
+
+        elapsed = time.time() - start_time
+
+        result = {
+            "questions": final_questions,
+            "_optimization_stats": stats,
+            "_cross_validation": ai_result.get("_cross_validation", {}),
+        }
+
+        print(f"[Optimized] 완료 ({elapsed:.2f}초)")
+        print(f"  - O/X 탐지로 해결: {stats['resolved_by_detection']}개")
+        print(f"  - AI 분석: {stats['resolved_by_ai']}개")
+        print(f"  - 토큰 절약 (추정): {stats['tokens_saved_estimate']}개")
+
+        return result
+
+    # ============================================
     # 4. 기본 분석 (기존 호환)
     # ============================================
     async def analyze_exam_file(
@@ -1366,6 +1814,7 @@ class AIEngine:
         dynamic_prompt_additions: str = "",
         exam_type: str = "blank",
         custom_prompt: str | None = None,
+        subject: str = "수학",
     ) -> dict:
         """Analyze exam file (image or PDF) using Gemini.
 
@@ -1374,6 +1823,7 @@ class AIEngine:
             dynamic_prompt_additions: 학습된 패턴에서 동적으로 추가할 프롬프트 내용
             exam_type: 시험지 유형 (blank: 빈 시험지, student: 학생 답안지)
             custom_prompt: 커스텀 프롬프트 (지정 시 기본 프롬프트 대체)
+            subject: 과목 (수학/영어)
         """
         if not self.client:
             raise HTTPException(
@@ -1470,7 +1920,7 @@ class AIEngine:
                     result = self._parse_json_response(response.text)
 
                     # 검증 및 신뢰도 계산
-                    validated_result, confidence = self._validate_result(result, exam_type)
+                    validated_result, confidence = self._validate_result(result, exam_type, subject)
                     print(f"[Analysis] Confidence: {confidence:.2f}, Questions: {len(validated_result.get('questions', []))}")
 
                     # 누락 감지 시 1회 재분석 시도
@@ -1545,8 +1995,14 @@ class AIEngine:
                 detail=f"AI Analysis failed: {str(e)}"
             )
 
-    def _validate_result(self, result: dict, exam_type: str = "blank") -> tuple[dict, float]:
-        """분석 결과 검증 및 신뢰도 점수 계산."""
+    def _validate_result(self, result: dict, exam_type: str = "blank", subject: str = "수학") -> tuple[dict, float]:
+        """분석 결과 검증 및 신뢰도 점수 계산.
+
+        Args:
+            result: AI 분석 결과
+            exam_type: 시험지 유형 (blank/student/unified)
+            subject: 과목 (수학/영어)
+        """
         confidence = 1.0
         issues = []
 
@@ -1571,7 +2027,10 @@ class AIEngine:
         # 2. 문항별 검증
         # 4단계 시스템 (신규) + 3단계 시스템 (하위 호환)
         valid_difficulties = {"concept", "pattern", "reasoning", "creative", "high", "medium", "low"}
-        valid_types = {"calculation", "geometry", "application", "proof", "graph", "statistics"}
+        # 과목별 유효 question_type 동적 로드
+        valid_types = get_valid_question_types(subject)
+        # 과목별 기본 question_type
+        default_question_type = "calculation" if subject == "수학" else "grammar"
 
         # 3단계 → 4단계 변환 매핑
         difficulty_conversion = {
@@ -1595,7 +2054,7 @@ class AIEngine:
 
             # 유형 검증
             if q.get("question_type") not in valid_types:
-                q["question_type"] = "calculation"
+                q["question_type"] = default_question_type
                 confidence -= 0.05
                 q_confidence -= 0.15
                 issues.append(f"Q{i+1}: 잘못된 유형")
@@ -1643,13 +2102,13 @@ class AIEngine:
 
             # 학생 답안지용 필드 검증
             if exam_type == "student":
-                valid_error_types = {
-                    "calculation_error", "concept_error", "careless_mistake",
-                    "process_error", "incomplete", None
-                }
+                # 과목별 유효 error_type 동적 로드
+                valid_error_types = get_valid_error_types(subject) | {None}
+                # 과목별 기본 error_type
+                default_error_type = "concept_error" if subject == "수학" else "comprehension_error"
                 error_type = q.get("error_type")
                 if error_type and error_type not in valid_error_types:
-                    q["error_type"] = "concept_error"
+                    q["error_type"] = default_error_type
                     q_confidence -= 0.05
 
                 if "is_correct" not in q:
