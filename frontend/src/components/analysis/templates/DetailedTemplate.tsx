@@ -140,7 +140,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
     <>
       {/* Export 전용 헤더 (미리보기/이미지 저장용) */}
       {isExport && exportMetadata && (
-        <div className="mb-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div data-pdf-section="header" className="mb-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             {exportMetadata.examTitle}
           </h1>
@@ -232,7 +232,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
           {/* 도넛 모드: 컴팩트 2x2 그리드 / 막대 모드: 기존 레이아웃 */}
           {chartType === 'donut' ? (
             /* 컴팩트 도넛 차트 그리드 */
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div data-pdf-section="charts" className="grid grid-cols-2 gap-3 mb-4">
               {isSectionVisible('showDifficulty') && (
                 <DifficultyPieChart distribution={summary.difficulty_distribution} chartMode={chartType} />
               )}
@@ -291,7 +291,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
 
           {/* 고급 인사이트 차트 (Recharts) */}
           {isSectionVisible('showType') && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <div data-pdf-section="insight-charts" className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
               <TypeRadarChart distribution={summary.type_distribution} isExport={isExport} />
               <DifficultyPointsAreaChart questions={questions} />
             </div>
@@ -299,21 +299,21 @@ export const DetailedTemplate = memo(function DetailedTemplate({
 
           {/* 문항별 배점+난이도 콤보 차트 */}
           {isSectionVisible('showQuestions') && (
-            <div className="mb-4">
+            <div data-pdf-section="question-points" className="mb-4">
               <QuestionPointsChart questions={questions} />
             </div>
           )}
 
           {/* 변별력 분석 */}
           {isSectionVisible('showQuestions') && (
-            <div className="mb-4">
+            <div data-pdf-section="discrimination" className="mb-4">
               <DiscriminationAnalysis questions={questions} />
             </div>
           )}
 
           {/* Question List - 테이블 형식 (형식별 그룹) */}
           {isSectionVisible('showQuestions') && (
-            <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div data-pdf-section="question-table" className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-200">
                 <h3 className="text-base font-semibold text-gray-900">
                   문항별 출제 분석
@@ -379,7 +379,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
       )}
 
       {showComments && isSectionVisible('showComments') && (
-        <div className={`bg-white shadow rounded-lg overflow-hidden ${isExport ? 'mb-8 break-before-page' : ''}`}>
+        <div data-pdf-section="comments" className={`bg-white shadow rounded-lg overflow-hidden ${isExport ? 'mb-8 break-before-page' : ''}`}>
           <div className="px-4 py-3 border-b border-gray-200">
             <h3 className="text-base font-semibold text-gray-900">
               AI 분석 코멘트
@@ -455,7 +455,9 @@ export const DetailedTemplate = memo(function DetailedTemplate({
       )}
 
       {showStrategy && (
-        <StudyStrategyTab questions={questions} exportOptions={strategyOptions} />
+        <div data-pdf-section="strategy">
+          <StudyStrategyTab questions={questions} exportOptions={strategyOptions} />
+        </div>
       )}
 
       {showAnswers && isStudentExam && (

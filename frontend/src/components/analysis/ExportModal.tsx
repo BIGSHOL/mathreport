@@ -193,11 +193,28 @@ export function ExportModal({
 
     setIsExporting(true);
     try {
+      const pixelRatio = 2;
+
+      // 섹션 경계 찾기 (data-pdf-section 속성을 가진 요소들)
+      const previewRect = previewRef.current.getBoundingClientRect();
+      const sectionElements = previewRef.current.querySelectorAll('[data-pdf-section]');
+      const sectionBoundaries: number[] = [];
+
+      sectionElements.forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        // 섹션의 시작 위치 (preview 기준 상대 좌표, pixelRatio 적용)
+        const relativeTop = (rect.top - previewRect.top) * pixelRatio;
+        sectionBoundaries.push(relativeTop);
+      });
+
+      // 정렬
+      sectionBoundaries.sort((a, b) => a - b);
+
       // html-to-image 사용 (oklch 등 최신 CSS 지원)
       const dataUrl = await toPng(previewRef.current, {
         cacheBust: true,
         backgroundColor: '#ffffff',
-        pixelRatio: 2,
+        pixelRatio,
       });
 
       // 이미지 크기 계산을 위해 Image 로드
@@ -224,6 +241,48 @@ export function ExportModal({
       // 페이지당 이미지 높이 (픽셀 단위)
       const pageHeightInPx = contentHeight / ratio;
 
+      // 스마트 페이지 경계 계산 - 섹션이 잘리지 않도록
+      const pageBreaks: number[] = [0]; // 시작점
+      let currentY = 0;
+
+      while (currentY < imgHeight) {
+        let idealBreak = currentY + pageHeightInPx;
+
+        if (idealBreak >= imgHeight) {
+          // 마지막 페이지
+          break;
+        }
+
+        // 이상적인 페이지 끝 위치 근처에서 가장 좋은 섹션 경계 찾기
+        // 페이지 높이의 20% 범위 내에서 섹션 시작점 찾기
+        const searchStart = idealBreak - pageHeightInPx * 0.2;
+        const searchEnd = idealBreak;
+
+        // 검색 범위 내의 섹션 경계 찾기
+        let bestBreak = idealBreak;
+        let foundBoundary = false;
+
+        for (const boundary of sectionBoundaries) {
+          if (boundary > searchStart && boundary <= searchEnd) {
+            // 이 섹션 시작점 직전에서 페이지를 나눔
+            bestBreak = boundary;
+            foundBoundary = true;
+            break; // 가장 가까운 것 사용
+          }
+        }
+
+        // 섹션 경계를 찾지 못하면 이상적인 위치에서 자름
+        if (!foundBoundary) {
+          bestBreak = idealBreak;
+        }
+
+        pageBreaks.push(bestBreak);
+        currentY = bestBreak;
+      }
+
+      // 마지막 페이지 끝점 추가
+      pageBreaks.push(imgHeight);
+
       // PDF 생성
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -231,22 +290,18 @@ export function ExportModal({
         format: 'a4',
       });
 
-      // 페이지 수 계산
-      const totalPages = Math.ceil(imgHeight / pageHeightInPx);
-
       // Canvas를 사용하여 이미지를 페이지별로 슬라이스
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Canvas context not available');
 
-      for (let page = 0; page < totalPages; page++) {
-        if (page > 0) {
+      for (let i = 0; i < pageBreaks.length - 1; i++) {
+        if (i > 0) {
           pdf.addPage();
         }
 
-        // 현재 페이지에서 추출할 이미지 영역 계산
-        const srcY = page * pageHeightInPx;
-        const srcHeight = Math.min(pageHeightInPx, imgHeight - srcY);
+        const srcY = pageBreaks[i];
+        const srcHeight = pageBreaks[i + 1] - srcY;
 
         // Canvas 크기 설정 (현재 페이지 영역만큼)
         canvas.width = imgWidth;

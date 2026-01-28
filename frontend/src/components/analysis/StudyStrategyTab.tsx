@@ -417,55 +417,65 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
       {/* 출제 영역별 상세 분석 - 대단원 그룹핑 아코디언 */}
       {shouldShow('topicAnalysis') && (
-        <TopicAnalysisSection
-          chapterGroups={chapterGroups}
-          topicSummaries={topicSummaries}
-          totalPoints={totalPoints}
-          is4Level={is4Level}
-          expandedChapters={expandedChapters}
-          toggleChapter={toggleChapter}
-          isSectionExpanded={expandedSections.has('topicAnalysis')}
-          onToggleSection={exportOptions ? undefined : () => toggleSection('topicAnalysis')}
-        />
+        <div data-pdf-section="topic-analysis">
+          <TopicAnalysisSection
+            chapterGroups={chapterGroups}
+            topicSummaries={topicSummaries}
+            totalPoints={totalPoints}
+            is4Level={is4Level}
+            expandedChapters={expandedChapters}
+            toggleChapter={toggleChapter}
+            isSectionExpanded={expandedSections.has('topicAnalysis')}
+            onToggleSection={exportOptions ? undefined : () => toggleSection('topicAnalysis')}
+          />
+        </div>
       )}
 
       {/* 영역별 학습 전략 (접이식) */}
       {shouldShow('learningStrategies') && (
-        <LearningStrategiesSection
-          topicSummaries={topicSummaries}
-          is4Level={is4Level}
-          expandedTopics={expandedTopics}
-          toggleTopic={toggleTopic}
-          isSectionExpanded={expandedSections.has('learningStrategies')}
-          onToggleSection={exportOptions ? undefined : () => toggleSection('learningStrategies')}
-        />
+        <div data-pdf-section="learning-strategies">
+          <LearningStrategiesSection
+            topicSummaries={topicSummaries}
+            is4Level={is4Level}
+            expandedTopics={expandedTopics}
+            toggleTopic={toggleTopic}
+            isSectionExpanded={expandedSections.has('learningStrategies')}
+            onToggleSection={exportOptions ? undefined : () => toggleSection('learningStrategies')}
+          />
+        </div>
       )}
 
       {/* 서술형 대비 전략 */}
       {shouldShow('essay') && (
-        <EssayPreparationSection
-          essayQuestions={essayQuestions}
-          isSectionExpanded={expandedSections.has('essay')}
-          onToggleSection={exportOptions ? undefined : () => toggleSection('essay')}
-        />
+        <div data-pdf-section="essay">
+          <EssayPreparationSection
+            essayQuestions={essayQuestions}
+            isSectionExpanded={expandedSections.has('essay')}
+            onToggleSection={exportOptions ? undefined : () => toggleSection('essay')}
+          />
+        </div>
       )}
 
       {/* 시험 시간 배분 전략 */}
       {shouldShow('timeAllocation') && (
-        <TimeAllocationSection
-          topicSummaries={topicSummaries}
-          isSectionExpanded={expandedSections.has('timeAllocation')}
-          onToggleSection={exportOptions ? undefined : () => toggleSection('timeAllocation')}
-        />
+        <div data-pdf-section="time-allocation">
+          <TimeAllocationSection
+            topicSummaries={topicSummaries}
+            isSectionExpanded={expandedSections.has('timeAllocation')}
+            onToggleSection={exportOptions ? undefined : () => toggleSection('timeAllocation')}
+          />
+        </div>
       )}
 
       {/* 자주 하는 실수 유형 */}
       {shouldShow('mistakes') && (
-        <CommonMistakesSection
-          topicSummaries={topicSummaries}
-          isSectionExpanded={expandedSections.has('mistakes')}
-          onToggleSection={exportOptions ? undefined : () => toggleSection('mistakes')}
-        />
+        <div data-pdf-section="mistakes">
+          <CommonMistakesSection
+            topicSummaries={topicSummaries}
+            isSectionExpanded={expandedSections.has('mistakes')}
+            onToggleSection={exportOptions ? undefined : () => toggleSection('mistakes')}
+          />
+        </div>
       )}
 
       {/* 학년별 연계 경고 - 대단원별 그루핑 (중복 제거) */}
@@ -498,7 +508,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
         const isSectionExpanded = expandedSections.has('connections');
 
         return (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div data-pdf-section="connections" className="bg-white rounded-lg shadow overflow-hidden">
             {/* 헤더 - 클릭 시 섹션 접기/펼치기 */}
             <button
               onClick={exportOptions ? undefined : () => toggleSection('connections')}
@@ -636,30 +646,36 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
       {/* 킬러 문항 유형 경고 */}
       {shouldShow('killer') && (
-        <KillerPatternsSection
-          killerPatterns={killerPatterns}
-          isSectionExpanded={expandedSections.has('killer')}
-          onToggleSection={exportOptions ? undefined : () => toggleSection('killer')}
-        />
+        <div data-pdf-section="killer">
+          <KillerPatternsSection
+            killerPatterns={killerPatterns}
+            isSectionExpanded={expandedSections.has('killer')}
+            onToggleSection={exportOptions ? undefined : () => toggleSection('killer')}
+          />
+        </div>
       )}
 
       {/* 수준별 학습 전략 */}
       {shouldShow('levelStrategies') && (
-        <LevelStrategiesSection
-          topicLevelStrategies={topicLevelStrategies}
-          levelEncouragements={levelEncouragements}
-          autoLevelRecommendation={autoLevelRecommendation}
-          isSectionExpanded={expandedSections.has('levelStrategies')}
-          onToggleSection={exportOptions ? undefined : () => toggleSection('levelStrategies')}
-        />
+        <div data-pdf-section="level-strategies">
+          <LevelStrategiesSection
+            topicLevelStrategies={topicLevelStrategies}
+            levelEncouragements={levelEncouragements}
+            autoLevelRecommendation={autoLevelRecommendation}
+            isSectionExpanded={expandedSections.has('levelStrategies')}
+            onToggleSection={exportOptions ? undefined : () => toggleSection('levelStrategies')}
+          />
+        </div>
       )}
 
       {/* 4주 전 학습 타임라인 */}
       {shouldShow('timeline') && (
-        <TimelineSection
-          isSectionExpanded={expandedSections.has('timeline')}
-          onToggleSection={exportOptions ? undefined : () => toggleSection('timeline')}
-        />
+        <div data-pdf-section="timeline">
+          <TimelineSection
+            isSectionExpanded={expandedSections.has('timeline')}
+            onToggleSection={exportOptions ? undefined : () => toggleSection('timeline')}
+          />
+        </div>
       )}
     </div>
   );
