@@ -198,17 +198,25 @@ export function ExportModal({
       // 섹션 경계 찾기 (data-pdf-section 속성을 가진 요소들)
       const previewRect = previewRef.current.getBoundingClientRect();
       const sectionElements = previewRef.current.querySelectorAll('[data-pdf-section]');
-      const sectionBoundaries: number[] = [];
+
+      // 섹션의 시작점과 끝점 모두 수집
+      interface SectionBounds {
+        top: number;
+        bottom: number;
+        height: number;
+      }
+      const sections: SectionBounds[] = [];
 
       sectionElements.forEach((el) => {
         const rect = el.getBoundingClientRect();
-        // 섹션의 시작 위치 (preview 기준 상대 좌표, pixelRatio 적용)
-        const relativeTop = (rect.top - previewRect.top) * pixelRatio;
-        sectionBoundaries.push(relativeTop);
+        // preview 기준 상대 좌표, pixelRatio 적용
+        const top = (rect.top - previewRect.top) * pixelRatio;
+        const bottom = (rect.bottom - previewRect.top) * pixelRatio;
+        sections.push({ top, bottom, height: bottom - top });
       });
 
-      // 정렬
-      sectionBoundaries.sort((a, b) => a - b);
+      // 시작점 기준 정렬
+      sections.sort((a, b) => a.top - b.top);
 
       // html-to-image 사용 (oklch 등 최신 CSS 지원)
       const dataUrl = await toPng(previewRef.current, {
@@ -246,33 +254,37 @@ export function ExportModal({
       let currentY = 0;
 
       while (currentY < imgHeight) {
-        let idealBreak = currentY + pageHeightInPx;
+        const idealBreak = currentY + pageHeightInPx;
 
         if (idealBreak >= imgHeight) {
           // 마지막 페이지
           break;
         }
 
-        // 이상적인 페이지 끝 위치 근처에서 가장 좋은 섹션 경계 찾기
-        // 페이지 높이의 20% 범위 내에서 섹션 시작점 찾기
-        const searchStart = idealBreak - pageHeightInPx * 0.2;
-        const searchEnd = idealBreak;
-
-        // 검색 범위 내의 섹션 경계 찾기
+        // 현재 페이지에서 잘릴 섹션 찾기
+        // 섹션이 페이지 경계를 걸치면서 (top < idealBreak < bottom)
+        // 해당 섹션이 한 페이지에 들어갈 수 있으면 (height <= pageHeightInPx)
+        // 섹션 시작점 직전으로 페이지를 나눔
         let bestBreak = idealBreak;
-        let foundBoundary = false;
 
-        for (const boundary of sectionBoundaries) {
-          if (boundary > searchStart && boundary <= searchEnd) {
-            // 이 섹션 시작점 직전에서 페이지를 나눔
-            bestBreak = boundary;
-            foundBoundary = true;
-            break; // 가장 가까운 것 사용
+        for (const section of sections) {
+          // 이미 지나간 섹션은 무시
+          if (section.bottom <= currentY) continue;
+
+          // 섹션이 페이지 경계에 걸치는 경우
+          if (section.top < idealBreak && section.bottom > idealBreak) {
+            // 섹션이 한 페이지에 들어갈 수 있고,
+            // 섹션 시작점이 현재 페이지 시작점보다 뒤에 있으면
+            if (section.height <= pageHeightInPx && section.top > currentY) {
+              // 섹션 시작점 직전에서 페이지를 나눔
+              bestBreak = section.top;
+              break;
+            }
           }
         }
 
-        // 섹션 경계를 찾지 못하면 이상적인 위치에서 자름
-        if (!foundBoundary) {
+        // 최소 페이지 높이 보장 (무한 루프 방지)
+        if (bestBreak <= currentY) {
           bestBreak = idealBreak;
         }
 
