@@ -59,6 +59,17 @@ export function ExportModal({
   const [showQuestions, setShowQuestions] = useState(true);
   const [showComments, setShowComments] = useState(true);
 
+  // 학습 대책 섹션 선택
+  const [showTopicAnalysis, setShowTopicAnalysis] = useState(true);
+  const [showLearningStrategies, setShowLearningStrategies] = useState(true);
+  const [showEssay, setShowEssay] = useState(true);
+  const [showTimeAllocation, setShowTimeAllocation] = useState(true);
+  const [showMistakes, setShowMistakes] = useState(true);
+  const [showConnections, setShowConnections] = useState(true);
+  const [showKiller, setShowKiller] = useState(true);
+  const [showLevelStrategies, setShowLevelStrategies] = useState(true);
+  const [showTimeline, setShowTimeline] = useState(true);
+
   // 차트 모드
   const [chartMode, setChartMode] = useState<ChartMode>('donut');
 
@@ -321,6 +332,22 @@ export function ExportModal({
               </div>
               )}
 
+              {/* 학습 대책 섹션 선택 */}
+              <div className="p-4 border-b">
+                <h3 className="font-semibold text-gray-900 text-sm mb-3">학습 대책 섹션</h3>
+                <div className="space-y-1.5 max-h-52 overflow-y-auto">
+                  <SectionToggle label="출제 영역별 분석" checked={showTopicAnalysis} onChange={setShowTopicAnalysis} />
+                  <SectionToggle label="영역별 학습 전략" checked={showLearningStrategies} onChange={setShowLearningStrategies} />
+                  <SectionToggle label="서술형 대비" checked={showEssay} onChange={setShowEssay} />
+                  <SectionToggle label="시간 배분 전략" checked={showTimeAllocation} onChange={setShowTimeAllocation} />
+                  <SectionToggle label="자주 하는 실수" checked={showMistakes} onChange={setShowMistakes} />
+                  <SectionToggle label="학년 연계" checked={showConnections} onChange={setShowConnections} />
+                  <SectionToggle label="킬러 문항" checked={showKiller} onChange={setShowKiller} />
+                  <SectionToggle label="수준별 전략" checked={showLevelStrategies} onChange={setShowLevelStrategies} />
+                  <SectionToggle label="학습 타임라인" checked={showTimeline} onChange={setShowTimeline} />
+                </div>
+              </div>
+
               {/* 차트 스타일 (단일 이미지 모드만) */}
               {exportMode === 'single' && (showDifficulty || showType || showTopic) && (
                 <div className="p-4 border-b">
@@ -462,6 +489,17 @@ export function ExportModal({
                         showQuestions,
                         showComments,
                       }}
+                      strategyOptions={{
+                        showTopicAnalysis,
+                        showLearningStrategies,
+                        showEssay,
+                        showTimeAllocation,
+                        showMistakes,
+                        showConnections,
+                        showKiller,
+                        showLevelStrategies,
+                        showTimeline,
+                      }}
                       preferredChartType={chartMode}
                       selectedCommentIds={selectedCommentQuestions}
                     />
@@ -552,6 +590,17 @@ export function ExportModal({
                         examGrade: examGrade || undefined,
                       }}
                       exportTab="strategy"
+                      strategyOptions={{
+                        showTopicAnalysis,
+                        showLearningStrategies,
+                        showEssay,
+                        showTimeAllocation,
+                        showMistakes,
+                        showConnections,
+                        showKiller,
+                        showLevelStrategies,
+                        showTimeline,
+                      }}
                     />
                   </div>
                 </div>

@@ -40,6 +40,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
   isExport = false,
   exportMetadata,
   exportOptions,
+  strategyOptions,
   preferredChartType,
   selectedCommentIds,
   exportTab,
@@ -452,7 +453,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
       )}
 
       {showStrategy && (
-        <StudyStrategyTab questions={questions} />
+        <StudyStrategyTab questions={questions} exportOptions={strategyOptions} />
       )}
 
       {showAnswers && isStudentExam && (

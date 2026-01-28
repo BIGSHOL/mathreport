@@ -36,7 +36,24 @@ type SectionId = 'topicAnalysis' | 'learningStrategies' | 'essay' | 'timeAllocat
 
 export const StudyStrategyTab = memo(function StudyStrategyTab({
   questions,
+  exportOptions,
 }: StudyStrategyTabProps) {
+  // exportOptions가 있으면 해당 설정 사용, 없으면 모두 표시
+  const shouldShow = (sectionId: SectionId): boolean => {
+    if (!exportOptions) return true;
+    switch (sectionId) {
+      case 'topicAnalysis': return exportOptions.showTopicAnalysis;
+      case 'learningStrategies': return exportOptions.showLearningStrategies;
+      case 'essay': return exportOptions.showEssay;
+      case 'timeAllocation': return exportOptions.showTimeAllocation;
+      case 'mistakes': return exportOptions.showMistakes;
+      case 'connections': return exportOptions.showConnections;
+      case 'killer': return exportOptions.showKiller;
+      case 'levelStrategies': return exportOptions.showLevelStrategies;
+      case 'timeline': return exportOptions.showTimeline;
+      default: return true;
+    }
+  };
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set()); // 대단원 펼치기 state
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set());
@@ -386,61 +403,73 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
 
   return (
     <div className="space-y-6">
-      {/* 모든 섹션 접기/펼치기 버튼 */}
-      <div className="flex justify-end mb-2">
-        <button
-          onClick={() => toggleAllSections(expandedSections.size === 0)}
-          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1.5 rounded hover:bg-indigo-50 transition-colors"
-        >
-          {expandedSections.size === 0 ? '모든 섹션 펼치기' : '모든 섹션 접기'}
-        </button>
-      </div>
+      {/* 모든 섹션 접기/펼치기 버튼 (exportOptions가 없을 때만 표시) */}
+      {!exportOptions && (
+        <div className="flex justify-end mb-2">
+          <button
+            onClick={() => toggleAllSections(expandedSections.size === 0)}
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1.5 rounded hover:bg-indigo-50 transition-colors"
+          >
+            {expandedSections.size === 0 ? '모든 섹션 펼치기' : '모든 섹션 접기'}
+          </button>
+        </div>
+      )}
 
       {/* 출제 영역별 상세 분석 - 대단원 그룹핑 아코디언 */}
-      <TopicAnalysisSection
-        chapterGroups={chapterGroups}
-        topicSummaries={topicSummaries}
-        totalPoints={totalPoints}
-        is4Level={is4Level}
-        expandedChapters={expandedChapters}
-        toggleChapter={toggleChapter}
-        isSectionExpanded={expandedSections.has('topicAnalysis')}
-        onToggleSection={() => toggleSection('topicAnalysis')}
-      />
+      {shouldShow('topicAnalysis') && (
+        <TopicAnalysisSection
+          chapterGroups={chapterGroups}
+          topicSummaries={topicSummaries}
+          totalPoints={totalPoints}
+          is4Level={is4Level}
+          expandedChapters={expandedChapters}
+          toggleChapter={toggleChapter}
+          isSectionExpanded={expandedSections.has('topicAnalysis')}
+          onToggleSection={exportOptions ? undefined : () => toggleSection('topicAnalysis')}
+        />
+      )}
 
       {/* 영역별 학습 전략 (접이식) */}
-      <LearningStrategiesSection
-        topicSummaries={topicSummaries}
-        is4Level={is4Level}
-        expandedTopics={expandedTopics}
-        toggleTopic={toggleTopic}
-        isSectionExpanded={expandedSections.has('learningStrategies')}
-        onToggleSection={() => toggleSection('learningStrategies')}
-      />
+      {shouldShow('learningStrategies') && (
+        <LearningStrategiesSection
+          topicSummaries={topicSummaries}
+          is4Level={is4Level}
+          expandedTopics={expandedTopics}
+          toggleTopic={toggleTopic}
+          isSectionExpanded={expandedSections.has('learningStrategies')}
+          onToggleSection={exportOptions ? undefined : () => toggleSection('learningStrategies')}
+        />
+      )}
 
       {/* 서술형 대비 전략 */}
-      <EssayPreparationSection
-        essayQuestions={essayQuestions}
-        isSectionExpanded={expandedSections.has('essay')}
-        onToggleSection={() => toggleSection('essay')}
-      />
+      {shouldShow('essay') && (
+        <EssayPreparationSection
+          essayQuestions={essayQuestions}
+          isSectionExpanded={expandedSections.has('essay')}
+          onToggleSection={exportOptions ? undefined : () => toggleSection('essay')}
+        />
+      )}
 
       {/* 시험 시간 배분 전략 */}
-      <TimeAllocationSection
-        topicSummaries={topicSummaries}
-        isSectionExpanded={expandedSections.has('timeAllocation')}
-        onToggleSection={() => toggleSection('timeAllocation')}
-      />
+      {shouldShow('timeAllocation') && (
+        <TimeAllocationSection
+          topicSummaries={topicSummaries}
+          isSectionExpanded={expandedSections.has('timeAllocation')}
+          onToggleSection={exportOptions ? undefined : () => toggleSection('timeAllocation')}
+        />
+      )}
 
       {/* 자주 하는 실수 유형 */}
-      <CommonMistakesSection
-        topicSummaries={topicSummaries}
-        isSectionExpanded={expandedSections.has('mistakes')}
-        onToggleSection={() => toggleSection('mistakes')}
-      />
+      {shouldShow('mistakes') && (
+        <CommonMistakesSection
+          topicSummaries={topicSummaries}
+          isSectionExpanded={expandedSections.has('mistakes')}
+          onToggleSection={exportOptions ? undefined : () => toggleSection('mistakes')}
+        />
+      )}
 
       {/* 학년별 연계 경고 - 대단원별 그루핑 (중복 제거) */}
-      {gradeConnections.size > 0 && (() => {
+      {shouldShow('connections') && gradeConnections.size > 0 && (() => {
         // 대단원별로 그루핑 - 중복 연계 정보 제거
         const groupedByMajor = new Map<string, GradeConnection[]>();
         Array.from(gradeConnections.entries()).forEach(([topic, connections]) => {
@@ -472,8 +501,9 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
           <div className="bg-white rounded-lg shadow overflow-hidden">
             {/* 헤더 - 클릭 시 섹션 접기/펼치기 */}
             <button
-              onClick={() => toggleSection('connections')}
+              onClick={exportOptions ? undefined : () => toggleSection('connections')}
               className="w-full px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-yellow-50 hover:from-orange-100 hover:to-yellow-100 transition-colors"
+              disabled={!!exportOptions}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -605,27 +635,32 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
       })()}
 
       {/* 킬러 문항 유형 경고 */}
-      <KillerPatternsSection
-        killerPatterns={killerPatterns}
-        isSectionExpanded={expandedSections.has('killer')}
-        onToggleSection={() => toggleSection('killer')}
-      />
-
+      {shouldShow('killer') && (
+        <KillerPatternsSection
+          killerPatterns={killerPatterns}
+          isSectionExpanded={expandedSections.has('killer')}
+          onToggleSection={exportOptions ? undefined : () => toggleSection('killer')}
+        />
+      )}
 
       {/* 수준별 학습 전략 */}
-      <LevelStrategiesSection
-        topicLevelStrategies={topicLevelStrategies}
-        levelEncouragements={levelEncouragements}
-        autoLevelRecommendation={autoLevelRecommendation}
-        isSectionExpanded={expandedSections.has('levelStrategies')}
-        onToggleSection={() => toggleSection('levelStrategies')}
-      />
+      {shouldShow('levelStrategies') && (
+        <LevelStrategiesSection
+          topicLevelStrategies={topicLevelStrategies}
+          levelEncouragements={levelEncouragements}
+          autoLevelRecommendation={autoLevelRecommendation}
+          isSectionExpanded={expandedSections.has('levelStrategies')}
+          onToggleSection={exportOptions ? undefined : () => toggleSection('levelStrategies')}
+        />
+      )}
 
       {/* 4주 전 학습 타임라인 */}
-      <TimelineSection
-        isSectionExpanded={expandedSections.has('timeline')}
-        onToggleSection={() => toggleSection('timeline')}
-      />
+      {shouldShow('timeline') && (
+        <TimelineSection
+          isSectionExpanded={expandedSections.has('timeline')}
+          onToggleSection={exportOptions ? undefined : () => toggleSection('timeline')}
+        />
+      )}
     </div>
   );
 });
