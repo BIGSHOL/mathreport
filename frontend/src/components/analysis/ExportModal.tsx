@@ -262,9 +262,8 @@ export function ExportModal({
         }
 
         // 현재 페이지에서 잘릴 섹션 찾기
-        // 섹션이 페이지 경계를 걸치면서 (top < idealBreak < bottom)
-        // 해당 섹션이 한 페이지에 들어갈 수 있으면 (height <= pageHeightInPx)
-        // 섹션 시작점 직전으로 페이지를 나눔
+        // 섹션이 페이지 경계를 걸치면 (top < idealBreak < bottom)
+        // 섹션 전체를 다음 페이지로 이동 (섹션 크기와 관계없이)
         let bestBreak = idealBreak;
 
         for (const section of sections) {
@@ -273,10 +272,9 @@ export function ExportModal({
 
           // 섹션이 페이지 경계에 걸치는 경우
           if (section.top < idealBreak && section.bottom > idealBreak) {
-            // 섹션이 한 페이지에 들어갈 수 있고,
             // 섹션 시작점이 현재 페이지 시작점보다 뒤에 있으면
-            if (section.height <= pageHeightInPx && section.top > currentY) {
-              // 섹션 시작점 직전에서 페이지를 나눔
+            // 섹션 전체를 다음 페이지로 넘김
+            if (section.top > currentY) {
               bestBreak = section.top;
               break;
             }
