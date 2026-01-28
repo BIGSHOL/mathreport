@@ -549,7 +549,6 @@ export function ExportModal({
                     className="bg-white shadow-xl rounded-lg mx-auto"
                     style={{
                       width: '1024px',
-                      minHeight: '1200px',
                       padding: '40px',
                       fontFamily: "'Pretendard Variable', -apple-system, sans-serif",
                     }}
