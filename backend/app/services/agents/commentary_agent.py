@@ -266,7 +266,7 @@ class CommentaryAgent:
         )
 
     def _generate_overview_summary(self, questions: list, diff_dist: dict, is_4level: bool) -> str:
-        """시험 분석 종합 요약 생성 (3줄 내외)."""
+        """시험 분석 종합 요약 생성 - 풍부하고 보수적인 정보 제공."""
         total = len(questions)
         if total == 0:
             return "시험 정보가 부족합니다."
@@ -280,35 +280,38 @@ class CommentaryAgent:
         essay_points = sum(q.get("points", 0) or 0 for q in essay_questions)
         essay_ratio = round(essay_points / total_points * 100) if total_points > 0 else 0
 
-        # 난이도 분포 텍스트
+        # 객관식/단답형 분석
+        objective_count = len([q for q in questions if q.get("question_format") == "objective"])
+        short_answer_count = len([q for q in questions if q.get("question_format") == "short_answer"])
+
+        # 난이도 분포 텍스트 (보수적 표현)
         if is_4level:
             reasoning = diff_dist.get("reasoning", 0)
             creative = diff_dist.get("creative", 0)
             pattern = diff_dist.get("pattern", 0)
             concept = diff_dist.get("concept", 0)
-            # 고난도 = 심화 + 최상위 (유형은 중간 난이도이므로 제외)
             high_ratio = (reasoning + creative) / total if total > 0 else 0
             low_ratio = concept / total if total > 0 else 0
 
             if high_ratio > 0.4:
-                diff_text = "심화-최상위 중심의 고난이도"
+                diff_text = "심화·응용 문항 비중이 높은"
             elif high_ratio > 0.35:
-                diff_text = "중상위 난이도"
+                diff_text = "중상 수준 문항이 포함된"
             elif low_ratio > 0.4:
-                diff_text = "개념 중심의 기초 난이도"
+                diff_text = "기초 개념 확인 중심의"
             elif low_ratio + (pattern / total if total > 0 else 0) > 0.65:
-                diff_text = "개념-유형 중심의 중간 난이도"
+                diff_text = "개념-유형 중심의"
             else:
-                diff_text = "균형잡힌 중간 난이도"
+                diff_text = "다양한 난이도가 균형있게 분포된"
         else:
             high = diff_dist.get("high", 0)
             medium = diff_dist.get("medium", 0)
             if high / total > 0.4 if total > 0 else False:
-                diff_text = "고난이도"
+                diff_text = "도전적인 문항이 포함된"
             elif medium / total > 0.5 if total > 0 else False:
-                diff_text = "중간 난이도"
+                diff_text = "중간 수준의"
             else:
-                diff_text = "균형잡힌 난이도"
+                diff_text = "균형잡힌"
 
         # 집중 출제 단원 찾기
         topic_counts: dict[str, dict] = {}
@@ -322,29 +325,59 @@ class CommentaryAgent:
                 topic_counts[main_topic]["count"] += 1
                 topic_counts[main_topic]["points"] += q.get("points", 0) or 0
 
-        top_topic_text = ""
+        # 고배점 문항 분석
+        points_list = [q.get("points", 0) or 0 for q in questions]
+        avg_points = sum(points_list) / len(points_list) if points_list else 4
+        high_point_questions = [q for q in questions if (q.get("points", 0) or 0) >= avg_points * 1.5]
+        high_point_count = len(high_point_questions)
+
+        # 종합 요약 생성 (더 풍부하게)
+        summary_parts = []
+
+        # 1. 기본 구성
+        format_info = []
+        if objective_count > 0:
+            format_info.append(f"객관식 {objective_count}문항")
+        if short_answer_count > 0:
+            format_info.append(f"단답형 {short_answer_count}문항")
+        if essay_count > 0:
+            format_info.append(f"서술형 {essay_count}문항")
+
+        summary_parts.append(
+            f"총 {total}문항({round(total_points)}점 만점)으로 "
+            f"{', '.join(format_info)}으로 구성되어 있습니다."
+        )
+
+        # 2. 서술형 비중 (있는 경우)
+        if essay_count > 0 and essay_ratio >= 20:
+            summary_parts.append(
+                f"서술형 배점 비중이 {essay_ratio}%로, 풀이 과정 작성에 충분한 시간 배분이 필요합니다."
+            )
+
+        # 3. 난이도 특성
+        summary_parts.append(f"전반적으로 {diff_text} 시험입니다.")
+
+        # 4. 집중 출제 단원
         if topic_counts:
             sorted_topics = sorted(topic_counts.items(), key=lambda x: -x[1]["points"])
-            if sorted_topics:
+            if len(sorted_topics) >= 1:
                 top_name, top_data = sorted_topics[0]
-                top_topic_text = f" '{top_name}' 단원에서 집중 출제({top_data['count']}문항, {round(top_data['points'])}점)되어 해당 단원 학습이 중요합니다."
+                if top_data["count"] >= 3 or top_data["points"] >= total_points * 0.3:
+                    summary_parts.append(
+                        f"'{top_name}' 단원이 {top_data['count']}문항({round(top_data['points'])}점)으로 "
+                        f"가장 높은 비중을 차지하므로 우선 학습이 권장됩니다."
+                    )
 
-        # 종합 요약 생성
-        parts = [
-            f"이 시험은 총 {total}문항({round(total_points)}점 만점)으로 구성되어 있으며",
-        ]
+        # 5. 고배점 문항 안내 (있는 경우)
+        if high_point_count >= 2:
+            summary_parts.append(
+                f"평균보다 높은 배점의 문항이 {high_point_count}개 있어 해당 문항 대비가 중요합니다."
+            )
 
-        if essay_count > 0:
-            parts.append(f"서술형이 배점의 {essay_ratio}%를 차지합니다.")
-        else:
-            parts.append("객관식/단답형 위주로 구성되어 있습니다.")
-
-        parts.append(f"난이도는 {diff_text} 분포를 보이며,{top_topic_text}")
-
-        return " ".join(parts)
+        return " ".join(summary_parts)
 
     def _infer_exam_intent(self, questions: list, diff_dist: dict, is_4level: bool) -> str:
-        """출제 의도 추론."""
+        """출제 의도 추론 - 보수적 판단."""
         total = len(questions)
         if total == 0:
             return "시험 정보가 부족합니다."
@@ -358,26 +391,27 @@ class CommentaryAgent:
             high_ratio = (reasoning + creative) / total if total > 0 else 0
             low_ratio = concept / total if total > 0 else 0
 
+            # 보수적 판단: 강한 표현 지양
             if high_ratio > 0.4:
-                return "상위권 학생을 변별하기 위한 고난이도 시험으로, 심화 개념과 응용력이 핵심입니다."
+                return "심화·응용 문항 비중이 높아 꼼꼼한 개념 이해와 문제 풀이 연습이 필요합니다."
             elif high_ratio > 0.35:
-                return "중상위권 학생의 실력을 평가하는 시험으로, 심화 문제 대비가 중요합니다."
+                return "중상 난이도 문항이 포함되어 있어 기본기와 응용력을 함께 점검하는 시험입니다."
             elif low_ratio > 0.4:
-                return "기초 개념 이해도를 확인하기 위한 시험으로, 교과서 중심 학습이 중요합니다."
+                return "기초 개념 확인 비중이 높아 교과서 중심 학습이 효과적입니다."
             elif low_ratio + (pattern / total if total > 0 else 0) > 0.65:
-                return "기초-유형 중심의 시험으로, 개념 정리와 유형 연습이 핵심입니다."
+                return "개념-유형 중심의 시험으로, 기본 개념 정리와 유형 연습이 중요합니다."
             else:
-                return "전 영역을 고르게 평가하는 균형잡힌 시험입니다."
+                return "다양한 난이도가 고르게 출제된 균형잡힌 시험입니다."
         else:
             high = diff_dist.get("high", 0)
             low = diff_dist.get("low", 0)
 
             if high / total > 0.4 if total > 0 else False:
-                return "상위권 변별을 목적으로 한 고난이도 시험입니다."
+                return "난이도 있는 문항이 포함되어 있어 충분한 문제 풀이 연습이 필요합니다."
             elif low / total > 0.5 if total > 0 else False:
-                return "기초 학력을 점검하기 위한 평이한 시험입니다."
+                return "기초 개념 확인 중심의 시험으로, 교과서 위주 학습이 효과적입니다."
             else:
-                return "전체 학생의 실력을 고르게 평가하는 표준적인 시험입니다."
+                return "다양한 수준의 문항이 출제된 표준적인 시험입니다."
 
     def _find_notable_questions(self, questions: list) -> list[NotableQuestion]:
         """주목할 문항 찾기 - 카테고리별 분산으로 다양성 확보."""
