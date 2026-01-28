@@ -7,6 +7,14 @@ import { memo, useState } from 'react';
 import { findCommonMistakes } from '../../../data/curriculumStrategies';
 import type { TopicSummary } from './types';
 
+/**
+ * 토픽 문자열에서 학년 추출 (예: "중1 > 수와 연산" → "중1")
+ */
+const extractGradeFromTopic = (topic: string): string | undefined => {
+  const match = topic.match(/^(중[1-3]|고[1-3])/);
+  return match ? match[1] : undefined;
+};
+
 interface CommonMistakesSectionProps {
   topicSummaries: TopicSummary[];
   /** 섹션 펼침 상태 */
@@ -54,7 +62,7 @@ export const CommonMistakesSection = memo(function CommonMistakesSection({
               </svg>
             </div>
             <div className="text-left">
-              <h3 className="text-base font-semibold text-gray-900">자주 하는 실수 유형</h3>
+              <h3 className="text-base font-semibold text-gray-900">자주하는 실수 유형</h3>
               <p className="text-xs text-gray-600">해당 단원에서 학생들이 반복적으로 틀리는 유형</p>
             </div>
           </div>
@@ -74,7 +82,8 @@ export const CommonMistakesSection = memo(function CommonMistakesSection({
       {isSectionExpanded && (
       <div className="divide-y divide-gray-100">
         {topicSummaries.slice(0, 5).map((summary) => {
-          const mistake = findCommonMistakes(summary.topic);
+          const grade = extractGradeFromTopic(summary.topic);
+          const mistake = findCommonMistakes(summary.topic, grade);
           if (!mistake) return null;
 
           const isExpanded = expandedMistakes.has(summary.topic);

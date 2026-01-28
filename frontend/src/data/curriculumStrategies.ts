@@ -142,7 +142,7 @@ export const MIDDLE_SCHOOL_CURRICULUM: GradeCurriculum[] = [
             tags: ['순서쌍', '사분면'],
           },
           {
-            keywords: ['정비례', '반비례', '그래프'],
+            keywords: ['정비례', '반비례', '정비례와 반비례'],
             strategies: [
               'y = ax (a ≠ 0) 정비례: 원점을 지나는 직선',
               'y = a/x (a ≠ 0) 반비례: 쌍곡선 모양',
@@ -520,7 +520,7 @@ export const MIDDLE_SCHOOL_CURRICULUM: GradeCurriculum[] = [
         name: '이차함수',
         topics: [
           {
-            keywords: ['이차함수', 'y=ax²', '그래프', '포물선'],
+            keywords: ['이차함수', 'y=ax²', '이차함수의 그래프', '포물선'],
             strategies: [
               'y = ax²의 그래프는 포물선, 꼭짓점은 원점',
               'a > 0이면 아래로 볼록, a < 0이면 위로 볼록',
@@ -1441,6 +1441,7 @@ export interface CommonMistake {
 
 export interface UnitMistakes {
   unit: string;
+  grade?: '중등' | '고등';  // 학년 구분 (중복 단원용)
   mistakes: CommonMistake[];
 }
 
@@ -1804,6 +1805,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
   },
   {
     unit: '경우의 수',
+    grade: '중등',  // 중2 경우의 수
     mistakes: [
       {
         keywords: ['경우의 수', '합의 법칙', '곱의 법칙'],
@@ -1889,6 +1891,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
   },
   {
     unit: '인수분해',
+    grade: '중등',  // 중3 인수분해
     mistakes: [
       {
         keywords: ['인수분해'],
@@ -1942,7 +1945,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '이차함수와 그래프',
     mistakes: [
       {
-        keywords: ['이차함수와 그래프', '이차함수와', '그래프'],
+        keywords: ['이차함수와 그래프', '이차함수 그래프', 'y=ax²'],
         mistakes: [
           'y = ax²에서 a > 0이면 아래로 볼록으로 착각 (위로 볼록이 맞음... 아니, 위로 볼록이 틀림. a>0이면 아래로 볼록)',
           '꼭짓점 좌표 (p, q)를 (-p, q)로 착각 (y = a(x-p)² + q에서)',
@@ -2110,6 +2113,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
   },
   {
     unit: '인수분해',
+    grade: '고등',  // 고1 인수분해 (고차식)
     mistakes: [
       {
         keywords: ['인수분해'],
@@ -2212,6 +2216,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
   },
   {
     unit: '경우의 수',
+    grade: '고등',  // 확률과 통계 경우의 수
     mistakes: [
       {
         keywords: ['경우의 수', '여사건'],
@@ -2554,7 +2559,7 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
     unit: '삼각함수의 그래프',
     mistakes: [
       {
-        keywords: ['삼각함수의 그래프', '삼각함수의', '그래프'],
+        keywords: ['삼각함수의 그래프', 'sin 그래프', 'cos 그래프', 'tan 그래프'],
         mistakes: [
           'y = sin x와 y = cos x의 주기를 π로 착각 (2π가 맞음)',
           'y = a sin(bx + c)에서 주기를 2πb로 착각 (2π/|b|가 맞음)',
@@ -3149,11 +3154,21 @@ export const COMMON_MISTAKES: UnitMistakes[] = [
 
 /**
  * 토픽에 해당하는 자주 하는 실수 찾기
+ * @param topic - 토픽 문자열
+ * @param grade - 학년 (예: '중1', '중2', '중3', '고1', '고2', '고3')
  */
-export function findCommonMistakes(topic: string): CommonMistake | null {
+export function findCommonMistakes(topic: string, grade?: string): CommonMistake | null {
   if (!topic) return null;
 
+  // 학년에서 중등/고등 판별
+  const schoolLevel = grade ? (grade.startsWith('중') ? '중등' : '고등') : null;
+
   for (const unitMistakes of COMMON_MISTAKES) {
+    // 단원에 grade가 지정되어 있고 학년 정보가 있으면 필터링
+    if (unitMistakes.grade && schoolLevel && unitMistakes.grade !== schoolLevel) {
+      continue;
+    }
+
     for (const mistake of unitMistakes.mistakes) {
       for (const keyword of mistake.keywords) {
         if (isTopicMatch(topic, keyword)) {
@@ -6041,9 +6056,24 @@ function isTopicMatch(topic: string, target: string): boolean {
     return ['의', '와', '과', '에', ' ', '·', ',', '('].includes(nextChar);
   }
 
-  // 3글자 이상이면 토픽이 키워드를 포함하는 경우만 매칭
-  // (역방향 매칭 gLower.includes(tLower) 제거 - 잘못된 킬러 패턴 노출 방지)
-  return tLower.includes(gLower);
+  // 3글자 이상이면 보수적 매칭: 키워드 뒤에 확장 조사("의", "와", "과" 등)가 오면 다른 단원으로 간주
+  // 예: "이차함수" ≠ "이차함수의 활용" (다른 단원)
+  const idx = tLower.indexOf(gLower);
+  if (idx === -1) return false;
+
+  // 키워드 뒤에 아무것도 없으면 매칭
+  const afterIdx = idx + gLower.length;
+  if (afterIdx >= tLower.length) return true;
+
+  // 키워드 뒤 문자 확인
+  const nextChar = tLower[afterIdx];
+
+  // 구분자(공백, >, ·, ,, ()가 오면 매칭 허용 (예: "이차함수 > 최대최소")
+  if ([' ', '>', '·', ',', '(', ')'].includes(nextChar)) return true;
+
+  // "의", "와", "과", "를", "을" 등 확장 조사가 오면 다른 단원으로 간주하여 매칭 안함
+  // 예: "이차함수의 활용" vs "이차함수" → 매칭 안함
+  return false;
 }
 
 export function findGradeConnections(topic: string, currentGrade?: string): GradeConnection[] {
