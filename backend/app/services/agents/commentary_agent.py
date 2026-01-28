@@ -446,25 +446,49 @@ class CommentaryAgent:
         return notable[:5]
 
     def _calculate_topic_priorities(self, questions: list) -> list[TopicPriority]:
-        """단원별 학습 우선순위 계산."""
-        topic_stats = defaultdict(lambda: {"count": 0, "points": 0})
+        """단원별 학습 우선순위 계산 - 동적 세분화 적용."""
+        # 1단계: 먼저 대단원 기준으로 카운트
+        major_topic_stats = defaultdict(lambda: {"count": 0, "points": 0})
 
         for q in questions:
             topic = q.get("topic", "")
             if topic:
-                # "중3 > 이차방정식 > 근의 공식" → "이차방정식"
                 parts = topic.split(" > ")
-                main_topic = parts[1] if len(parts) > 1 else parts[0]
+                major_topic = parts[1] if len(parts) > 1 else parts[0]
+                major_topic_stats[major_topic]["count"] += 1
+                major_topic_stats[major_topic]["points"] += q.get("points", 0) or 0
 
-                topic_stats[main_topic]["count"] += 1
-                topic_stats[main_topic]["points"] += q.get("points", 0) or 0
+        # 2단계: 대단원 개수에 따라 세분화 결정
+        unique_major_topics = len(major_topic_stats)
 
-        # 배점 순으로 정렬
+        # 대단원이 1-2개뿐이면 소단원으로 세분화
+        if unique_major_topics <= 2:
+            topic_stats = defaultdict(lambda: {"count": 0, "points": 0})
+            for q in questions:
+                topic = q.get("topic", "")
+                if topic:
+                    parts = topic.split(" > ")
+                    # 소단원 사용 (마지막 파트 또는 2번째 파트)
+                    if len(parts) >= 3:
+                        sub_topic = parts[2]  # 소단원
+                    elif len(parts) >= 2:
+                        sub_topic = parts[1]  # 대단원
+                    else:
+                        sub_topic = parts[0]
+
+                    topic_stats[sub_topic]["count"] += 1
+                    topic_stats[sub_topic]["points"] += q.get("points", 0) or 0
+        else:
+            # 대단원이 3개 이상이면 대단원 유지
+            topic_stats = major_topic_stats
+
+        # 3단계: 배점 순으로 정렬
         sorted_topics = sorted(
             topic_stats.items(),
             key=lambda x: -x[1]["points"]
         )
 
+        # 4단계: 우선순위 생성 (최대 5개)
         priorities = []
         for i, (topic, stats) in enumerate(sorted_topics[:5]):
             priorities.append(TopicPriority(
