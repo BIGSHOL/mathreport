@@ -380,15 +380,21 @@ class CommentaryAgent:
                 return "전체 학생의 실력을 고르게 평가하는 표준적인 시험입니다."
 
     def _find_notable_questions(self, questions: list) -> list[NotableQuestion]:
-        """주목할 문항 찾기."""
-        notable = []
-
+        """주목할 문항 찾기 - 카테고리별 분산으로 다양성 확보."""
         if not questions:
-            return notable
+            return []
 
         # 평균 배점 계산
         points_list = [q.get("points", 0) or 0 for q in questions]
         avg_points = sum(points_list) / len(points_list) if points_list else 4
+
+        # 카테고리별로 분류 (중복 방지를 위해 문항번호 추적)
+        killers = []      # 킬러/고난이도
+        essays = []       # 서술형주의
+        high_points = []  # 고배점 (서술형 제외)
+        traps = []        # 함정
+
+        added_nums = set()
 
         for q in questions:
             points = q.get("points", 0) or 0
@@ -396,53 +402,78 @@ class CommentaryAgent:
             q_format = q.get("question_format", "")
             q_num = q.get("question_number", 0)
 
-            # 고배점 문항 (평균의 1.5배 이상)
-            if points >= avg_points * 1.5:
-                if q_format == "essay":
-                    notable.append(NotableQuestion(
-                        question_number=q_num,
-                        tag="서술형주의",
-                        reason=f"{points}점 고배점 서술형. 풀이 과정 생략 금지, 논리적 비약 주의"
-                    ))
-                else:
-                    notable.append(NotableQuestion(
-                        question_number=q_num,
-                        tag="고배점",
-                        reason=f"{points}점 고배점 문항으로 당락에 큰 영향"
-                    ))
-
-            # 킬러 문항 (최상위 난이도 + 고배점)
-            elif difficulty in ["creative", "high"] and points >= avg_points * 1.2:
-                notable.append(NotableQuestion(
+            # 1. 킬러 문항 (고난이도) - 서술형 여부 관계없이
+            if difficulty in ["creative", "high"]:
+                killers.append(NotableQuestion(
                     question_number=q_num,
                     tag="킬러",
-                    reason=f"고난이도 + 고배점({points}점) 조합"
+                    reason=f"최고난도 문항({points}점). 시간 배분 주의, 막히면 건너뛰기"
                 ))
 
-            # 서술형 심화 문항 (reasoning/creative + essay)
-            elif difficulty in ["reasoning", "creative"] and q_format == "essay":
-                if len(notable) < 6:
-                    notable.append(NotableQuestion(
-                        question_number=q_num,
-                        tag="서술형주의",
-                        reason="심화 서술형. 단계별 풀이 전개, 부분점수 확보 전략 필수"
-                    ))
+            # 2. 서술형 고배점
+            elif q_format == "essay" and points >= avg_points * 1.3:
+                essays.append(NotableQuestion(
+                    question_number=q_num,
+                    tag="서술형주의",
+                    reason=f"{points}점 서술형. 풀이 과정 생략 금지, 논리적 비약 주의"
+                ))
 
-            # 함정 가능성 (reasoning + 객관식)
+            # 3. 고배점 (객관식/단답형)
+            elif q_format != "essay" and points >= avg_points * 1.5:
+                high_points.append(NotableQuestion(
+                    question_number=q_num,
+                    tag="고배점",
+                    reason=f"{points}점 고배점 문항으로 당락에 큰 영향"
+                ))
+
+            # 4. 함정 가능성 (심화 난이도 + 객관식)
             elif difficulty == "reasoning" and q_format == "objective":
-                if len(notable) < 6:
-                    notable.append(NotableQuestion(
-                        question_number=q_num,
-                        tag="함정",
-                        reason="사고력 문항 - 조건 누락 주의"
-                    ))
+                traps.append(NotableQuestion(
+                    question_number=q_num,
+                    tag="함정",
+                    reason="사고력 문항 - 조건 누락, 함정 선지 주의"
+                ))
 
-        # 우선순위 정렬: 서술형주의 > 킬러 > 고배점 > 함정
-        def sort_priority(x):
-            priority_map = {"서술형주의": -3, "킬러": -2, "고배점": -1, "함정": 0}
-            return priority_map.get(x.tag, 1)
+        # 카테고리별 균등 배분 (킬러 2, 서술형 1, 고배점 1, 함정 1)
+        notable = []
 
-        notable.sort(key=sort_priority)
+        # 킬러 먼저 (최대 2개)
+        for nq in killers[:2]:
+            if nq.question_number not in added_nums:
+                notable.append(nq)
+                added_nums.add(nq.question_number)
+
+        # 서술형 (최대 1개)
+        for nq in essays[:1]:
+            if nq.question_number not in added_nums:
+                notable.append(nq)
+                added_nums.add(nq.question_number)
+
+        # 고배점 (최대 1개)
+        for nq in high_points[:1]:
+            if nq.question_number not in added_nums:
+                notable.append(nq)
+                added_nums.add(nq.question_number)
+
+        # 함정 (최대 1개)
+        for nq in traps[:1]:
+            if nq.question_number not in added_nums:
+                notable.append(nq)
+                added_nums.add(nq.question_number)
+
+        # 5개 미만이면 남은 카테고리에서 추가
+        remaining_slots = 5 - len(notable)
+        all_remaining = killers[2:] + essays[1:] + high_points[1:] + traps[1:]
+        for nq in all_remaining:
+            if remaining_slots <= 0:
+                break
+            if nq.question_number not in added_nums:
+                notable.append(nq)
+                added_nums.add(nq.question_number)
+                remaining_slots -= 1
+
+        # 문항 번호순 정렬
+        notable.sort(key=lambda x: x.question_number)
         return notable[:5]
 
     def _calculate_topic_priorities(self, questions: list) -> list[TopicPriority]:
