@@ -577,9 +577,10 @@ class CommentaryAgent:
             if max_count >= 4:
                 insights.append(f"'{max_topic}' 단원에서 {max_count}문항이 집중 출제되었습니다.")
 
-        # 연계 문항 확인 (같은 단원 연속)
+        # 연계 문항 확인 (같은 단원 연속) - 중복 방지
         prev_topic = None
         consecutive = 0
+        consecutive_topics_added = set()  # 이미 추가한 연속 단원 추적
         for q in questions:
             topic = q.get("topic", "")
             if topic:
@@ -591,8 +592,10 @@ class CommentaryAgent:
                     consecutive = 1
                     prev_topic = main_topic
 
-                if consecutive >= 3 and len(insights) < 5:
+                # 중복 추가 방지: 이미 추가한 단원은 건너뛰기
+                if consecutive >= 3 and main_topic not in consecutive_topics_added and len(insights) < 5:
                     insights.append(f"'{main_topic}' 단원 문항이 연속 배치되어 있어 단원별 이해도가 중요합니다.")
+                    consecutive_topics_added.add(main_topic)
 
         # 배점 분포 특이점
         points_list = [q.get("points", 0) or 0 for q in questions]
