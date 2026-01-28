@@ -208,7 +208,6 @@ export function ExportModal({
         img.src = dataUrl;
       });
 
-      const imgData = dataUrl;
       const imgWidth = img.width;
       const imgHeight = img.height;
 
@@ -219,31 +218,55 @@ export function ExportModal({
 
       // 이미지 비율 계산
       const contentWidth = pdfWidth - (margin * 2);
+      const contentHeight = pdfHeight - (margin * 2);
       const ratio = contentWidth / imgWidth;
-      const scaledHeight = imgHeight * ratio;
+
+      // 페이지당 이미지 높이 (픽셀 단위)
+      const pageHeightInPx = contentHeight / ratio;
 
       // PDF 생성
       const pdf = new jsPDF({
-        orientation: scaledHeight > pdfHeight - (margin * 2) ? 'portrait' : 'portrait',
+        orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
       });
 
-      // 여러 페이지가 필요한 경우 처리
-      const pageHeight = pdfHeight - (margin * 2);
-      let heightLeft = scaledHeight;
-      let position = margin;
+      // 페이지 수 계산
+      const totalPages = Math.ceil(imgHeight / pageHeightInPx);
 
-      // 첫 페이지
-      pdf.addImage(imgData, 'PNG', margin, position, contentWidth, scaledHeight);
-      heightLeft -= pageHeight;
+      // Canvas를 사용하여 이미지를 페이지별로 슬라이스
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas context not available');
 
-      // 추가 페이지
-      while (heightLeft > 0) {
-        position = margin - (scaledHeight - heightLeft);
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, position, contentWidth, scaledHeight);
-        heightLeft -= pageHeight;
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) {
+          pdf.addPage();
+        }
+
+        // 현재 페이지에서 추출할 이미지 영역 계산
+        const srcY = page * pageHeightInPx;
+        const srcHeight = Math.min(pageHeightInPx, imgHeight - srcY);
+
+        // Canvas 크기 설정 (현재 페이지 영역만큼)
+        canvas.width = imgWidth;
+        canvas.height = srcHeight;
+
+        // 흰색 배경 채우기
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 이미지의 해당 부분만 Canvas에 그리기
+        ctx.drawImage(img, 0, srcY, imgWidth, srcHeight, 0, 0, imgWidth, srcHeight);
+
+        // Canvas를 PNG로 변환
+        const pageData = canvas.toDataURL('image/png');
+
+        // 실제 페이지 높이 (mm)
+        const actualPageHeight = srcHeight * ratio;
+
+        // PDF에 추가
+        pdf.addImage(pageData, 'PNG', margin, margin, contentWidth, actualPageHeight);
       }
 
       pdf.save(`${examTitle}_분석보고서.pdf`);

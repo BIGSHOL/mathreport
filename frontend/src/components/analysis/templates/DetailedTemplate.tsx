@@ -122,9 +122,11 @@ export const DetailedTemplate = memo(function DetailedTemplate({
   const showComments = exportTab
     ? exportTab === 'comments'
     : isExport || viewMode === 'comments';
+  // 단일 이미지 모드에서도 strategyOptions가 있으면 학습 대책 표시
+  const hasAnyStrategyOption = strategyOptions && Object.values(strategyOptions).some(v => v);
   const showStrategy = exportTab
     ? exportTab === 'strategy'
-    : !isExport && viewMode === 'strategy';
+    : isExport ? hasAnyStrategyOption : viewMode === 'strategy';
   const showAnswers = !isExport && !exportTab && viewMode === 'answers';
   const showExtended = !isExport && !exportTab && viewMode === 'extended';
 
