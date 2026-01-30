@@ -9,17 +9,34 @@ from app.schemas.pattern import (
     ExamContext,
 )
 from app.services.subject_config import get_subject_config, get_grade_guidelines
-from app.services.prompt_config import (
+# 공통 설정
+from app.services.prompt_config_common import (
+    POINTS_VALIDATION_RULES,
+    EXAM_SUBJECT_CLASSIFICATION,
+    SCHOOL_LEVEL_RULES,
+    DIFFICULTY_SYSTEM_FRAMEWORK,
+)
+
+# 수학 설정
+from app.services.prompt_config_math import (
     get_topics_for_grade,
     get_mistakes_for_grade,
     get_middle_study_points,
     get_prerequisite_if_high_school,
     SUBJECT_MATCHING_RULES,
-    SCHOOL_LEVEL_RULES,
-    DIFFICULTY_SYSTEM_4LEVEL,
+    MATH_DIFFICULTY_SYSTEM_4LEVEL as DIFFICULTY_SYSTEM_4LEVEL,
     ESSAY_ANALYSIS_FULL_GUIDE,
-    POINTS_VALIDATION_RULES,
-    EXAM_SUBJECT_CLASSIFICATION,
+)
+
+# 영어 설정
+from app.services.prompt_config_english import (
+    get_english_topics_for_grade,
+    get_english_mistakes_for_grade,
+    get_english_writing_guide_if_needed,
+    get_english_score_level_strategy,
+    ENGLISH_DIFFICULTY_SYSTEM_4LEVEL,
+    ENGLISH_EVALUATION_SYSTEM,
+    ENGLISH_QUESTION_STRATEGIES,
 )
 
 
