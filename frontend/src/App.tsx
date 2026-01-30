@@ -28,9 +28,9 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ defaul
 const PageLoading = <div className="flex items-center justify-center min-h-screen">로딩 중...</div>;
 
 function App() {
-  const { restoreSession, setToken, fetchUser, token } = useAuthStore();
+  const { restoreSession, setToken, fetchUser } = useAuthStore();
 
-  // 앱 시작 시 Supabase 세션 복원
+  // 앱 시작 시 Supabase 세션 복원 (내부에서 fetchUser 호출)
   useEffect(() => {
     restoreSession();
   }, [restoreSession]);
@@ -59,13 +59,6 @@ function App() {
       subscription.unsubscribe();
     };
   }, [setToken, fetchUser]);
-
-  // 기존 토큰이 있으면 사용자 정보 가져오기
-  useEffect(() => {
-    if (token) {
-      fetchUser();
-    }
-  }, [token, fetchUser]);
 
   return (
     <Suspense fallback={PageLoading}>

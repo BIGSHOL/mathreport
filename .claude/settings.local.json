@@ -49,7 +49,8 @@
       "Read(//d/math report/**)",
       "Bash(py -c:*)",
       "Bash(git pull:*)",
-      "Bash(xargs cat:*)"
+      "Bash(xargs cat:*)",
+      "Bash(python:*)"
     ],
     "additionalDirectories": [
       "f:\\math-report\\frontend\\src",

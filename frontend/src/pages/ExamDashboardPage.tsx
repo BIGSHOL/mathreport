@@ -18,6 +18,7 @@ import { analysisService } from '../services/analysis';
 import { examService } from '../services/exam';
 import { useAuthStore } from '../stores/auth';
 import authService from '../services/auth';
+import { Info, AlertTriangle, ChevronRight } from 'lucide-react';
 
 // Hoisted static element (rendering-hoist-jsx)
 const emptyState = (
@@ -288,9 +289,7 @@ export function ExamDashboardPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* 베타 기간 안내 */}
       <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3">
-        <svg className="h-5 w-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+        <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0" />
         <span className="text-sm text-amber-800">
           현재 <strong>베타 서비스</strong> 기간입니다. 일부 기능이 불안정할 수 있으며, 서비스 개선을 위해 피드백을 환영합니다.
         </span>
@@ -300,18 +299,16 @@ export function ExamDashboardPage() {
       {showDataUsageNotice && (
         <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <svg className="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <Info className="h-5 w-5 text-blue-500" />
             <span className="text-sm text-blue-700">
               무료 플랜 사용 중 - 분석 데이터가 AI 개선에 활용됩니다
             </span>
           </div>
           <button
             onClick={() => navigate('/pricing')}
-            className="text-sm font-medium text-blue-600 hover:text-blue-800"
+            className="text-sm font-medium text-blue-600 hover:text-blue-800 flex items-center"
           >
-            업그레이드 →
+            업그레이드 <ChevronRight className="w-4 h-4 ml-1" />
           </button>
         </div>
       )}

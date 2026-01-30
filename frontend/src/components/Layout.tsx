@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
+import { FileText, TrendingUp, CreditCard, User, Users, Grid, School, Shield } from 'lucide-react';
 
 export function Layout() {
     const { user } = useAuthStore();
@@ -13,7 +14,7 @@ export function Layout() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         <div className="flex">
-                            <Link to="/" className="flex-shrink-0 flex items-center">
+                            <Link to="/" className="flex-shrink-0 flex items-center gap-2">
                                 <span className="text-xl font-bold text-indigo-600">시험지분석</span>
                             </Link>
                             <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
@@ -26,6 +27,7 @@ export function Layout() {
                                                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                                                 } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                                         >
+                                            <FileText className="w-4 h-4 mr-2" />
                                             시험지 관리
                                         </Link>
                                         {/* 출제 경향: 마스터 계정만 활성화, 일반 사용자는 비활성 표시 */}
@@ -37,6 +39,7 @@ export function Layout() {
                                                     : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                                                     } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                                             >
+                                                <TrendingUp className="w-4 h-4 mr-2" />
                                                 출제 경향
                                             </Link>
                                         ) : (
@@ -44,6 +47,7 @@ export function Layout() {
                                                 className="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-gray-300 cursor-not-allowed"
                                                 title="데이터 누적 후 오픈 예정"
                                             >
+                                                <TrendingUp className="w-4 h-4 mr-2" />
                                                 출제 경향
                                                 <span className="ml-1 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">준비중</span>
                                             </span>
@@ -59,6 +63,7 @@ export function Layout() {
                                             : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                                             } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                                     >
+                                        <CreditCard className="w-4 h-4 mr-2" />
                                         요금제
                                     </Link>
                                 ) : (
@@ -66,6 +71,7 @@ export function Layout() {
                                         className="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium text-gray-300 cursor-not-allowed"
                                         title="결제 시스템 준비 중"
                                     >
+                                        <CreditCard className="w-4 h-4 mr-2" />
                                         요금제
                                         <span className="ml-1 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">준비중</span>
                                     </span>
@@ -78,6 +84,7 @@ export function Layout() {
                                             : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                                             } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                                     >
+                                        <User className="w-4 h-4 mr-2" />
                                         내 정보
                                     </Link>
                                 )}
@@ -90,6 +97,7 @@ export function Layout() {
                                                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                                                 } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                                         >
+                                            <Users className="w-4 h-4 mr-2" />
                                             사용자 관리
                                         </Link>
                                         <Link
@@ -99,6 +107,7 @@ export function Layout() {
                                                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                                                 } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                                         >
+                                            <Grid className="w-4 h-4 mr-2" />
                                             패턴 관리
                                         </Link>
                                         <Link
@@ -108,6 +117,7 @@ export function Layout() {
                                                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                                                 } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                                         >
+                                            <School className="w-4 h-4 mr-2" />
                                             학교 경향
                                         </Link>
                                         <Link
@@ -117,6 +127,7 @@ export function Layout() {
                                                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                                                 } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}
                                         >
+                                            <Shield className="w-4 h-4 mr-2" />
                                             보안 로그
                                         </Link>
                                     </>
@@ -126,8 +137,13 @@ export function Layout() {
                         <div className="flex items-center space-x-4">
                             {/* Explicit conditional render (rendering-conditional-render) */}
                             {user ? (
-                                <span className="text-sm text-gray-700">
-                                    환영합니다, <strong>{user.nickname}</strong>
+                                <span className="text-sm text-gray-700 flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                                        {user.nickname?.[0] || user.email?.[0] || 'U'}
+                                    </div>
+                                    <span className="hidden sm:inline">
+                                        <strong>{user.nickname}</strong>님
+                                    </span>
                                 </span>
                             ) : location.pathname !== '/login' && location.pathname !== '/register' ? (
                                 <div className="space-x-4">

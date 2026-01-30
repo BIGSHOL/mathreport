@@ -30,7 +30,7 @@ api.interceptors.response.use(
       // Clear token and redirect to login
       localStorage.removeItem('access_token');
       const currentPath = window.location.pathname;
-      if (currentPath !== '/login' && currentPath !== '/register') {
+      if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/auth/callback') {
         window.location.href = '/login';
       }
     }

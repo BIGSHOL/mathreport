@@ -37,14 +37,15 @@ function calculateDiscriminationIndex(
   avgPoints: number
 ): { index: number; reason: string } {
   // 난이도별 기본 변별력 점수 (0~1)
+  // 모든 난이도가 적절히 섞인 시험이 좋은 변별력을 가지도록 설계
   const difficultyScore: Record<string, number> = {
-    concept: 0.3,    // 쉬움 - 대부분 맞춤 (변별력 낮음)
-    pattern: 0.8,    // 기본 - 중난이도, 변별력 최고
-    reasoning: 0.7,  // 심화 - 중상 난이도, 변별력 높음
-    creative: 0.4,   // 최고 - 너무 어려움 (변별력 낮음)
-    low: 0.3,        // 3단계: 하
-    medium: 0.8,     // 3단계: 중
-    high: 0.5,       // 3단계: 상
+    concept: 0.55,   // 쉬움 - 기초 실력 확인용
+    pattern: 0.90,   // 기본 - 중난이도, 변별력 최고
+    reasoning: 0.85, // 심화 - 중상 난이도, 변별력 높음
+    creative: 0.60,  // 최고 - 상위권 변별용
+    low: 0.55,       // 3단계: 하
+    medium: 0.90,    // 3단계: 중
+    high: 0.70,      // 3단계: 상
   };
 
   const baseScore = difficultyScore[difficulty] || 0.5;
@@ -96,13 +97,13 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
       let label: '우수' | '양호' | '보통' | '주의';
       let color: string;
 
-      if (index >= 0.75) {
+      if (index >= 0.80) {
         label = '우수';
         color = '#22c55e'; // green
-      } else if (index >= 0.60) {
+      } else if (index >= 0.65) {
         label = '양호';
         color = '#3b82f6'; // blue
-      } else if (index >= 0.45) {
+      } else if (index >= 0.50) {
         label = '보통';
         color = '#f59e0b'; // amber
       } else {
@@ -138,22 +139,22 @@ export const DiscriminationAnalysis = memo(function DiscriminationAnalysis({
     let overallColor: string;
     let overallComment: string;
 
-    if (avgDiscrimination >= 0.70) {
+    if (avgDiscrimination >= 0.80) {
       overallRating = '매우 우수';
       overallColor = '#22c55e';
       overallComment =
         '시험이 아이의 실력을 정확하게 반영할 수 있도록 잘 구성되어 있습니다.';
-    } else if (avgDiscrimination >= 0.60) {
+    } else if (avgDiscrimination >= 0.70) {
       overallRating = '우수';
       overallColor = '#3b82f6';
       overallComment =
         '대부분의 문항이 아이의 실력을 잘 평가할 수 있도록 구성되어 있습니다.';
-    } else if (avgDiscrimination >= 0.50) {
+    } else if (avgDiscrimination >= 0.60) {
       overallRating = '양호';
       overallColor = '#f59e0b';
       overallComment =
         '전반적으로 괜찮지만, 일부 문항은 실력 차이를 보여주기 어려울 수 있습니다.';
-    } else if (avgDiscrimination >= 0.40) {
+    } else if (avgDiscrimination >= 0.50) {
       overallRating = '보통';
       overallColor = '#f97316';
       overallComment =
