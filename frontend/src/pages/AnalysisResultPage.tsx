@@ -310,6 +310,7 @@ export function AnalysisResultPage() {
     extension,
     examType,
     analysisId: id || '',
+    grade: exam?.extracted_grade || exam?.grade,
     onGenerateExtended: handleGenerateExtended,
     isGenerating,
     hasAnswerAnalysis,

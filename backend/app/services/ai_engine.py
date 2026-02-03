@@ -1920,7 +1920,7 @@ class AIEngine:
                     result = self._parse_json_response(response.text)
 
                     # 검증 및 신뢰도 계산
-                    validated_result, confidence = self._validate_result(result, exam_type, subject)
+                    validated_result, confidence = self._validate_result(result, exam_type, subject, grade_level=grade_level)
                     print(f"[Analysis] Confidence: {confidence:.2f}, Questions: {len(validated_result.get('questions', []))}")
 
                     # 누락 감지 시 1회 재분석 시도
@@ -1995,13 +1995,72 @@ class AIEngine:
                 detail=f"AI Analysis failed: {str(e)}"
             )
 
-    def _validate_result(self, result: dict, exam_type: str = "blank", subject: str = "수학") -> tuple[dict, float]:
+    def _remap_topic_to_grade(self, sub_topic: str, grade_level: str) -> str | None:
+        """소단원 키워드를 기반으로 올바른 학년의 토픽 경로로 재매핑.
+
+        Args:
+            sub_topic: 소단원명 (예: "복소수", "인수분해")
+            grade_level: 목표 학년 (예: "중3", "고1")
+
+        Returns:
+            재매핑된 토픽 경로 또는 None (매칭 실패 시)
+        """
+        from app.services.prompt_config import MATH_TOPICS
+
+        target_topics = MATH_TOPICS.get(grade_level, "")
+        if not target_topics or not sub_topic:
+            return None
+
+        # 토픽 분류표 파싱: "- 대단원: 소단원1, 소단원2" 형식
+        best_match = None
+        best_score = 0
+        sub_lower = sub_topic.lower()
+
+        for line in target_topics.split("\n"):
+            line = line.strip()
+            if not line.startswith("- "):
+                continue
+            # "- 대단원: 소단원1, 소단원2" 파싱
+            content = line[2:]  # "- " 제거
+            if ":" not in content:
+                continue
+            major_unit, sub_units_str = content.split(":", 1)
+            major_unit = major_unit.strip()
+            sub_units = [s.strip() for s in sub_units_str.split(",")]
+
+            for su in sub_units:
+                su_lower = su.lower()
+                # 정확히 일치
+                if su_lower == sub_lower:
+                    score = len(su) * 3
+                # 소단원이 키워드를 포함
+                elif sub_lower in su_lower:
+                    score = len(sub_topic) * 2
+                # 키워드가 소단원을 포함
+                elif su_lower in sub_lower:
+                    score = len(su)
+                else:
+                    continue
+
+                if score > best_score:
+                    best_score = score
+                    # 중학교: "중3 수학 > 대단원 > 소단원", 고등학교: "과목명 > 대단원 > 소단원"
+                    if grade_level.startswith("중"):
+                        best_match = f"{grade_level} 수학 > {major_unit} > {su}"
+                    else:
+                        # 고등학교는 [과목명] 헤더에서 추출해야 하지만 기본값 사용
+                        best_match = f"{grade_level} 수학 > {major_unit} > {su}"
+
+        return best_match
+
+    def _validate_result(self, result: dict, exam_type: str = "blank", subject: str = "수학", grade_level: str | None = None) -> tuple[dict, float]:
         """분석 결과 검증 및 신뢰도 점수 계산.
 
         Args:
             result: AI 분석 결과
             exam_type: 시험지 유형 (blank/student/unified)
             subject: 과목 (수학/영어)
+            grade_level: 학년 (예: "중3", "고1") - 토픽 학년 일치 검증용
         """
         confidence = 1.0
         issues = []
@@ -2089,6 +2148,34 @@ class AIEngine:
                     confidence -= 0.03
                     q_confidence -= 0.1
                     issues.append(f"Q{i+1}: 토픽 형식 오류")
+
+                # 학년-토픽 일치 검증: 중학교인데 고교 과목명 사용 시 재매핑
+                if grade_level and " > " in q.get("topic", ""):
+                    topic_parts = q["topic"].split(" > ")
+                    topic_prefix = topic_parts[0].strip()
+                    is_middle = grade_level.startswith("중")
+                    is_high = grade_level.startswith("고")
+                    HIGH_SCHOOL_PREFIXES = {"공통수학1", "공통수학2", "대수", "미적분I", "미적분II",
+                                            "미적분Ⅰ", "미적분Ⅱ", "확률과 통계", "기하"}
+
+                    if is_middle and topic_prefix in HIGH_SCHOOL_PREFIXES:
+                        # 중학교인데 고교 토픽 → 중학교 토픽으로 재매핑
+                        sub_topic = topic_parts[-1].strip() if len(topic_parts) >= 2 else ""
+                        remapped = self._remap_topic_to_grade(sub_topic, grade_level)
+                        if remapped:
+                            q["_original_topic"] = q["topic"]
+                            q["topic"] = remapped
+                            q_confidence -= 0.1
+                            issues.append(f"Q{i+1}: 학년 불일치 토픽 재매핑 ({topic_prefix} → {grade_level})")
+                    elif is_high and topic_prefix.startswith("중"):
+                        # 고등학교인데 중학교 토픽 → 고교 토픽으로 재매핑
+                        sub_topic = topic_parts[-1].strip() if len(topic_parts) >= 2 else ""
+                        remapped = self._remap_topic_to_grade(sub_topic, grade_level)
+                        if remapped:
+                            q["_original_topic"] = q["topic"]
+                            q["topic"] = remapped
+                            q_confidence -= 0.1
+                            issues.append(f"Q{i+1}: 학년 불일치 토픽 재매핑 ({topic_prefix} → {grade_level})")
 
             # 배점 검증 (부동소수점 오류 방지: 소수점 1자리로 반올림)
             points = q.get("points")

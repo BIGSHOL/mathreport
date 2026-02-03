@@ -9,6 +9,8 @@ export interface TemplateProps {
   extension: AnalysisExtension | null | undefined;
   examType: ExamType;
   analysisId: string;
+  /** 학년 (예: "중3", "고1") - 학습대책 키워드 매칭용 */
+  grade?: string;
   onGenerateExtended?: () => Promise<void>;
   isGenerating?: boolean;
   // 정오답 분석 관련

@@ -32,6 +32,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
   extension,
   examType,
   analysisId,
+  grade,
   onGenerateExtended,
   isGenerating,
   hasAnswerAnalysis,
@@ -456,7 +457,7 @@ export const DetailedTemplate = memo(function DetailedTemplate({
 
       {showStrategy && (
         <div data-pdf-section="strategy">
-          <StudyStrategyTab questions={questions} exportOptions={strategyOptions} />
+          <StudyStrategyTab questions={questions} exportOptions={strategyOptions} grade={grade} />
         </div>
       )}
 

@@ -21,6 +21,8 @@ export interface StudyStrategyTabProps {
   questions: QuestionAnalysis[];
   /** 내보내기 모드에서 섹션별 표시 옵션 */
   exportOptions?: StrategyExportOptions;
+  /** 학년 (예: "중3", "고1") - 키워드 매칭 시 학년 필터링용 */
+  grade?: string;
 }
 
 export interface TopicSummary {
