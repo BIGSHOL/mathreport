@@ -568,6 +568,7 @@ export function ExportModal({
                       examType={isAnswered ? 'student' : 'blank'}
                       analysisId={result.id}
                       extension={null}
+                      grade={examGrade}
                       isExport={true}
                       exportMetadata={{
                         examTitle,
@@ -619,6 +620,7 @@ export function ExportModal({
                       examType={isAnswered ? 'student' : 'blank'}
                       analysisId={result.id}
                       extension={null}
+                      grade={examGrade}
                       isExport={true}
                       exportMetadata={{
                         examTitle,
@@ -648,6 +650,7 @@ export function ExportModal({
                       examType={isAnswered ? 'student' : 'blank'}
                       analysisId={result.id}
                       extension={null}
+                      grade={examGrade}
                       isExport={true}
                       exportMetadata={{
                         examTitle,
@@ -676,6 +679,7 @@ export function ExportModal({
                       examType={isAnswered ? 'student' : 'blank'}
                       analysisId={result.id}
                       extension={null}
+                      grade={examGrade}
                       isExport={true}
                       exportMetadata={{
                         examTitle,

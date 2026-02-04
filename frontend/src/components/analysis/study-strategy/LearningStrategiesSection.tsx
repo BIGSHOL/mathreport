@@ -14,6 +14,8 @@ interface LearningStrategiesSectionProps {
   is4Level: boolean;
   expandedTopics: Set<string>;
   toggleTopic: (topic: string) => void;
+  /** 학년 (예: "중3", "고1") - 키워드 매칭 시 학년 필터링용 */
+  grade?: string;
   /** 섹션 펼침 상태 */
   isSectionExpanded?: boolean;
   /** 섹션 토글 핸들러 */
@@ -23,11 +25,11 @@ interface LearningStrategiesSectionProps {
 /**
  * 학습 전략 생성 (교육과정 기반 + 규칙 기반)
  */
-const generateStrategy = (summary: TopicSummary): string[] => {
+const generateStrategy = (summary: TopicSummary, grade?: string): string[] => {
   const strategies: string[] = [];
 
-  // 1. 교육과정 기반 전략 우선 적용
-  const curriculumMatch = findMatchingStrategies(summary.topic);
+  // 1. 교육과정 기반 전략 우선 적용 (학년 필터링)
+  const curriculumMatch = findMatchingStrategies(summary.topic, grade);
   if (curriculumMatch) {
     strategies.push(...curriculumMatch.strategies.slice(0, 3));
   }
@@ -71,6 +73,7 @@ export const LearningStrategiesSection = memo(function LearningStrategiesSection
   is4Level,
   expandedTopics,
   toggleTopic,
+  grade,
   isSectionExpanded = true,
   onToggleSection,
 }: LearningStrategiesSectionProps) {
@@ -111,7 +114,7 @@ export const LearningStrategiesSection = memo(function LearningStrategiesSection
       <div className="divide-y divide-gray-100">
         {topicSummaries.slice(0, 6).map((summary) => {
           const isExpanded = expandedTopics.has(summary.topic);
-          const strategies = generateStrategy(summary);
+          const strategies = generateStrategy(summary, grade);
           const avgDiffIndex = Math.round(summary.avgDifficulty) - 1;
           const diffKeys = is4Level
             ? ['concept', 'pattern', 'reasoning', 'creative']

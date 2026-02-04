@@ -473,7 +473,7 @@ class PromptBuilder:
             return self._get_english_json_schema(exam_paper_type)
         return self._get_math_json_schema(exam_paper_type, grade_level, category)
 
-    # 과목별 예시 토픽 매핑
+    # 과목별 예시 토픽 매핑 (고등학교 세부 과목용)
     CATEGORY_TOPIC_EXAMPLES = {
         "공통수학1": "공통수학1 > 다항식 > 다항식의 연산",
         "공통수학2": "공통수학2 > 도형의 방정식 > 평면좌표",
@@ -486,10 +486,25 @@ class PromptBuilder:
         "기하": "기하 > 이차곡선 > 포물선",
     }
 
+    # 학년별 예시 토픽 매핑 (중학교 + category 없는 고등학교용)
+    GRADE_TOPIC_EXAMPLES = {
+        "중1": "중1 수학 > 문자와 식 > 일차방정식",
+        "중2": "중2 수학 > 부등식과 연립방정식 > 연립일차방정식",
+        "중3": "중3 수학 > 다항식의 곱셈과 인수분해 > 인수분해",
+        "고1": "공통수학1 > 다항식 > 다항식의 연산",
+        "고2": "대수 > 지수함수와 로그함수 > 지수함수",
+        "고3": "미적분II > 여러 가지 미분법 > 여러 가지 함수의 미분",
+    }
+
     def _get_math_json_schema(self, exam_paper_type: str, grade_level: str | None = None, category: str | None = None) -> str:
         """수학 과목 JSON 스키마 (학년별 선택적 콘텐츠 포함)"""
-        # 예시 토픽 동적 결정
-        example_topic = self.CATEGORY_TOPIC_EXAMPLES.get(category, "공통수학1 > 다항식 > 다항식의 연산") if category else "공통수학1 > 다항식 > 다항식의 연산"
+        # 예시 토픽 동적 결정: category > grade_level > 기본값 순서
+        if category:
+            example_topic = self.CATEGORY_TOPIC_EXAMPLES.get(category, "공통수학1 > 다항식 > 다항식의 연산")
+        elif grade_level:
+            example_topic = self.GRADE_TOPIC_EXAMPLES.get(grade_level, "공통수학1 > 다항식 > 다항식의 연산")
+        else:
+            example_topic = "공통수학1 > 다항식 > 다항식의 연산"
 
         base_schema = f"""
 ## 필수 응답 형식 (JSON)

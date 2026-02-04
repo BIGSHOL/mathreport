@@ -42,6 +42,7 @@ type SectionId = 'topicAnalysis' | 'learningStrategies' | 'essay' | 'timeAllocat
 export const StudyStrategyTab = memo(function StudyStrategyTab({
   questions,
   exportOptions,
+  grade,
 }: StudyStrategyTabProps) {
   // exportOptions가 있으면 해당 설정 사용, 없으면 모두 표시
   const shouldShow = (sectionId: SectionId): boolean => {
@@ -562,6 +563,7 @@ export const StudyStrategyTab = memo(function StudyStrategyTab({
             is4Level={is4Level}
             expandedTopics={expandedTopics}
             toggleTopic={toggleTopic}
+            grade={grade}
             isSectionExpanded={expandedSections.has('learningStrategies')}
             onToggleSection={exportOptions ? undefined : () => toggleSection('learningStrategies')}
           />

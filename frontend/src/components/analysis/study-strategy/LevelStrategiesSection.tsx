@@ -168,9 +168,9 @@ export const LevelStrategiesSection = memo(function LevelStrategiesSection({
                     }`}
                   onClick={() => setSelectedBookLevel(isSelected ? null : levelKey)}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-lg font-bold whitespace-nowrap ${level.level === '하위권'
+                  <div className="flex items-center justify-between mb-2 gap-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`text-lg font-bold whitespace-nowrap flex-shrink-0 ${level.level === '하위권'
                         ? 'text-blue-700'
                         : level.level === '중위권'
                           ? 'text-yellow-700'
@@ -178,16 +178,16 @@ export const LevelStrategiesSection = memo(function LevelStrategiesSection({
                         }`}>
                         {level.level}
                       </span>
-                      <span className="text-[10px] bg-white px-1.5 py-0.5 rounded text-gray-600">
+                      <span className="text-[10px] bg-white px-1.5 py-0.5 rounded text-gray-600 truncate">
                         {level.targetGrade}
                       </span>
                       {topicGuides.length > 0 && (
-                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">
+                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium whitespace-nowrap flex-shrink-0">
                           시험 맞춤
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[10px] text-gray-400 whitespace-nowrap flex-shrink-0">
                       {isSelected ? '접기' : '상세보기'}
                     </span>
                   </div>
