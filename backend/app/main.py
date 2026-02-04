@@ -17,6 +17,7 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 # CORS origins - 환경변수에서 로드
 CORS_ORIGINS = settings.cors_origins_list
+print(f"[CORS] Allowed origins: {CORS_ORIGINS}")
 
 
 class ErrorHandlingMiddleware(BaseHTTPMiddleware):

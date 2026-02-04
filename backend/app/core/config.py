@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     SUPABASE_JWT_SECRET: str | None = None  # Supabase Auth JWT 검증용
 
     # CORS - 쉼표로 구분된 허용 도메인 목록
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,https://math-report.vercel.app"
 
     # Environment
     ENVIRONMENT: str = "development"  # development, staging, production
@@ -55,10 +55,19 @@ class Settings(BaseSettings):
             self.SUPABASE_DB_USER is not None
         )
 
+    # 프로덕션 CORS 필수 도메인 (환경변수와 무관하게 항상 포함)
+    _REQUIRED_ORIGINS: list[str] = [
+        "https://math-report.vercel.app",
+    ]
+
     @property
     def cors_origins_list(self) -> list[str]:
-        """CORS origins를 리스트로 반환"""
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        """CORS origins를 리스트로 반환 (필수 도메인 항상 포함)"""
+        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        for req in self._REQUIRED_ORIGINS:
+            if req not in origins:
+                origins.append(req)
+        return origins
 
     @property
     def is_production(self) -> bool:
